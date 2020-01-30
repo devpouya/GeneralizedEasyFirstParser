@@ -1,1 +1,1 @@
-conda activate mislabels
+conda activate dep-parser
