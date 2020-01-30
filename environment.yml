@@ -1,0 +1,18 @@
+name: dep-parser
+channels:
+  - defaults
+  - conda-forge
+  - pytorch
+dependencies:
+  - python=3.7
+  - numpy
+  - pandas
+  - scikit-learn
+  - networkx
+  - tqdm
+  - matplotlib
+  - pylint
+  - pip
+  - pip:
+    - seaborn
+    - ipdb
