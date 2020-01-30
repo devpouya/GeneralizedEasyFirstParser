@@ -21,5 +21,4 @@ $ # conda install pytorch==1.0.0 torchvision==0.2.1 cuda80 -c pytorch
 Get Universal Dependencies data in [https://universaldependencies.org/#download].
 ```bash
 $ make get_ud
-$ # conda install pytorch==1.0.0 torchvision==0.2.1 cuda80 -c pytorch
 ```
