@@ -1,6 +1,5 @@
 # dep-parser
 
-[![CircleCI](https://circleci.com/gh/tpimentelms/dep-parser.svg?style=svg&circle-token=ee712c838da05c2a7b580214784903b89b85ae44)](https://circleci.com/gh/tpimentelms/dep-parser)
 Code to train a dependency parser model
 
 
