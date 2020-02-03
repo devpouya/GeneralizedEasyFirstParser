@@ -39,12 +39,16 @@ bad-names=foo,
 # Good variable names which should always be accepted, separated by a comma.
 good-names=i,
            j,
+           k,
            df,
            m,
            f,
            x,
            y,
-           device
+           device,
+           A,
+           D,
+           L
 
 max-args=8
 
