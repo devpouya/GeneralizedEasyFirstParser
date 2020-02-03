@@ -7,7 +7,7 @@ sys.path.append('./src/')
 from h02_learn.dataset import get_data_loaders
 from h02_learn.model import BiaffineParser, MSTParser
 from h02_learn.train_info import TrainInfo
-from h02_learn.algorithms.mst import get_mst_batch
+from h02_learn.algorithm.mst import get_mst_batch
 from utils import constants
 from utils import utils
 
@@ -19,7 +19,6 @@ def get_args():
     parser.add_argument('--data-path', type=str, default='data/')
     parser.add_argument('--batch-size', type=int, default=32)
     parser.add_argument('--batch-size-eval', type=int, default=128)
-    parser.add_argument('--unlabeled-path', type=str)
     # Model
     parser.add_argument('--nlayers', type=int, default=3)
     parser.add_argument('--embedding-size', type=int, default=100)
