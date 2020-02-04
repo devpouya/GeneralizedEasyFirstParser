@@ -1,6 +1,8 @@
 # dep-parser
 
-Code to train a dependency parser model
+[![CircleCI](https://circleci.com/gh/tpimentelms/dep-parser.svg?style=svg&circle-token=e282f0a5450b745a18358ad5b01ae8b1f0f9b02d)](https://circleci.com/gh/tpimentelms/dep-parser)
+
+Code to train a dependency parser model.
 
 
 ## Install
@@ -22,3 +24,21 @@ Get Universal Dependencies data in [https://universaldependencies.org/#download]
 ```bash
 $ make get_ud
 ```
+
+## Running the code
+
+First preprocess the data for the language you are using:
+```bash
+$ python src/h01_data/process.py --language <language-code> --glove-file <glove-vectors-filename>
+```
+Where language is the ISO 639-1 code for the language, and glove file is the path to a txt file containing one word and its embedding per line.
+GloVe embeddings for wikipedia can be trained with [this repository](https://github.com/tpimentelms/GloVe).
+
+Then, train the model with the command:
+```bash
+$ python src/h02_learn/train.py --language <language-code>
+```
+This code will, by default, train a [Deep Biaffine Parser](https://arxiv.org/abs/1611.01734).
+To train the model using the [MST parser loss](https://arxiv.org/abs/1701.00874) add the argument `--model mst`.
+
+This code, will by default look for data in the `./data` path. To change it (either during data preprocessing or training) use the argument `--data-path <data-path>`.
