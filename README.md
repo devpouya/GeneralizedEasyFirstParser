@@ -40,3 +40,5 @@ $ python src/h02_learn/train.py --language <language-code>
 ```
 This code will, by default, train a [Deep Biaffine Parser](https://arxiv.org/abs/1611.01734).
 To train the model using the [MST parser loss](https://arxiv.org/abs/1701.00874) add the argument `--model mst`.
+
+This code, will by default look for data in the `./data` path. To change it (either during data preprocessing or training) use the argument `--data-path <data-path>`.
