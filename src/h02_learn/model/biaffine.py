@@ -3,6 +3,7 @@ import torch.nn as nn
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 import torch.nn.functional as F
 
+from utils import constants
 from .base import BaseParser
 from .modules import Biaffine, Bilinear
 from .word_embedding import WordEmbedding
@@ -54,9 +55,18 @@ class BiaffineParser(BaseParser):
 
         if head is None:
             head = h_logits.argmax(-1)
+
         l_logits = self.get_label_logits(h_t, head)
 
         return h_logits, l_logits
+
+    @staticmethod
+    def loss(h_logits, l_logits, heads, rels):
+        criterion_h = nn.CrossEntropyLoss(ignore_index=-1).to(device=constants.device)
+        criterion_l = nn.CrossEntropyLoss(ignore_index=0).to(device=constants.device)
+        loss = criterion_h(h_logits.reshape(-1, h_logits.shape[-1]), heads.reshape(-1))
+        loss += criterion_l(l_logits.reshape(-1, l_logits.shape[-1]), rels.reshape(-1))
+        return loss
 
     def get_embeddings(self, x):
         return torch.cat([self.words_embedding(x[0]), self.tags_embedding(x[1])], dim=-1)
