@@ -17,7 +17,7 @@ TODO: Need to add the built tree embeddings to each
 
 class Arcs:
     def __init__(self):
-        self.arcs = []
+        self.arcs = []#torch.tensor([]).to(device=constants.device)
 
     def add_arc(self, i, j):
         self.arcs.append((i, j))
@@ -31,7 +31,7 @@ class Arcs:
 
 class Stack:
     def __init__(self):
-        self.stack = []
+        self.stack =[]# torch.tensor([]).to(device=constants.device)
 
     def push(self, x):
         self.stack.append(x)
@@ -74,7 +74,7 @@ class Buffer:
 
 
 # implement as lambda functions?!!
-root = (torch.tensor(1), torch.tensor(1))
+root = (torch.tensor(1).to(device=constants.device), torch.tensor(1).to(device=constants.device))
 shift = "SHIFT"
 shift_idx = 0
 fshift = lambda sigma, beta, A: sigma.push(beta.pop_left())
