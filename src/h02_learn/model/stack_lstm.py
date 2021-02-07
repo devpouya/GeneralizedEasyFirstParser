@@ -207,9 +207,9 @@ class ArcStandardStackLSTM(BaseParser):
         self.act2embed = {}
         self.embed2act = {}
 
-        self.shift_embedding = self.action_embeddings(torch.LongTensor([0]))
-        self.reduce_l_embedding = self.action_embeddings(torch.LongTensor([1]))
-        self.reduce_r_embedding = self.action_embeddings(torch.LongTensor([2]))
+        self.shift_embedding = self.action_embeddings(torch.LongTensor([0]).to(device=constants.device))
+        self.reduce_l_embedding = self.action_embeddings(torch.LongTensor([1]).to(device=constants.device))
+        self.reduce_r_embedding = self.action_embeddings(torch.LongTensor([2]).to(device=constants.device))
 
         self.shift_embedding = self.shift_embedding.reshape(1, self.shift_embedding.shape[0],
                                                             self.shift_embedding.shape[1])
