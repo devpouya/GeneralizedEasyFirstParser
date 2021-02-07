@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import networkx as nx
 import matplotlib.pyplot as plt
+from utils import constants
 
 
 class PointerLSTM(nn.Module):
@@ -12,7 +13,7 @@ class PointerLSTM(nn.Module):
         self.hidden_size = hidden_size
         self.input_size = input_size
         self.lstm_cell = torch.nn.LSTM(input_size=input_size, hidden_size=hidden_size, num_layers=1,
-                                       dropout=dropout, batch_first=batch_first, bidirectional=False)
+                                       dropout=dropout, batch_first=batch_first, bidirectional=False).to(device=constants.device)
 
         self.id = id
         # self.lstm_cell = torch.nn.LSTMCell(input_size=input_size, hidden_size=hidden_size)
