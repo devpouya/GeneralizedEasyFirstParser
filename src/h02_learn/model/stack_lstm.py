@@ -146,7 +146,7 @@ class ShiftReduceParser():
         self.action_history_names.append(reduce_l)
         self.action_history.append(act_emb)
 
-        repr = torch.cat([item_top[0], item_second[0], act_emb.reshape(self.embedding_size)], dim=-1).to(device=constants.device)
+        repr = torch.cat([item_top[0], item_second[0], act_emb.reshape(self.embedding_size)], dim=-1)#.to(device=constants.device)
         c = self.tanh(self.linear(repr))
         #self.ind2continous[item_top[1]] = c
         self.stack.set_top(c)
@@ -158,7 +158,7 @@ class ShiftReduceParser():
         self.action_history_names.append(reduce_r)
         self.action_history.append(act_emb)
 
-        repr = torch.cat([second_item[0], top_item[0], act_emb.reshape(self.embedding_size)], dim=-1).to(device=constants.device)
+        repr = torch.cat([second_item[0], top_item[0], act_emb.reshape(self.embedding_size)], dim=-1)#.to(device=constants.device)
         c = self.tanh(self.linear(repr))
         #self.ind2continous[second_item[1]] = c
         self.stack.set_top(c)
@@ -250,7 +250,7 @@ class ArcStandardStackLSTM(BaseParser):
         return word_embeddings, tag_embeddings, action_embedding
 
     def get_embeddings(self, x):
-        return torch.cat([self.word_embeddings(x[0]), self.tag_embeddings(x[1])], dim=-1).to(device=constants.device)
+        return torch.cat([self.word_embeddings(x[0]), self.tag_embeddings(x[1])], dim=-1)#.to(device=constants.device)
 
     def get_action_embeddings(self, action_history):
         # ret_emb = torch.empty((len(action_history), self.action_embeddings.embedding_dim))
@@ -318,7 +318,7 @@ class ArcStandardStackLSTM(BaseParser):
             bo = self.buffer_lstm(buffer_state)[0]
 
             ao = self.action_lstm(action_embeddings)[0].reshape(1, bo.shape[1])
-            state = torch.cat([so, bo, ao], dim=-1).to(constants.device)
+            state = torch.cat([so, bo, ao], dim=-1)#.to(constants.device)
 
         return state
 
@@ -334,7 +334,7 @@ class ArcStandardStackLSTM(BaseParser):
         if (len(parser.stack.stack) > 1) and (len(parser.buffer.buffer) > 0):
             return best_action
         elif len(parser.buffer.buffer) == 0:
-            probs = torch.cat([probs[:, 1], probs[:, 2]]).to(device=constants.device)
+            probs = torch.cat([probs[:, 1], probs[:, 2]])#.to(device=constants.device)
             return torch.argmax(probs).item() + 1
         else:
             return 0
