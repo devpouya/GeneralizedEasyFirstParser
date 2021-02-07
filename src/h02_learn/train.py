@@ -5,7 +5,7 @@ import torch.optim as optim
 
 sys.path.append('./src/')
 from h02_learn.dataset import get_data_loaders
-from h02_learn.model import BiaffineParser, MSTParser
+from h02_learn.model import BiaffineParser, MSTParser, ArcStandardStackLSTM
 from h02_learn.train_info import TrainInfo
 from h02_learn.algorithm.mst import get_mst_batch
 from utils import constants
@@ -26,7 +26,7 @@ def get_args():
     parser.add_argument('--arc-size', type=int, default=500)
     parser.add_argument('--label-size', type=int, default=100)
     parser.add_argument('--dropout', type=float, default=.33)
-    parser.add_argument('--model', choices=['biaffine', 'mst'], default='biaffine')
+    parser.add_argument('--model', choices=['biaffine', 'mst', 'transition'], default='transition')
     # Optimization
     parser.add_argument('--optim', choices=['adam', 'adamw'], default='adamw')
     parser.add_argument('--eval-batches', type=int, default=20)
@@ -56,6 +56,11 @@ def get_optimizer(paramters, optim_alg, lr_decay):
 def get_model(vocabs, embeddings, args):
     if args.model == 'mst':
         return MSTParser(
+            vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size,
+            nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings) \
+            .to(device=constants.device)
+    elif args.model == 'transition':
+        return ArcStandardStackLSTM(
             vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size,
             nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings) \
             .to(device=constants.device)
@@ -123,7 +128,11 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
 
     while not train_info.finish:
         for (text, pos), (heads, rels) in trainloader:
+            print("rels {}".format(heads))
+            print(heads.shape)
+            print(text.shape)
             loss = train_batch(text, pos, heads, rels, model, optimizer)
+            print(loss)
             train_info.new_batch(loss)
             if train_info.eval:
                 dev_results = evaluate(devloader, model)

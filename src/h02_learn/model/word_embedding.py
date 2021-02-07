@@ -42,3 +42,22 @@ class WordEmbedding(nn.Module):
 
     def forward(self, x):
         return self.embedding(x)
+
+class ActionEmbedding(nn.Module):
+    # pylint: disable=arguments-differ
+    def __init__(self, actions, embedding_size):
+        super().__init__()
+        self.actions = actions
+        self.action_size = len(actions)
+        self.embedding_size = embedding_size
+
+        pretrained_tensor = torch.zeros(size=(self.action_size,self.embedding_size))
+        for i in range(self.action_size):
+            pretrained_tensor[i,i] = 1
+
+        self.embedding = nn.Embedding(self.action_size, self.embedding_size,
+                                      _weight=pretrained_tensor, padding_idx=0)
+        self.embedding.weight.requires_grad = False
+
+    def forward(self, x):
+        return self.embedding(x)
