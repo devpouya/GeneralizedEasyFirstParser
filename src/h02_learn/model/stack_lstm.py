@@ -123,8 +123,8 @@ class ShiftReduceParser():
         self.embedding_size = embedding_size
 
         self.ind2continous = {i: vec for (vec, i) in self.buffer.buffer}
-        self.linear = nn.Linear(5 * embedding_size, 2 * embedding_size)
-        self.tanh = nn.Tanh()
+        self.linear = nn.Linear(5 * embedding_size, 2 * embedding_size).to(device=constants.device)
+        self.tanh = nn.Tanh().to(device=constants.device)
 
     def get_stack_content(self):
         return [item[0] for item in self.stack.stack]
