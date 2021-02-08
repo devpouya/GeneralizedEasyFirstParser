@@ -42,7 +42,6 @@ def get_args():
     args.wait_iterations = args.wait_epochs * args.eval_batches
     args.save_path = '%s/%s/%s/%s/' % (args.checkpoints_path, args.language, args.model, args.batch_size)
     utils.config(args.seed)
-    print(args.save_path)
     return args
 
 
@@ -138,13 +137,10 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
     # pylint: disable=too-many-locals,too-many-arguments
     optimizer, lr_scheduler = get_optimizer(model.parameters(), optim_alg, lr_decay)
     train_info = TrainInfo(wait_iterations, eval_batches)
-    i = 1
     while not train_info.finish:
         for (text, pos), (heads, rels) in trainloader:
 
             loss = train_batch(text, pos, heads, rels, model, optimizer)
-            print("Loss for iter {} is {}".format(i, loss))
-            i += 1
             train_info.new_batch(loss)
             if train_info.eval:
                 dev_results = evaluate(devloader, model)
