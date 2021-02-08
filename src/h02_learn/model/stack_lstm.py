@@ -202,7 +202,6 @@ class ArcStandardStackLSTM(BaseParser):
         self.word_embeddings, self.tag_embeddings, self.action_embeddings = \
             self.create_embeddings(vocabs, pretrained=pretrained_embeddings)
 
-        #print(self.action_embeddings)
         # should have a mapping from actions to embedding
         self.act2embed = {}
         self.embed2act = {}
@@ -262,15 +261,13 @@ class ArcStandardStackLSTM(BaseParser):
         return torch.stack(action_history).squeeze_(0)
 
     def get_stack_or_buffer_embeddings(self, structure):
-        ret_emb = torch.empty((len(structure), self.embedding_size))
+        #ret_emb = torch.empty((len(structure), self.embedding_size))
         ret_emb = self.get_embeddings(structure)
-        # for i, item in enumerate(structure):
-        #    print(item.type)
-        #    ret_emb[i, :] = self.get_embeddings(item)
+
         return ret_emb
 
     def shift(self):
-        self.stack_lstm.create_and_push()
+        self.stack_lstm.push()
         self.action_lstm(self.shift_embedding)
 
     def reduce_l(self):
@@ -285,7 +282,6 @@ class ArcStandardStackLSTM(BaseParser):
 
         prob = self.chooser_linear(parser_state)
         prob = self.chooser_relu(prob)
-        # prob = self.chooser_softmax(prob)
 
         return torch.argmax(prob).item(), prob
 
@@ -293,9 +289,6 @@ class ArcStandardStackLSTM(BaseParser):
         parser_stack = parser.get_stack_content()
         parser_buffer = parser.get_buffer_content()
         if len(parser_stack) > 1:
-            #print("parser_stack")
-            #for ting in parser_stack:
-            #    print(ting.shape)
             stack_state = torch.stack(parser_stack)
         else:
             stack_state = parser_stack[0]
@@ -309,16 +302,14 @@ class ArcStandardStackLSTM(BaseParser):
             buffer_state = parser_buffer[0]
 
         action_history = parser.action_history
-        # stack_embeddings = self.get_stack_or_buffer_embeddings(stack_state.stack)
-        # buffer_embeddings = self.get_stack_or_buffer_embeddings(buffer_state.buffer)
+
         action_embeddings = action_history[-1]
-        # action_embeddings = action_embeddings.reshape(action_embeddings.shape[0],1,action_embeddings.shape[1])
         with torch.no_grad():
             so = self.stack_lstm(stack_state)[0]
             bo = self.buffer_lstm(buffer_state)[0]
 
             ao = self.action_lstm(action_embeddings)[0].reshape(1, bo.shape[1])
-            state = torch.cat([so, bo, ao], dim=-1)#.to(constants.device)
+            state = torch.cat([so, bo, ao], dim=-1)
 
         return state
 
@@ -334,62 +325,38 @@ class ArcStandardStackLSTM(BaseParser):
         if (len(parser.stack.stack) > 1) and (len(parser.buffer.buffer) > 0):
             return best_action
         elif len(parser.buffer.buffer) == 0:
-            probs = torch.cat([probs[:, 1], probs[:, 2]])#.to(device=constants.device)
+            probs = torch.cat([probs[:, 1], probs[:, 2]])
             return torch.argmax(probs).item() + 1
         else:
             return 0
 
     def parse_step(self, parser):
-
-        # get action_id
         best_action, probs = self.decide_action(parser)
         best_action = self.best_legal_action(best_action, parser, probs)
-        # print("BEST ACTION {}".format(best_action))
-        # take action and update state
-        # if(len(parser.stack.stack) > 1) and len(parser.buffer.buffer > 0):
-
         if best_action == 0:
-            # print("SHIFT STACK {}".format(len(parser.stack.stack)))
-            # print("SHIFT BUFFER {}".format(len(parser.buffer.buffer)))
             self.shift()
             parser.shift(self.shift_embedding)
         elif best_action == 1:
-            # print("REDUCE-L STACK {}".format(len(parser.stack.stack)))
-            # print("REDUCE-L BUFFER {}".format(len(parser.buffer.buffer)))
             self.reduce_l()
             parser.reduce_l(self.reduce_l_embedding)
         else:
-            # print("REDUCE-R STACK {}".format(len(parser.stack.stack)))
-            # print("REDUCE-R BUFFER {}".format(len(parser.buffer.buffer)))
             self.reduce_r()
             parser.reduce_r(self.reduce_r_embedding)
-        # elif len(parser.buffer.buffer > 0):
-        #    print("SHIFT STACK {}".format(len(parser.stack.stack)))
-        #    print("SHIFT BUFFER {}".format(len(parser.buffer.buffer)))
-        #    self.shift()
-        #    parser.shift(self.shift_embedding)
-
         return parser
 
     def forward(self, x, head=None):
-        # parse each sentence completley, then compare rels and heads
-        #print(x[0][0, :])
         x_emb = self.dropout(self.get_embeddings(x))
         sent_lens = (x[0] != 0).sum(-1)
-        # shape is [batch_size,3 concatenaded embeddings]
-        # h_t = torch.zeros((x_emb.shape[0], torch.max(sent_lens).item()))
         h_t = torch.zeros((x_emb.shape[0], torch.max(sent_lens).item(), self.embedding_size * 2))\
             .to(device=constants.device)
         for i, sentence in enumerate(x_emb):
-            #print(sentence.shape)
-
             parser = ShiftReduceParser(sentence, self.embedding_size)
             # init stack_lstm pointer and buffer_lstm pointer
             if i > 0:
                 self.stack_lstm.set_top(0)
                 self.buffer_lstm.set_top(0)
             for word in sentence:
-                self.buffer_lstm.create_and_push()
+                self.buffer_lstm.push()
             self.buffer_lstm(sentence)
             # push ROOT to the stack
             parser.stack.push((self.get_embeddings(root), -1))
@@ -405,11 +372,7 @@ class ArcStandardStackLSTM(BaseParser):
             # action_emb = self.get_action_embeddings(parser.action_history)
             h_t[i, :, :] = heads  # self.word_embeddings(heads)
 
-        # h_t = self.get_embeddings(h_t)
-        # print(h_t.shape)
 
-        #print(h_t[0])
-        # h_t = self.run_lstm(h_t, sent_lens)
         h_logits = self.get_head_logits(h_t, sent_lens)
         if head is None:
             head = h_logits.argmax(-1)

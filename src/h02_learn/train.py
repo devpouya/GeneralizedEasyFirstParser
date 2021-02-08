@@ -125,14 +125,13 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
     # pylint: disable=too-many-locals,too-many-arguments
     optimizer, lr_scheduler = get_optimizer(model.parameters(), optim_alg, lr_decay)
     train_info = TrainInfo(wait_iterations, eval_batches)
-
+    i = 1
     while not train_info.finish:
         for (text, pos), (heads, rels) in trainloader:
-            print("rels {}".format(heads))
-            print(heads.shape)
-            print(text.shape)
+
             loss = train_batch(text, pos, heads, rels, model, optimizer)
-            print(loss)
+            print("Loss for iter {} is {}".format(i,loss))
+            i+=1
             train_info.new_batch(loss)
             if train_info.eval:
                 dev_results = evaluate(devloader, model)

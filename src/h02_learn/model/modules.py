@@ -16,7 +16,6 @@ class PointerLSTM(nn.Module):
                                        dropout=dropout, batch_first=batch_first, bidirectional=False).to(device=constants.device)
 
         self.id = id
-        # self.lstm_cell = torch.nn.LSTMCell(input_size=input_size, hidden_size=hidden_size)
 
         if self.prev_lstm is None:
             self.is_root = True
@@ -54,14 +53,26 @@ class StackLSTM(nn.Module):
         # self.top_index = self.lstm2indx[self.top]
         self.top_index = self.top.id
 
-    def push(self, lstm):
+    def push(self, lstm=None):
+        # if top = length of list
+        # create and push
+        # else, just push (don't add new lstm)
         # lstm has to be a PointerLSTM
         # assert(isinstance(lstm,PointerLSTM))
-        lstm.prev_lstm = self.top
-        self.top = lstm
+        if self.top_index >= len(self.lstm_list)-1:
+            self.create_and_push()
+        else:
+            # move top_lstm by one
+            self.top_index += 1
+            prev = self.top
+            self.top = self.lstm_list[self.top_index]
+            self.top.prev_lstm = prev
 
-        self.top_index = self.lstm2indx[self.top]
-        self.lstm_list.append(lstm)
+        #lstm.prev_lstm = self.top
+        #self.top = lstm
+
+        # self.top_index = self.lstm2indx[self.top]
+        # self.lstm_list.append(lstm)
         # self.lstm2indx[lstm] = len(self.lstm_list) - 1
 
     def create_and_push(self, lstm=None):
