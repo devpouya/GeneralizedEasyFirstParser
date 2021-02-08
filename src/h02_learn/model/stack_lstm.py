@@ -9,180 +9,14 @@ from utils import constants
 from .base import BaseParser
 from .modules import Biaffine, Bilinear, StackLSTM
 from .word_embedding import WordEmbedding, ActionEmbedding
+from ..algorithm.transition_parsers import ShiftReduceParser, arc_standard, arc_eager, hybrid
 
-"""
-TODO: Need to add the built tree embeddings to each 
-"""
-
-
-class Arcs:
-    def __init__(self):
-        self.arcs = []#torch.tensor([]).to(device=constants.device)
-
-    def add_arc(self, i, j):
-        self.arcs.append((i, j))
-
-    def has_incoming(self, a):
-        for (src, dst) in self.arcs:
-            if dst == a:
-                return True
-        return False
-
-
-class Stack:
-    def __init__(self):
-        self.stack =[]# torch.tensor([]).to(device=constants.device)
-
-    def push(self, x):
-        self.stack.append(x)
-
-    def pop(self):
-        return self.stack.pop(-1)
-
-    def pop_second(self):
-        return self.stack.pop(-2)
-
-    def second(self):
-        return self.stack[-2]
-
-    def set_second(self, x):
-        (_,ind) = self.stack[-2]
-        self.stack[-2] = (x,ind)
-
-    def top(self):
-        return self.stack[-1]
-
-    def set_top(self, x):
-        (_,ind) = self.stack[-1]
-        self.stack[-1] = (x,ind)
-    def get_len(self):
-        return len(self.stack)
-
-
-class Buffer:
-    def __init__(self, sentence):
-        self.buffer = [(word, i) for i, word in enumerate(sentence)]  # .split()
-
-    def pop_left(self):
-        return self.buffer.pop(0)
-
-    def left(self):
-        return self.buffer[0]
-
-    def get_len(self):
-        return len(self.buffer)
-
-
-# implement as lambda functions?!!
+# CONSTANTS and NAMES
+# root used to initialize the stack with \sigma_0
 root = (torch.tensor(1).to(device=constants.device), torch.tensor(1).to(device=constants.device))
-shift = "SHIFT"
-shift_idx = 0
-fshift = lambda sigma, beta, A: sigma.push(beta.pop_left())
-
-reduce_l = "REDUCE_L"
-reduce_l_idx = 1
-freduce_l = lambda sigma, beta, A: A.add_arc(sigma.top(), sigma.pop_second())
-
-reduce_r = "REDUCE_R"
-reduce_r_idx = 2
-freduce_r = lambda sigma, beta, A: A.add_arc(sigma.second(), sigma.pop())
-
-reduce = "REDUCE"
-freduce = lambda sigma, beta, A: sigma.pop() if A.has_incoming(sigma.top()) else None
-
-left_arc_eager = "LEFT_ARC_EAGER"
-fleft_arc_eager = lambda sigma, beta, A: A.add_arc(beta.left(), sigma.pop()) if not A.has_incoming(
-    sigma.top()) else None
-
-right_arc_eager = "RIGHT_ARC_EAGER"
-fright_arc_eager = lambda sigma, beta, A: A.add_arc(sigma.top(), sigma.push(beta.pop_left()))
-
-left_arc = "LEFT_ARC_H"
-fleft_arc = lambda sigma, beta, A: A.add_arc(beta.left(), sigma.pop())
-
-arc_standard = {shift: 0, reduce_l: 1, reduce_r: 2}
-arc_standard_actions = {0: fshift, 1: freduce_l, 2: freduce_r}
-
-arc_eager = {shift: 0, left_arc_eager: 1, right_arc_eager: 2, reduce: 3}
-arc_eager_actions = {0: fshift, 1: fleft_arc_eager, 2: fright_arc_eager, 3: freduce}
-
-hybrid = {shift: 0, left_arc: 1, reduce_r: 2}
-hybrid_actions = {0: fshift, 1: fleft_arc, 2: freduce_r}
 
 
-class ShiftReduceParser():
-
-    def __init__(self, sentence, embedding_size):
-        self.stack = Stack()
-        self.buffer = Buffer(sentence)
-        self.arcs = Arcs()
-        self.action_history = []
-        self.action_history_names = []
-        self.sentence = sentence
-        self.learned_repr = sentence
-        self.embedding_size = embedding_size
-
-        self.ind2continous = {i: vec for (vec, i) in self.buffer.buffer}
-        self.linear = nn.Linear(5 * embedding_size, 2 * embedding_size).to(device=constants.device)
-        self.tanh = nn.Tanh().to(device=constants.device)
-
-    def get_stack_content(self):
-        return [item[0] for item in self.stack.stack]
-
-    def get_buffer_content(self):
-        return [item[0] for item in self.buffer.buffer]
-
-    def shift(self, act_emb):
-        item = self.buffer.pop_left()
-        self.stack.push(item)
-        self.action_history_names.append(shift)
-        self.action_history.append(act_emb)
-
-    def reduce_l(self, act_emb):
-        item_top = self.stack.top()
-        item_second = self.stack.pop_second()
-        # self.arcs.add_arc(item_top, item_second)
-        self.arcs.add_arc(item_top[1], item_second[1])
-        self.action_history_names.append(reduce_l)
-        self.action_history.append(act_emb)
-
-        repr = torch.cat([item_top[0], item_second[0], act_emb.reshape(self.embedding_size)], dim=-1)#.to(device=constants.device)
-        c = self.tanh(self.linear(repr))
-        #self.ind2continous[item_top[1]] = c
-        self.stack.set_top(c)
-
-    def reduce_r(self, act_emb):
-        second_item = self.stack.second()
-        top_item = self.stack.pop()
-        self.arcs.add_arc(second_item[1], top_item[1])
-        self.action_history_names.append(reduce_r)
-        self.action_history.append(act_emb)
-
-        repr = torch.cat([second_item[0], top_item[0], act_emb.reshape(self.embedding_size)], dim=-1)#.to(device=constants.device)
-        c = self.tanh(self.linear(repr))
-        #self.ind2continous[second_item[1]] = c
-        self.stack.set_top(c)
-
-    def is_parse_complete(self):
-        buffer_empty = self.buffer.get_len() == 0
-        stack_empty = self.stack.get_len() == 1
-        complete = buffer_empty and stack_empty
-        return complete
-
-    def get_heads(self):
-        # heads = np.empty((1, len(self.sentence)))
-        heads = torch.zeros((1, len(self.sentence), self.embedding_size * 2)).to(device=constants.device)
-        with torch.no_grad():
-            for i in range(len(self.sentence)):
-                for j in range(len(self.sentence)):
-                    if (j, i) in self.arcs.arcs:
-                        heads[0, i, :] = self.ind2continous[j]
-                        continue
-
-        return heads
-
-
-class ArcStandardStackLSTM(BaseParser):
+class ExtendibleStackLSTMParser(BaseParser):
     def __init__(self, vocabs, embedding_size, hidden_size, arc_size, label_size,
                  nlayers=3, dropout=0.33, pretrained_embeddings=None, transition_system=None):
         super().__init__()
@@ -194,32 +28,15 @@ class ArcStandardStackLSTM(BaseParser):
         self.label_size = label_size
         self.nlayers = nlayers
         self.dropout_p = dropout
-        self.actions = [shift, reduce_l, reduce_r]
-        self.transition_ids = arc_standard
+        self.actions = transition_system[0]  # [shift, reduce_l, reduce_r]
+        self.transition_ids = transition_system[1]  # arc_standard
         _, _, rels = vocabs
 
         # continous representations
         self.word_embeddings, self.tag_embeddings, self.action_embeddings = \
             self.create_embeddings(vocabs, pretrained=pretrained_embeddings)
 
-        # should have a mapping from actions to embedding
-        self.act2embed = {}
-        self.embed2act = {}
-
-        self.shift_embedding = self.action_embeddings(torch.LongTensor([0]).to(device=constants.device))
-        self.reduce_l_embedding = self.action_embeddings(torch.LongTensor([1]).to(device=constants.device))
-        self.reduce_r_embedding = self.action_embeddings(torch.LongTensor([2]).to(device=constants.device))
-
-        self.shift_embedding = self.shift_embedding.reshape(1, self.shift_embedding.shape[0],
-                                                            self.shift_embedding.shape[1])
-        self.reduce_l_embedding = self.reduce_l_embedding.reshape(1, self.reduce_l_embedding.shape[0],
-                                                                  self.reduce_l_embedding.shape[1])
-        self.reduce_r_embedding = self.reduce_r_embedding.reshape(1, self.reduce_r_embedding.shape[0],
-                                                                  self.reduce_r_embedding.shape[1])
-
         # stack lstms
-        # dimensions are just random now
-        # new lstms for every sentence?????
         self.buffer_lstm = StackLSTM(embedding_size * 2, int(hidden_size / 2), dropout=(dropout if nlayers > 1 else 0),
                                      batch_first=True, bidirectional=False)
         self.stack_lstm = StackLSTM(embedding_size * 2, int(hidden_size / 2), dropout=(dropout if nlayers > 1 else 0),
@@ -228,13 +45,13 @@ class ArcStandardStackLSTM(BaseParser):
                                    batch_first=True, bidirectional=False)
 
         # mlp for deciding actions
-        self.chooser_linear = nn.Linear(embedding_size * 2 * 3, 3).to(device=constants.device)
+        self.chooser_linear = nn.Linear(embedding_size * 2 * 3, len(self.actions)).to(device=constants.device)
         self.chooser_relu = nn.ReLU().to(device=constants.device)
         self.chooser_softmax = nn.Softmax().to(device=constants.device)
         self.dropout = nn.Dropout(dropout).to(device=constants.device)
 
-        self.linear_arc_dep = nn.Linear(self.embedding_size*2, arc_size).to(device=constants.device)
-        self.linear_arc_head = nn.Linear(self.embedding_size*2, arc_size).to(device=constants.device)
+        self.linear_arc_dep = nn.Linear(self.embedding_size * 2, arc_size).to(device=constants.device)
+        self.linear_arc_head = nn.Linear(self.embedding_size * 2, arc_size).to(device=constants.device)
         self.biaffine = Biaffine(arc_size, arc_size)
 
         self.linear_label_dep = nn.Linear(self.embedding_size * 2, label_size).to(device=constants.device)
@@ -249,7 +66,7 @@ class ArcStandardStackLSTM(BaseParser):
         return word_embeddings, tag_embeddings, action_embedding
 
     def get_embeddings(self, x):
-        return torch.cat([self.word_embeddings(x[0]), self.tag_embeddings(x[1])], dim=-1)#.to(device=constants.device)
+        return torch.cat([self.word_embeddings(x[0]), self.tag_embeddings(x[1])], dim=-1)
 
     def get_action_embeddings(self, action_history):
         # ret_emb = torch.empty((len(action_history), self.action_embeddings.embedding_dim))
@@ -261,20 +78,10 @@ class ArcStandardStackLSTM(BaseParser):
         return torch.stack(action_history).squeeze_(0)
 
     def get_stack_or_buffer_embeddings(self, structure):
-        #ret_emb = torch.empty((len(structure), self.embedding_size))
+        # ret_emb = torch.empty((len(structure), self.embedding_size))
         ret_emb = self.get_embeddings(structure)
 
         return ret_emb
-
-    def shift(self):
-        self.stack_lstm.push()
-        self.action_lstm(self.shift_embedding)
-
-    def reduce_l(self):
-        self.action_lstm(self.reduce_l_embedding)
-
-    def reduce_r(self):
-        self.action_lstm(self.reduce_r_embedding)
 
     def decide_action(self, parser):
 
@@ -313,41 +120,19 @@ class ArcStandardStackLSTM(BaseParser):
 
         return state
 
-    def run_lstm(self, lstm, x, sent_lens):
-        lstm_in = pack_padded_sequence(x, sent_lens, batch_first=True, enforce_sorted=False)
-        lstm_out, _ = lstm(lstm_in)
-        h_t, _ = pad_packed_sequence(lstm_out, batch_first=True)
-        h_t = self.dropout(h_t).contiguous()
-
-        return h_t
-
     def best_legal_action(self, best_action, parser, probs):
-        if (len(parser.stack.stack) > 1) and (len(parser.buffer.buffer) > 0):
-            return best_action
-        elif len(parser.buffer.buffer) == 0:
-            probs = torch.cat([probs[:, 1], probs[:, 2]])
-            return torch.argmax(probs).item() + 1
-        else:
-            return 0
+        pass
 
     def parse_step(self, parser):
-        best_action, probs = self.decide_action(parser)
-        best_action = self.best_legal_action(best_action, parser, probs)
-        if best_action == 0:
-            self.shift()
-            parser.shift(self.shift_embedding)
-        elif best_action == 1:
-            self.reduce_l()
-            parser.reduce_l(self.reduce_l_embedding)
-        else:
-            self.reduce_r()
-            parser.reduce_r(self.reduce_r_embedding)
-        return parser
+        pass
+
+    def shift(self):
+        pass
 
     def forward(self, x, head=None):
         x_emb = self.dropout(self.get_embeddings(x))
         sent_lens = (x[0] != 0).sum(-1)
-        h_t = torch.zeros((x_emb.shape[0], torch.max(sent_lens).item(), self.embedding_size * 2))\
+        h_t = torch.zeros((x_emb.shape[0], torch.max(sent_lens).item(), self.embedding_size * 2)) \
             .to(device=constants.device)
         for i, sentence in enumerate(x_emb):
             parser = ShiftReduceParser(sentence, self.embedding_size)
@@ -371,7 +156,6 @@ class ArcStandardStackLSTM(BaseParser):
             heads = parser.get_heads()
             # action_emb = self.get_action_embeddings(parser.action_history)
             h_t[i, :, :] = heads  # self.word_embeddings(heads)
-
 
         h_logits = self.get_head_logits(h_t, sent_lens)
         if head is None:
@@ -423,3 +207,198 @@ class ArcStandardStackLSTM(BaseParser):
             'nlayers': self.nlayers,
             'dropout': self.dropout_p,
         }
+
+
+class ArcStandardStackLSTM(ExtendibleStackLSTMParser):
+    def __init__(self, vocabs, embedding_size, hidden_size, arc_size, label_size,
+                 nlayers=3, dropout=0.33, pretrained_embeddings=None, transition_system=arc_standard):
+        super().__init__(vocabs, embedding_size, hidden_size, arc_size, label_size,
+                         nlayers=nlayers, dropout=dropout, pretrained_embeddings=pretrained_embeddings,
+                         transition_system=transition_system)
+
+        self.shift_embedding = self.action_embeddings(torch.LongTensor([0]).to(device=constants.device))
+        self.reduce_l_embedding = self.action_embeddings(torch.LongTensor([1]).to(device=constants.device))
+        self.reduce_r_embedding = self.action_embeddings(torch.LongTensor([2]).to(device=constants.device))
+
+        self.shift_embedding = self.shift_embedding.reshape(1, self.shift_embedding.shape[0],
+                                                            self.shift_embedding.shape[1])
+        self.reduce_l_embedding = self.reduce_l_embedding.reshape(1, self.reduce_l_embedding.shape[0],
+                                                                  self.reduce_l_embedding.shape[1])
+        self.reduce_r_embedding = self.reduce_r_embedding.reshape(1, self.reduce_r_embedding.shape[0],
+                                                                  self.reduce_r_embedding.shape[1])
+
+    def shift(self):
+        self.stack_lstm.push()
+        self.buffer_lstm.pop()
+        self.action_lstm(self.shift_embedding)
+
+    def reduce_l(self):
+        self.stack_lstm.pop()
+        self.action_lstm(self.reduce_l_embedding)
+
+    def reduce_r(self):
+        self.stack_lstm.pop()
+        self.action_lstm(self.reduce_r_embedding)
+
+    def best_legal_action(self, best_action, parser, probs):
+        if (len(parser.stack.stack) > 1) and (len(parser.buffer.buffer) > 0):
+            return best_action
+        elif len(parser.buffer.buffer) == 0:
+            probs = torch.cat([probs[:, 1], probs[:, 2]])
+            return torch.argmax(probs).item() + 1
+        else:
+            return 0
+
+    def parse_step(self, parser):
+        best_action, probs = self.decide_action(parser)
+        best_action = self.best_legal_action(best_action, parser, probs)
+        if best_action == 0:
+            self.shift()
+            parser.shift(self.shift_embedding)
+        elif best_action == 1:
+            self.reduce_l()
+            parser.reduce_l(self.reduce_l_embedding)
+        else:
+            self.reduce_r()
+            parser.reduce_r(self.reduce_r_embedding)
+        return parser
+
+
+class ArcEagerStackLSTM(ExtendibleStackLSTMParser):
+    def __init__(self, vocabs, embedding_size, hidden_size, arc_size, label_size,
+                 nlayers=3, dropout=0.33, pretrained_embeddings=None, transition_system=arc_eager):
+        super().__init__(vocabs, embedding_size, hidden_size, arc_size, label_size,
+                         nlayers=nlayers, dropout=dropout, pretrained_embeddings=pretrained_embeddings,
+                         transition_system=transition_system)
+
+        self.shift_embedding = self.action_embeddings(torch.LongTensor([0]).to(device=constants.device))
+        self.reduce_l_embedding = self.action_embeddings(torch.LongTensor([1]).to(device=constants.device))
+        self.reduce_r_embedding = self.action_embeddings(torch.LongTensor([2]).to(device=constants.device))
+        self.reduce_embedding = self.action_embeddings(torch.LongTensor([3]).to(device=constants.device))
+
+        self.shift_embedding = self.shift_embedding.reshape(1, self.shift_embedding.shape[0],
+                                                            self.shift_embedding.shape[1])
+        self.reduce_l_embedding = self.reduce_l_embedding.reshape(1, self.reduce_l_embedding.shape[0],
+                                                                  self.reduce_l_embedding.shape[1])
+        self.reduce_r_embedding = self.reduce_r_embedding.reshape(1, self.reduce_r_embedding.shape[0],
+                                                                  self.reduce_r_embedding.shape[1])
+        self.reduce_embedding = self.reduce_embedding.reshape(1, self.reduce_embedding.shape[0],
+                                                              self.reduce_embedding.shape[1])
+
+    def shift(self):
+        self.stack_lstm.push()
+        self.buffer_lstm.pop()
+        self.action_lstm(self.shift_embedding)
+
+    def reduce_l(self):
+        self.stack_lstm.pop()
+        self.action_lstm(self.reduce_l_embedding)
+
+    def reduce_r(self):
+        self.buffer_lstm.pop()
+        self.stack_lstm.push()
+        self.action_lstm(self.reduce_r_embedding)
+
+    def reduce(self):
+        self.stack_lstm.pop()
+        self.action_lstm(self.reduce_embedding)
+
+    def best_legal_action(self, best_action, parser, probs):
+        # first check the conditions
+        stack_non_empty = len(parser.stack.stack) > 1
+        buffer_non_empty = len(parser.buffer.buffer) > 0
+        if stack_non_empty:
+            stack_top = parser.stack.top()
+            top_has_incoming = parser.arcs.has_incoming(stack_top)
+            # left-arc eager and right-arc eager need buffer to be non-empty
+            if not buffer_non_empty:
+                # can only reduce
+                return 3
+            else:
+                if top_has_incoming:
+                    legal_action_probs = torch.index_select(probs, -1, torch.tensor([0, 2, 3]).to(
+                        device=constants.device))  # legal action ids
+                    map_index2action = {0: 0, 1: 2, 2: 3}
+                else:  # if buffer_non_empty:
+                    legal_action_probs = probs[:, :3]
+                    map_index2action = {0: 0, 1: 1, 2: 2}
+                return map_index2action[torch.argmax(legal_action_probs, dim=-1).item()]
+
+        else:
+            if buffer_non_empty:
+                return 0
+            else:
+                parser.is_parse_complete(special_op=True)
+
+
+    def parse_step(self, parser):
+        best_action, probs = self.decide_action(parser)
+        best_action = self.best_legal_action(best_action, parser, probs)
+        if best_action == 0:
+            self.shift()
+            parser.shift(self.shift_embedding)
+        elif best_action == 1:
+            self.reduce_l()
+            parser.left_arc_eager(self.reduce_l_embedding)
+        elif best_action == 2:
+            self.reduce_r()
+            parser.right_arc_eager(self.reduce_r_embedding)
+        else:
+            self.reduce()
+            parser.reduce(self.reduce_embedding)
+        return parser
+
+
+class HybridStackLSTM(ExtendibleStackLSTMParser):
+    def __init__(self, vocabs, embedding_size, hidden_size, arc_size, label_size,
+                 nlayers=3, dropout=0.33, pretrained_embeddings=None, transition_system=hybrid):
+        super().__init__(vocabs, embedding_size, hidden_size, arc_size, label_size,
+                         nlayers=nlayers, dropout=dropout, pretrained_embeddings=pretrained_embeddings,
+                         transition_system=transition_system)
+
+        self.shift_embedding = self.action_embeddings(torch.LongTensor([0]).to(device=constants.device))
+        self.reduce_l_embedding = self.action_embeddings(torch.LongTensor([1]).to(device=constants.device))
+        self.reduce_r_embedding = self.action_embeddings(torch.LongTensor([2]).to(device=constants.device))
+
+        self.shift_embedding = self.shift_embedding.reshape(1, self.shift_embedding.shape[0],
+                                                            self.shift_embedding.shape[1])
+        self.reduce_l_embedding = self.reduce_l_embedding.reshape(1, self.reduce_l_embedding.shape[0],
+                                                                  self.reduce_l_embedding.shape[1])
+        self.reduce_r_embedding = self.reduce_r_embedding.reshape(1, self.reduce_r_embedding.shape[0],
+                                                                  self.reduce_r_embedding.shape[1])
+
+    def shift(self):
+        self.stack_lstm.push()
+        self.buffer_lstm.pop()
+        self.action_lstm(self.shift_embedding)
+
+    def reduce_l(self):
+        self.stack_lstm.pop()
+        self.action_lstm(self.reduce_l_embedding)
+
+    def reduce_r(self):
+        self.stack_lstm.pop()
+        self.action_lstm(self.reduce_r_embedding)
+
+    def best_legal_action(self, best_action, parser, probs):
+        if (len(parser.stack.stack) > 1) and (len(parser.buffer.buffer) > 0):
+            return best_action
+        elif len(parser.buffer.buffer) == 0:
+            probs = torch.cat([probs[:, 1], probs[:, 2]])
+            return torch.argmax(probs).item() + 1
+        else:
+            return 0
+
+    def parse_step(self, parser):
+        best_action, probs = self.decide_action(parser)
+        best_action = self.best_legal_action(best_action, parser, probs)
+        if best_action == 0:
+            self.shift()
+            parser.shift(self.shift_embedding)
+        elif best_action == 1:
+            self.reduce_l()
+            parser.left_arc_hybrid(self.reduce_l_embedding)
+        else:
+            self.reduce_r()
+            parser.reduce_r(self.reduce_r_embedding)
+        return parser

@@ -5,7 +5,7 @@ import torch.optim as optim
 
 sys.path.append('./src/')
 from h02_learn.dataset import get_data_loaders
-from h02_learn.model import BiaffineParser, MSTParser, ArcStandardStackLSTM
+from h02_learn.model import BiaffineParser, MSTParser, ArcStandardStackLSTM, ArcEagerStackLSTM, HybridStackLSTM
 from h02_learn.train_info import TrainInfo
 from h02_learn.algorithm.mst import get_mst_batch
 from utils import constants
@@ -26,7 +26,8 @@ def get_args():
     parser.add_argument('--arc-size', type=int, default=500)
     parser.add_argument('--label-size', type=int, default=100)
     parser.add_argument('--dropout', type=float, default=.33)
-    parser.add_argument('--model', choices=['biaffine', 'mst', 'transition'], default='transition')
+    parser.add_argument('--model', choices=['biaffine', 'mst', 'arc-standard', 'arc-eager', 'hybrid'],
+                        default='arc-standard')
     # Optimization
     parser.add_argument('--optim', choices=['adam', 'adamw'], default='adamw')
     parser.add_argument('--eval-batches', type=int, default=20)
@@ -39,7 +40,7 @@ def get_args():
 
     args = parser.parse_args()
     args.wait_iterations = args.wait_epochs * args.eval_batches
-    args.save_path = '%s/%s/%s/%s/' % (args.checkpoints_path, args.language, args.model,args.batch_size)
+    args.save_path = '%s/%s/%s/%s/' % (args.checkpoints_path, args.language, args.model, args.batch_size)
     utils.config(args.seed)
     print(args.save_path)
     return args
@@ -60,15 +61,26 @@ def get_model(vocabs, embeddings, args):
             vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size,
             nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings) \
             .to(device=constants.device)
-    elif args.model == 'transition':
+    elif args.model == 'arc-standard':
         return ArcStandardStackLSTM(
             vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size,
             nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings) \
             .to(device=constants.device)
-    return BiaffineParser(
-        vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size,
-        nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings) \
-        .to(device=constants.device)
+    elif args.model == 'arc-eager':
+        return ArcEagerStackLSTM(
+            vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size,
+            nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings) \
+            .to(device=constants.device)
+    elif args.model == 'hybrid':
+        return HybridStackLSTM(
+            vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size,
+            nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings) \
+            .to(device=constants.device)
+    else:
+        return BiaffineParser(
+            vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size,
+            nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings) \
+            .to(device=constants.device)
 
 
 def calculate_attachment_score(heads_tgt, l_logits, heads, rels):
@@ -131,8 +143,8 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
         for (text, pos), (heads, rels) in trainloader:
 
             loss = train_batch(text, pos, heads, rels, model, optimizer)
-            print("Loss for iter {} is {}".format(i,loss))
-            i+=1
+            print("Loss for iter {} is {}".format(i, loss))
+            i += 1
             train_info.new_batch(loss)
             if train_info.eval:
                 dev_results = evaluate(devloader, model)

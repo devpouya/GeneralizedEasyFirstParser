@@ -49,9 +49,14 @@ class StackLSTM(nn.Module):
         self.top_index = index
 
     def pop(self):
-        self.top = self.top.prev_lstm
-        # self.top_index = self.lstm2indx[self.top]
-        self.top_index = self.top.id
+        if self.top.prev_lstm is None:
+            # do nothing
+            pass
+        else:
+            self.top = self.top.prev_lstm
+
+            # self.top_index = self.lstm2indx[self.top]
+            self.top_index = self.top.id
 
     def push(self, lstm=None):
         # if top = length of list
