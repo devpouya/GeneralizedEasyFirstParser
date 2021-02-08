@@ -39,8 +39,9 @@ def get_args():
 
     args = parser.parse_args()
     args.wait_iterations = args.wait_epochs * args.eval_batches
-    args.save_path = '%s/%s/' % (args.checkpoints_path, args.language)
+    args.save_path = '%s/%s/%s/%s/' % (args.checkpoints_path, args.language, args.model,args.batch_size)
     utils.config(args.seed)
+    print(args.save_path)
     return args
 
 
