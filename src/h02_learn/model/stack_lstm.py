@@ -45,7 +45,7 @@ class ExtendibleStackLSTMParser(BaseParser):
                                    batch_first=True, bidirectional=False)
 
         # mlp for deciding actions
-        self.chooser_linear = nn.Linear(embedding_size * 2 * 3, len(self.actions)).to(device=constants.device)
+        self.chooser_linear = nn.Linear(embedding_size * 2 +16, len(self.actions)).to(device=constants.device)
         self.chooser_relu = nn.ReLU().to(device=constants.device)
         self.chooser_softmax = nn.Softmax().to(device=constants.device)
         self.dropout = nn.Dropout(dropout).to(device=constants.device)
@@ -66,7 +66,7 @@ class ExtendibleStackLSTMParser(BaseParser):
         words, tags, _ = vocabs
         word_embeddings = WordEmbedding(words, self.embedding_size, pretrained=pretrained)
         tag_embeddings = nn.Embedding(tags.size, self.embedding_size)
-        action_embedding = ActionEmbedding(self.actions, self.embedding_size).embedding
+        action_embedding = ActionEmbedding(self.actions, 16).embedding
         return word_embeddings, tag_embeddings, action_embedding
 
     def get_embeddings(self, x):
