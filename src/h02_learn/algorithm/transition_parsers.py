@@ -144,7 +144,7 @@ class ShiftReduceParser():
         self.ind2continous = {i: vec for (vec, i) in self.buffer.buffer}
 
         # used for learning representation for partial parse trees
-        self.linear = nn.Linear(5 * embedding_size, 2 * embedding_size).to(device=constants.device)
+        self.linear = nn.Linear(4 * embedding_size+16, 2 * embedding_size).to(device=constants.device)
         self.tanh = nn.Tanh().to(device=constants.device)
 
     def get_stack_content(self):
@@ -154,7 +154,7 @@ class ShiftReduceParser():
         return [item[0] for item in self.buffer.buffer]
 
     def subtree_rep(self, top, second, act_emb):
-        reprs = torch.cat([top, second, act_emb.reshape(self.embedding_size)],
+        reprs = torch.cat([top, second, act_emb.reshape(16)],
                           dim=-1)
         c = self.tanh(self.linear(reprs))
         self.stack.set_top(c)

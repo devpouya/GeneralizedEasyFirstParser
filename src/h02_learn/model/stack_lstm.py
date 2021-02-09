@@ -37,15 +37,15 @@ class ExtendibleStackLSTMParser(BaseParser):
             self.create_embeddings(vocabs, pretrained=pretrained_embeddings)
 
         # stack lstms
-        self.buffer_lstm = StackLSTM(embedding_size * 2, int(hidden_size / 2), dropout=(dropout if nlayers > 1 else 0),
+        self.buffer_lstm = StackLSTM(embedding_size * 2, hidden_size, dropout=(dropout if nlayers > 1 else 0),
                                      batch_first=True, bidirectional=False)
-        self.stack_lstm = StackLSTM(embedding_size * 2, int(hidden_size / 2), dropout=(dropout if nlayers > 1 else 0),
+        self.stack_lstm = StackLSTM(embedding_size * 2, hidden_size, dropout=(dropout if nlayers > 1 else 0),
                                     batch_first=True, bidirectional=False)
-        self.action_lstm = nn.LSTM(embedding_size, int(hidden_size / 2), dropout=(dropout if nlayers > 1 else 0),
+        self.action_lstm = nn.LSTM(16, hidden_size, dropout=(dropout if nlayers > 1 else 0),
                                    batch_first=True, bidirectional=False)
 
         # mlp for deciding actions
-        self.chooser_linear = nn.Linear(embedding_size * 2 +16, len(self.actions)).to(device=constants.device)
+        self.chooser_linear = nn.Linear(embedding_size * 2 *3, len(self.actions)).to(device=constants.device)
         self.chooser_relu = nn.ReLU().to(device=constants.device)
         self.chooser_softmax = nn.Softmax().to(device=constants.device)
         self.dropout = nn.Dropout(dropout).to(device=constants.device)
