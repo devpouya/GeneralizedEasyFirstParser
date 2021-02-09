@@ -284,7 +284,12 @@ class ShiftReduceParser():
             return heads_embed
         else:
             for i in range(len(self.sentence)):
-                heads_embed[0, i, :] = self.ind2continous[torch.where(self.heads[0, i] == 1)[0].item()]
+                try:
+                    index = torch.where(self.heads[0, i] == 1)[0].item()
+                    heads_embed[0, i, :] = self.ind2continous[index]
+                except:
+                    pass
+
 
             return heads_embed
 
