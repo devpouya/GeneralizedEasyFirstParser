@@ -37,36 +37,36 @@ class ExtendibleStackLSTMParser(BaseParser):
             self.create_embeddings(vocabs, pretrained=pretrained_embeddings)
 
         # stack lstms
-        self.buffer_lstm = StackLSTM(embedding_size * 2, hidden_size, dropout=(dropout if nlayers > 1 else 0),
+        self.buffer_lstm = StackLSTM(embedding_size * 2, int(hidden_size / 2), dropout=(dropout if nlayers > 1 else 0),
                                      batch_first=True, bidirectional=False)
-        self.stack_lstm = StackLSTM(embedding_size * 2, hidden_size, dropout=(dropout if nlayers > 1 else 0),
+        self.stack_lstm = StackLSTM(embedding_size * 2, int(hidden_size / 2), dropout=(dropout if nlayers > 1 else 0),
                                     batch_first=True, bidirectional=False)
-        self.action_lstm = nn.LSTM(16, hidden_size, dropout=(dropout if nlayers > 1 else 0),
+        self.action_lstm = nn.LSTM(embedding_size, int(hidden_size / 2), dropout=(dropout if nlayers > 1 else 0),
                                    batch_first=True, bidirectional=False)
 
         # mlp for deciding actions
-        self.chooser_linear = nn.Linear(embedding_size * 2 *3, len(self.actions)).to(device=constants.device)
+        self.chooser_linear = nn.Linear(embedding_size * 2 * 3, len(self.actions)).to(device=constants.device)
         self.chooser_relu = nn.ReLU().to(device=constants.device)
         self.chooser_softmax = nn.Softmax().to(device=constants.device)
         self.dropout = nn.Dropout(dropout).to(device=constants.device)
 
         self.linear_arc_dep = nn.Linear(self.embedding_size * 2, arc_size).to(device=constants.device)
         self.linear_arc_head = nn.Linear(self.embedding_size * 2, arc_size).to(device=constants.device)
-        self.arc_relu = nn.ReLU().to(device=constants.device)
-        self.linear_arc = nn.Linear(arc_size*2,arc_size).to(device=constants.device)
-        #self.biaffine = Biaffine(arc_size, arc_size)
+        #self.arc_relu = nn.ReLU().to(device=constants.device)
+        #self.linear_arc = nn.Linear(arc_size*2,arc_size).to(device=constants.device)
+        self.biaffine = Biaffine(arc_size, arc_size)
 
         self.linear_label_dep = nn.Linear(self.embedding_size * 2, label_size).to(device=constants.device)
         self.linear_label_head = nn.Linear(self.embedding_size * 2, label_size).to(device=constants.device)
-        self.label_relu = nn.ReLU().to(device=constants.device)
-        self.linear_label = nn.Linear(label_size*2, label_size).to(device=constants.device)
-        #self.bilinear_label = Bilinear(label_size, label_size, rels.size)
+        #self.label_relu = nn.ReLU().to(device=constants.device)
+        #self.linear_label = nn.Linear(label_size*2, label_size).to(device=constants.device)
+        self.bilinear_label = Bilinear(label_size, label_size, rels.size)
 
     def create_embeddings(self, vocabs, pretrained=None):
         words, tags, _ = vocabs
         word_embeddings = WordEmbedding(words, self.embedding_size, pretrained=pretrained)
         tag_embeddings = nn.Embedding(tags.size, self.embedding_size)
-        action_embedding = ActionEmbedding(self.actions, 16).embedding
+        action_embedding = ActionEmbedding(self.actions, self.embedding_size).embedding
         return word_embeddings, tag_embeddings, action_embedding
 
     def get_embeddings(self, x):
@@ -180,8 +180,8 @@ class ExtendibleStackLSTMParser(BaseParser):
         h_dep = self.dropout(F.relu(self.linear_arc_dep(h_t)))
         h_arc = self.dropout(F.relu(self.linear_arc_head(h_t)))
 
-        #h_logits = self.biaffine(h_arc, h_dep)
-        h_logits = self.dropout(F.relu(self.linear_arc(torch.cat([h_arc, h_dep],dim=-1))))
+        h_logits = self.biaffine(h_arc, h_dep)
+        #h_logits = self.dropout(F.relu(self.linear_arc(torch.cat([h_arc, h_dep],dim=-1))))
 
 
         # Zero logits for items after sentence length
@@ -198,9 +198,9 @@ class ExtendibleStackLSTMParser(BaseParser):
         if self.training:
             assert head is not None, 'During training head should not be None'
 
-        #l_head = l_head.gather(dim=1, index=head.unsqueeze(2).expand(l_head.size()))
-        l_logits = self.dropout(F.relu(self.linear_label(torch.cat([l_dep, l_head],dim=-1))))
-        #l_logits = self.bilinear_label(l_dep, l_head)
+        l_head = l_head.gather(dim=1, index=head.unsqueeze(2).expand(l_head.size()))
+        #l_logits = self.dropout(F.relu(self.linear_label(torch.cat([l_dep, l_head],dim=-1))))
+        l_logits = self.bilinear_label(l_dep, l_head)
         return l_logits
 
     def get_args(self):
