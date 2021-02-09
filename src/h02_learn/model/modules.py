@@ -120,8 +120,8 @@ class StackLSTM(nn.Module):
         return hidden
 
     def stack_summary(self, x):
-        _, hidden = self.lstm_list[self.top_index](x)
-        return hidden
+        out, hidden = self.lstm_list[self.top_index](x)
+        return out
 
     def get_branch(self, start_node):
         current_branch = []

@@ -141,8 +141,11 @@ class ShiftReduceParser():
         self.embedding_size = embedding_size
 
         # used to reconstruct heads and parse tree
+        # it uses the most recent representation (from the combinations)
         self.ind2continous = {i: vec for (vec, i) in self.buffer.buffer}
 
+        self.heads = torch.zeros((1, len(self.sentence), len(self.sentence))).to(device=constants.device)
+        self.head_list = torch.zeros((1,len(self.sentence))).to(device=constants.device)
         # used for learning representation for partial parse trees
         self.linear = nn.Linear(5 * embedding_size, 2 * embedding_size).to(device=constants.device)
         self.tanh = nn.Tanh().to(device=constants.device)
@@ -154,9 +157,10 @@ class ShiftReduceParser():
         return [item[0] for item in self.buffer.buffer]
 
     def subtree_rep(self, top, second, act_emb):
-        reprs = torch.cat([top, second, act_emb.reshape(self.embedding_size)],
+        reprs = torch.cat([top[0], second[0], act_emb.reshape(self.embedding_size)],
                           dim=-1)
         c = self.tanh(self.linear(reprs))
+        self.ind2continous[top[1]] = c
         self.stack.set_top(c)
         return c
 
@@ -171,22 +175,26 @@ class ShiftReduceParser():
         item_top = self.stack.top()
         item_second = self.stack.pop_second()
         self.arcs.add_arc(item_top[1], item_second[1])
+        self.heads[0, item_second[1], item_top[1]] = 1
+        self.head_list[0,item_second[1]] = item_top[1]
         self.action_history_names.append(reduce_l)
         self.action_history.append(act_emb)
 
         # compute build representation and use this from now on
-        c = self.subtree_rep(item_top[0], item_second[0], act_emb)
+        c = self.subtree_rep(item_top, item_second, act_emb)
         return c
 
     def reduce_r(self, act_emb):
         second_item = self.stack.second()
         top_item = self.stack.pop()
         self.arcs.add_arc(second_item[1], top_item[1])
+        self.heads[0, top_item[1], second_item[1]] = 1
+        self.head_list[0,top_item[1]] = second_item[1]
         self.action_history_names.append(reduce_r)
         self.action_history.append(act_emb)
 
         # compute build representation and use this from now on
-        c = self.subtree_rep(second_item[0], top_item[0], act_emb)
+        c = self.subtree_rep(second_item, top_item, act_emb)
         return c
 
     def reduce(self, act_emb):
@@ -202,9 +210,11 @@ class ShiftReduceParser():
         # if not self.arcs.has_incoming(stack_top):
         self.stack.pop()
         self.arcs.add_arc(buffer_first[1], stack_top[1])
+        self.heads[0, stack_top[1], buffer_first[1]] = 1
+        self.head_list[0,stack_top[1]] = buffer_first[1]
         self.action_history.append(act_emb)
         self.action_history_names.append(left_arc_eager)
-        c = self.subtree_rep(buffer_first[0], stack_top[0], act_emb)
+        c = self.subtree_rep(buffer_first, stack_top, act_emb)
         return c
 
     def right_arc_eager(self, act_emb):
@@ -213,9 +223,11 @@ class ShiftReduceParser():
         self.stack.push(buffer_first)
         self.buffer.pop_left()
         self.arcs.add_arc(stack_top[1], buffer_first[1])
+        self.heads[0, buffer_first[1], stack_top[1]] = 1
+        self.head_list[0,buffer_first[1]] = stack_top[1]
         self.action_history.append(act_emb)
         self.action_history_names.append(right_arc_eager)
-        c = self.subtree_rep(stack_top[0], buffer_first[0], act_emb)
+        c = self.subtree_rep(stack_top, buffer_first, act_emb)
         return c
 
     def left_arc_hybrid(self, act_emb):
@@ -223,9 +235,11 @@ class ShiftReduceParser():
         buffer_first = self.buffer.left()
         self.stack.pop()
         self.arcs.add_arc(buffer_first[1], stack_top[1])
+        self.heads[0, stack_top[1], buffer_first[1]] = 1
+        self.head_list[0,stack_top[1]] = buffer_first[1]
         self.action_history.append(act_emb)
         self.action_history_names.append(left_arc_hybrid)
-        c = self.subtree_rep(buffer_first[0], stack_top[0], act_emb)
+        c = self.subtree_rep(buffer_first, stack_top, act_emb)
         return c
 
     def is_parse_complete(self, special_op=False):
@@ -237,16 +251,22 @@ class ShiftReduceParser():
         complete = buffer_empty and stack_empty
         return complete
 
+    def get_head_embeddings(self):
+        heads_embed = torch.zeros((1, len(self.sentence), self.embedding_size * 2)).to(device=constants.device)
+        for i in range(len(self.sentence)):
+            heads_embed[0, i, :] = self.ind2continous[torch.where(self.heads[0, i] == 1)[0].item()]
+        return heads_embed
+
     def get_heads(self):
         # return heads
         heads_embed = torch.zeros((1, len(self.sentence), self.embedding_size * 2)).to(device=constants.device)
-        heads = torch.zeros((1, len(self.sentence),len(self.sentence))).to(device=constants.device)
+        heads = torch.zeros((1, len(self.sentence), len(self.sentence))).to(device=constants.device)
         with torch.no_grad():
             for i in range(len(self.sentence)):
                 for j in range(len(self.sentence)):
                     if (j, i) in self.arcs.arcs:
                         heads_embed[0, i, :] = self.ind2continous[j]
-                        heads[0, i, j] = 1#j
+                        heads[0, i, j] = 1  # j
                         continue
 
         return heads, heads_embed

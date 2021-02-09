@@ -50,16 +50,19 @@ class ExtendibleStackLSTMParser(BaseParser):
         self.chooser_softmax = nn.Softmax().to(device=constants.device)
         self.dropout = nn.Dropout(dropout).to(device=constants.device)
 
-        self.linear_arc_dep = nn.Linear(self.embedding_size * 2, arc_size).to(device=constants.device)
-        self.linear_arc_head = nn.Linear(self.embedding_size * 2, arc_size).to(device=constants.device)
-        # self.arc_relu = nn.ReLU().to(device=constants.device)
-        # self.linear_arc = nn.Linear(arc_size*2,arc_size).to(device=constants.device)
-        self.biaffine = Biaffine(arc_size, arc_size)
+        self.label_linear_h = nn.Linear(embedding_size*2*3, label_size)
+        self.label_linear_d = nn.Linear(embedding_size*2*3, label_size)
+        self.rels_linear = nn.Linear(label_size,rels.size)
+
+        #self.linear_arc_dep = nn.Linear(self.embedding_size * 2, arc_size).to(device=constants.device)
+        #self.linear_arc_head = nn.Linear(self.embedding_size * 2, arc_size).to(device=constants.device)
+        ## self.arc_relu = nn.ReLU().to(device=constants.device)
+        ## self.linear_arc = nn.Linear(arc_size*2,arc_size).to(device=constants.device)
+        #self.biaffine = Biaffine(arc_size, arc_size)
 
         self.linear_label_dep = nn.Linear(self.embedding_size * 2, label_size).to(device=constants.device)
         self.linear_label_head = nn.Linear(self.embedding_size * 2, label_size).to(device=constants.device)
-        # self.label_relu = nn.ReLU().to(device=constants.device)
-        # self.linear_label = nn.Linear(label_size*2, label_size).to(device=constants.device)
+        ## self.linear_label = nn.Linear(label_size*2, label_size).to(device=constants.device)
         self.bilinear_label = Bilinear(label_size, label_size, rels.size)
 
     def create_embeddings(self, vocabs, pretrained=None):
@@ -107,7 +110,7 @@ class ExtendibleStackLSTMParser(BaseParser):
         if len(parser_buffer) > 1:
 
             buffer_state = torch.stack(parser_buffer)
-        elif len(parser_buffer) == 0 and len(parser_stack) > 1:
+        elif len(parser_buffer) == 0:
             buffer_state = torch.zeros_like(stack_state).to(device=constants.device)
         else:
             buffer_state = parser_buffer[0]
@@ -140,6 +143,8 @@ class ExtendibleStackLSTMParser(BaseParser):
             .to(device=constants.device)
         predicted_heads = torch.zeros((x_emb.shape[0], torch.max(sent_lens).item(), torch.max(sent_lens).item())) \
             .to(device=constants.device)
+        #parser_states = torch.zeros((x_emb.shape[0]), self.embedding_size*2*3)
+        heads_list = torch.zeros((x_emb.shape[0],torch.max(sent_lens).item()),dtype=torch.int).to(device=constants.device)
         for i, sentence in enumerate(x_emb):
             parser = ShiftReduceParser(sentence, self.embedding_size)
             # init stack_lstm pointer and buffer_lstm pointer
@@ -158,33 +163,39 @@ class ExtendibleStackLSTMParser(BaseParser):
                 parser = self.parse_step(parser)
 
             # parsed_state = self.get_parser_state(parser)
-            head_i, heads_embed = parser.get_heads()
+            #head_i, heads_embed = parser.get_heads()
             # action_emb = self.get_action_embeddings(parser.action_history)
-            h_t[i, :, :] = heads_embed  # self.word_embeddings(heads)
-            predicted_heads[i, :, :] = head_i
+            h_t[i, :, :] = parser.get_head_embeddings() #heads_embed  # self.word_embeddings(heads)
+            predicted_heads[i, :, :] = parser.heads #head_i
+            #parser_states[i,:] = self.get_parser_state(parser)
+            heads_list[i,:] = parser.head_list
         # print(h_t[0,:])
-        h_logits = self.get_head_logits(h_t, sent_lens)
-        if head is None:
-            head = h_logits.argmax(-1)
-        l_logits = self.get_label_logits(h_t, head)
+        l_logits = self.get_label_logits(h_t,heads_list)
+        # want to predict labels from final parser state
+        #h_logits = self.get_head_logits(h_t, sent_lens)
+        #if head is None:
+        #    head = h_logits.argmax(-1)
+        #l_logits = self.get_label_logits(h_t, head)
         return predicted_heads, l_logits
+
+    def label_logits(self, parser_states):
+        l = self.dropout(F.relu(self.label_linear(parser_states)))
+        l = self.dropout(F.relu(self.rels_linear(l)))
+        return l
 
     @staticmethod
     def loss(h_logits, l_logits, heads, rels):
-        # loss over words fuck it
-        # combine batch*sent_len
-
-        # h_logits = h_logits.reshape(-1, h_logits.shape[-1])
         criterion_h = nn.CrossEntropyLoss(ignore_index=-1).to(device=constants.device)
         criterion_l = nn.CrossEntropyLoss(ignore_index=0).to(device=constants.device)
+
         loss = criterion_h(h_logits.reshape(h_logits.shape[0]*h_logits.shape[1],h_logits.shape[2]), heads.reshape(-1))
         loss += criterion_l(l_logits.reshape(-1, l_logits.shape[-1]), rels.reshape(-1))
+        #loss += criterion_l(l_logits.reshape(l_logits.shape[0]*l_logits.shape[1], l_logits.shape[1]), rels.reshape(-1))
         return loss
 
     def get_head_logits(self, h_t, sent_lens):
         h_dep = self.dropout(F.relu(self.linear_arc_dep(h_t)))
         h_arc = self.dropout(F.relu(self.linear_arc_head(h_t)))
-
         h_logits = self.biaffine(h_arc, h_dep)
         # h_logits = self.dropout(F.relu(self.linear_arc(torch.cat([h_arc, h_dep],dim=-1))))
 
@@ -201,8 +212,10 @@ class ExtendibleStackLSTMParser(BaseParser):
 
         if self.training:
             assert head is not None, 'During training head should not be None'
-
-        l_head = l_head.gather(dim=1, index=head.unsqueeze(2).expand(l_head.size()))
+        #print("lhead shape {}".format(l_head.shape))
+        #print("head shape {}".format(head.shape))
+        #print("stuff {}".format(head.unsqueeze(2).expand(l_head.size()).shape))
+        #l_head = l_head.gather(dim=1, index=head.unsqueeze(2).expand(l_head.size()))
         # l_logits = self.dropout(F.relu(self.linear_label(torch.cat([l_dep, l_head],dim=-1))))
         l_logits = self.bilinear_label(l_dep, l_head)
         return l_logits
