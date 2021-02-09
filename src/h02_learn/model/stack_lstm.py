@@ -9,7 +9,7 @@ from utils import constants
 from .base import BaseParser
 from .modules import Biaffine, Bilinear, StackLSTM
 from .word_embedding import WordEmbedding, ActionEmbedding
-from ..algorithm.transition_parsers import ShiftReduceParser, arc_standard, arc_eager, hybrid
+from ..algorithm.transition_parsers import ShiftReduceParser, arc_standard, arc_eager, hybrid, non_projective, easy_first
 
 # CONSTANTS and NAMES
 # root used to initialize the stack with \sigma_0
@@ -50,15 +50,15 @@ class ExtendibleStackLSTMParser(BaseParser):
         self.chooser_softmax = nn.Softmax().to(device=constants.device)
         self.dropout = nn.Dropout(dropout).to(device=constants.device)
 
-        self.label_linear_h = nn.Linear(embedding_size*2*3, label_size)
-        self.label_linear_d = nn.Linear(embedding_size*2*3, label_size)
-        self.rels_linear = nn.Linear(label_size,rels.size)
+        self.label_linear_h = nn.Linear(embedding_size * 2 * 3, label_size)
+        self.label_linear_d = nn.Linear(embedding_size * 2 * 3, label_size)
+        self.rels_linear = nn.Linear(label_size, rels.size)
 
-        #self.linear_arc_dep = nn.Linear(self.embedding_size * 2, arc_size).to(device=constants.device)
-        #self.linear_arc_head = nn.Linear(self.embedding_size * 2, arc_size).to(device=constants.device)
+        # self.linear_arc_dep = nn.Linear(self.embedding_size * 2, arc_size).to(device=constants.device)
+        # self.linear_arc_head = nn.Linear(self.embedding_size * 2, arc_size).to(device=constants.device)
         ## self.arc_relu = nn.ReLU().to(device=constants.device)
         ## self.linear_arc = nn.Linear(arc_size*2,arc_size).to(device=constants.device)
-        #self.biaffine = Biaffine(arc_size, arc_size)
+        # self.biaffine = Biaffine(arc_size, arc_size)
 
         self.linear_label_dep = nn.Linear(self.embedding_size * 2, label_size).to(device=constants.device)
         self.linear_label_head = nn.Linear(self.embedding_size * 2, label_size).to(device=constants.device)
@@ -143,8 +143,9 @@ class ExtendibleStackLSTMParser(BaseParser):
             .to(device=constants.device)
         predicted_heads = torch.zeros((x_emb.shape[0], torch.max(sent_lens).item(), torch.max(sent_lens).item())) \
             .to(device=constants.device)
-        #parser_states = torch.zeros((x_emb.shape[0]), self.embedding_size*2*3)
-        heads_list = torch.zeros((x_emb.shape[0],torch.max(sent_lens).item()),dtype=torch.int).to(device=constants.device)
+        # parser_states = torch.zeros((x_emb.shape[0]), self.embedding_size*2*3)
+        heads_list = torch.zeros((x_emb.shape[0], torch.max(sent_lens).item()), dtype=torch.int).to(
+            device=constants.device)
         for i, sentence in enumerate(x_emb):
             parser = ShiftReduceParser(sentence, self.embedding_size)
             # init stack_lstm pointer and buffer_lstm pointer
@@ -163,19 +164,19 @@ class ExtendibleStackLSTMParser(BaseParser):
                 parser = self.parse_step(parser)
 
             # parsed_state = self.get_parser_state(parser)
-            #head_i, heads_embed = parser.get_heads()
+            # head_i, heads_embed = parser.get_heads()
             # action_emb = self.get_action_embeddings(parser.action_history)
-            h_t[i, :, :] = parser.get_head_embeddings() #heads_embed  # self.word_embeddings(heads)
-            predicted_heads[i, :, :] = parser.heads #head_i
-            #parser_states[i,:] = self.get_parser_state(parser)
-            heads_list[i,:] = parser.head_list
+            h_t[i, :, :] = parser.get_head_embeddings()  # heads_embed  # self.word_embeddings(heads)
+            predicted_heads[i, :, :] = parser.heads  # head_i
+            # parser_states[i,:] = self.get_parser_state(parser)
+            heads_list[i, :] = parser.head_list
         # print(h_t[0,:])
-        l_logits = self.get_label_logits(h_t,heads_list)
+        l_logits = self.get_label_logits(h_t, heads_list)
         # want to predict labels from final parser state
-        #h_logits = self.get_head_logits(h_t, sent_lens)
-        #if head is None:
+        # h_logits = self.get_head_logits(h_t, sent_lens)
+        # if head is None:
         #    head = h_logits.argmax(-1)
-        #l_logits = self.get_label_logits(h_t, head)
+        # l_logits = self.get_label_logits(h_t, head)
         return predicted_heads, l_logits
 
     def label_logits(self, parser_states):
@@ -188,9 +189,10 @@ class ExtendibleStackLSTMParser(BaseParser):
         criterion_h = nn.CrossEntropyLoss(ignore_index=-1).to(device=constants.device)
         criterion_l = nn.CrossEntropyLoss(ignore_index=0).to(device=constants.device)
 
-        loss = criterion_h(h_logits.reshape(h_logits.shape[0]*h_logits.shape[1],h_logits.shape[2]), heads.reshape(-1))
+        loss = criterion_h(h_logits.reshape(h_logits.shape[0] * h_logits.shape[1], h_logits.shape[2]),
+                           heads.reshape(-1))
         loss += criterion_l(l_logits.reshape(-1, l_logits.shape[-1]), rels.reshape(-1))
-        #loss += criterion_l(l_logits.reshape(l_logits.shape[0]*l_logits.shape[1], l_logits.shape[1]), rels.reshape(-1))
+        # loss += criterion_l(l_logits.reshape(l_logits.shape[0]*l_logits.shape[1], l_logits.shape[1]), rels.reshape(-1))
         return loss
 
     def get_head_logits(self, h_t, sent_lens):
@@ -212,10 +214,10 @@ class ExtendibleStackLSTMParser(BaseParser):
 
         if self.training:
             assert head is not None, 'During training head should not be None'
-        #print("lhead shape {}".format(l_head.shape))
-        #print("head shape {}".format(head.shape))
-        #print("stuff {}".format(head.unsqueeze(2).expand(l_head.size()).shape))
-        #l_head = l_head.gather(dim=1, index=head.unsqueeze(2).expand(l_head.size()))
+        # print("lhead shape {}".format(l_head.shape))
+        # print("head shape {}".format(head.shape))
+        # print("stuff {}".format(head.unsqueeze(2).expand(l_head.size()).shape))
+        # l_head = l_head.gather(dim=1, index=head.unsqueeze(2).expand(l_head.size()))
         # l_logits = self.dropout(F.relu(self.linear_label(torch.cat([l_dep, l_head],dim=-1))))
         l_logits = self.bilinear_label(l_dep, l_head)
         return l_logits
@@ -364,10 +366,12 @@ class ArcEagerStackLSTM(ExtendibleStackLSTMParser):
             parser.shift(self.shift_embedding)
         elif best_action == 1:
             self.reduce_l()
-            parser.left_arc_eager(self.reduce_l_embedding)
+            item = parser.left_arc_eager(self.reduce_l_embedding)
+            self.stack_lstm(item)
         elif best_action == 2:
             self.reduce_r()
-            parser.right_arc_eager(self.reduce_r_embedding)
+            item = parser.right_arc_eager(self.reduce_r_embedding)
+            self.stack_lstm(item)
         else:
             self.reduce()
             parser.reduce(self.reduce_embedding)
@@ -422,8 +426,97 @@ class HybridStackLSTM(ExtendibleStackLSTMParser):
             parser.shift(self.shift_embedding)
         elif best_action == 1:
             self.reduce_l()
-            parser.left_arc_hybrid(self.reduce_l_embedding)
+            item = parser.left_arc_hybrid(self.reduce_l_embedding)
+            self.stack_lstm(item)
         else:
             self.reduce_r()
-            parser.reduce_r(self.reduce_r_embedding)
+            item = parser.reduce_r(self.reduce_r_embedding)
+            self.stack_lstm(item)
         return parser
+
+
+class NonProjectiveStackLSTM(ExtendibleStackLSTMParser):
+    def __init__(self, vocabs, embedding_size, hidden_size, arc_size, label_size,
+                 nlayers=3, dropout=0.33, pretrained_embeddings=None, transition_system=non_projective):
+        super().__init__(vocabs, embedding_size, hidden_size, arc_size, label_size,
+                         nlayers=nlayers, dropout=dropout, pretrained_embeddings=pretrained_embeddings,
+                         transition_system=transition_system)
+
+        self.shift_embedding = self.action_embeddings(torch.LongTensor([0]).to(device=constants.device))
+        self.reduce_l_embedding = self.action_embeddings(torch.LongTensor([1]).to(device=constants.device))
+        self.reduce_r_embedding = self.action_embeddings(torch.LongTensor([2]).to(device=constants.device))
+        self.reduce_l2_embedding = self.action_embeddings(torch.LongTensor([3]).to(device=constants.device))
+        self.reduce_r2_embedding = self.action_embeddings(torch.LongTensor([4]).to(device=constants.device))
+
+        self.shift_embedding = self.shift_embedding.reshape(1, self.shift_embedding.shape[0],
+                                                            self.shift_embedding.shape[1])
+        self.reduce_l_embedding = self.reduce_l_embedding.reshape(1, self.reduce_l_embedding.shape[0],
+                                                                  self.reduce_l_embedding.shape[1])
+        self.reduce_r_embedding = self.reduce_r_embedding.reshape(1, self.reduce_r_embedding.shape[0],
+                                                                  self.reduce_r_embedding.shape[1])
+        self.reduce_l2_embedding = self.reduce_l2_embedding.reshape(1, self.reduce_l2_embedding.shape[0],
+                                                                    self.reduce_l2_embedding.shape[1])
+        self.reduce_r2_embedding = self.reduce_r2_embedding.reshape(1, self.reduce_r2_embedding.shape[0],
+                                                                    self.reduce_r2_embedding.shape[1])
+
+    def shift(self):
+        self.stack_lstm.push()
+        self.buffer_lstm.pop()
+        self.action_lstm(self.shift_embedding)
+
+    def reduce_any(self, action):
+        self.stack_lstm.pop()
+        self.action_lstm(action)
+
+    def best_legal_action(self, best_action, parser, probs):
+        buffer_non_empty = len(parser.buffer.buffer) > 0
+        stack_gt_3 = len(parser.stack.stack) >= 3
+        #stack_lt_2 = len(parser.stack.stack) <= 2
+        stack_lt_1 = len(parser.stack.stack) <= 1
+        if buffer_non_empty:
+            if stack_gt_3:
+                return best_action
+            elif stack_lt_1:
+                return 0
+            else:
+                probs = probs[:,:3]
+                return torch.argmax(probs).item()
+        else:
+            probs = probs[:,1:]
+            ind2_act = {i:i+1 for i in range(4)}
+            if stack_gt_3:
+                return ind2_act[torch.argmax(probs).item()]
+            else:
+                probs = probs[:,:2]
+                return ind2_act[torch.argmax(probs).item()]
+
+
+
+    def parse_step(self, parser):
+        best_action, probs = self.decide_action(parser)
+        best_action = self.best_legal_action(best_action, parser, probs)
+        # can avoid all this if, else stuff with a list of actions since code is all the same lol
+        if best_action == 0:
+            self.shift()
+            parser.shift(self.shift_embedding)
+        elif best_action == 1:
+            self.reduce_any(self.reduce_l_embedding)
+            item = parser.reduce_l(self.reduce_l_embedding)
+            self.stack_lstm(item)
+        elif best_action == 2:
+            self.reduce_any(self.reduce_r_embedding)
+            item = parser.reduce_r(self.reduce_r_embedding)
+            self.stack_lstm(item)
+        elif best_action == 3:
+            self.reduce_any(self.reduce_l2_embedding)
+            item = parser.left_arc_second(self.reduce_l2_embedding)
+            self.stack_lstm(item)
+        elif best_action == 4:
+            self.reduce_any(self.reduce_r2_embedding)
+            item = parser.right_arc_second(self.reduce_r2_embedding)
+            self.stack_lstm(item)
+
+        return parser
+
+class EasyFirstStackLSTM(ExtendibleStackLSTMParser):
+    pass

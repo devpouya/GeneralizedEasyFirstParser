@@ -5,7 +5,8 @@ import torch.optim as optim
 
 sys.path.append('./src/')
 from h02_learn.dataset import get_data_loaders
-from h02_learn.model import BiaffineParser, MSTParser, ArcStandardStackLSTM, ArcEagerStackLSTM, HybridStackLSTM
+from h02_learn.model import BiaffineParser, MSTParser, ArcStandardStackLSTM,\
+    ArcEagerStackLSTM, HybridStackLSTM, NonProjectiveStackLSTM
 from h02_learn.train_info import TrainInfo
 from h02_learn.algorithm.mst import get_mst_batch
 from utils import constants
@@ -26,7 +27,8 @@ def get_args():
     parser.add_argument('--arc-size', type=int, default=500)
     parser.add_argument('--label-size', type=int, default=100)
     parser.add_argument('--dropout', type=float, default=.33)
-    parser.add_argument('--model', choices=['biaffine', 'mst', 'arc-standard', 'arc-eager', 'hybrid'],
+    parser.add_argument('--model', choices=['biaffine', 'mst', 'arc-standard',
+                                            'arc-eager', 'hybrid', 'non-projective'],
                         default='arc-standard')
     # Optimization
     parser.add_argument('--optim', choices=['adam', 'adamw'], default='adamw')
@@ -72,6 +74,11 @@ def get_model(vocabs, embeddings, args):
             .to(device=constants.device)
     elif args.model == 'hybrid':
         return HybridStackLSTM(
+            vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size,
+            nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings) \
+            .to(device=constants.device)
+    elif args.model == 'non-projective':
+        return NonProjectiveStackLSTM(
             vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size,
             nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings) \
             .to(device=constants.device)
@@ -139,7 +146,6 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
     train_info = TrainInfo(wait_iterations, eval_batches)
     while not train_info.finish:
         for (text, pos), (heads, rels) in trainloader:
-
             loss = train_batch(text, pos, heads, rels, model, optimizer)
             print(loss)
             train_info.new_batch(loss)

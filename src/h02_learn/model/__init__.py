@@ -1,3 +1,3 @@
 from .biaffine import BiaffineParser
 from .mst import MSTParser
-from .stack_lstm import ArcStandardStackLSTM, ArcEagerStackLSTM, HybridStackLSTM
+from .stack_lstm import ArcStandardStackLSTM, ArcEagerStackLSTM, HybridStackLSTM, NonProjectiveStackLSTM
