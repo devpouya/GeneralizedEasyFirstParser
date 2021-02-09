@@ -116,7 +116,7 @@ class StackLSTM(nn.Module):
             hidden, _ = lstm(hidden)
             # print(hidden.shape)
 
-        # print("output shape {}".format(output.shape))
+        #print("output shape {}".format(hidden.shape))
         return hidden
 
     def stack_summary(self, x):
