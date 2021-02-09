@@ -239,12 +239,14 @@ class ShiftReduceParser():
 
     def get_heads(self):
         # return heads
-        heads = torch.zeros((1, len(self.sentence), self.embedding_size * 2)).to(device=constants.device)
+        heads_embed = torch.zeros((1, len(self.sentence), self.embedding_size * 2)).to(device=constants.device)
+        heads = torch.zeros((1, len(self.sentence),len(self.sentence))).to(device=constants.device)
         with torch.no_grad():
             for i in range(len(self.sentence)):
                 for j in range(len(self.sentence)):
                     if (j, i) in self.arcs.arcs:
-                        heads[0, i, :] = self.ind2continous[j]
+                        heads_embed[0, i, :] = self.ind2continous[j]
+                        heads[0, i, j] = 1#j
                         continue
 
-        return heads
+        return heads, heads_embed

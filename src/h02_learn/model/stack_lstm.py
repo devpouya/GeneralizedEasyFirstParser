@@ -52,14 +52,14 @@ class ExtendibleStackLSTMParser(BaseParser):
 
         self.linear_arc_dep = nn.Linear(self.embedding_size * 2, arc_size).to(device=constants.device)
         self.linear_arc_head = nn.Linear(self.embedding_size * 2, arc_size).to(device=constants.device)
-        #self.arc_relu = nn.ReLU().to(device=constants.device)
-        #self.linear_arc = nn.Linear(arc_size*2,arc_size).to(device=constants.device)
+        # self.arc_relu = nn.ReLU().to(device=constants.device)
+        # self.linear_arc = nn.Linear(arc_size*2,arc_size).to(device=constants.device)
         self.biaffine = Biaffine(arc_size, arc_size)
 
         self.linear_label_dep = nn.Linear(self.embedding_size * 2, label_size).to(device=constants.device)
         self.linear_label_head = nn.Linear(self.embedding_size * 2, label_size).to(device=constants.device)
-        #self.label_relu = nn.ReLU().to(device=constants.device)
-        #self.linear_label = nn.Linear(label_size*2, label_size).to(device=constants.device)
+        # self.label_relu = nn.ReLU().to(device=constants.device)
+        # self.linear_label = nn.Linear(label_size*2, label_size).to(device=constants.device)
         self.bilinear_label = Bilinear(label_size, label_size, rels.size)
 
     def create_embeddings(self, vocabs, pretrained=None):
@@ -138,6 +138,8 @@ class ExtendibleStackLSTMParser(BaseParser):
         sent_lens = (x[0] != 0).sum(-1)
         h_t = torch.zeros((x_emb.shape[0], torch.max(sent_lens).item(), self.embedding_size * 2)) \
             .to(device=constants.device)
+        predicted_heads = torch.zeros((x_emb.shape[0], torch.max(sent_lens).item(), torch.max(sent_lens).item())) \
+            .to(device=constants.device)
         for i, sentence in enumerate(x_emb):
             parser = ShiftReduceParser(sentence, self.embedding_size)
             # init stack_lstm pointer and buffer_lstm pointer
@@ -147,7 +149,7 @@ class ExtendibleStackLSTMParser(BaseParser):
             for word in sentence:
                 self.buffer_lstm.push()
                 self.buffer_lstm(word)
-            #self.buffer_lstm(sentence)
+            # self.buffer_lstm(sentence)
             # push ROOT to the stack
             parser.stack.push((self.get_embeddings(root), -1))
             self.shift()
@@ -156,23 +158,26 @@ class ExtendibleStackLSTMParser(BaseParser):
                 parser = self.parse_step(parser)
 
             # parsed_state = self.get_parser_state(parser)
-            heads = parser.get_heads()
+            head_i, heads_embed = parser.get_heads()
             # action_emb = self.get_action_embeddings(parser.action_history)
-            h_t[i, :, :] = heads  # self.word_embeddings(heads)
-
+            h_t[i, :, :] = heads_embed  # self.word_embeddings(heads)
+            predicted_heads[i, :, :] = head_i
+        # print(h_t[0,:])
         h_logits = self.get_head_logits(h_t, sent_lens)
         if head is None:
             head = h_logits.argmax(-1)
-
         l_logits = self.get_label_logits(h_t, head)
-
-        return h_logits, l_logits
+        return predicted_heads, l_logits
 
     @staticmethod
     def loss(h_logits, l_logits, heads, rels):
+        # loss over words fuck it
+        # combine batch*sent_len
+
+        # h_logits = h_logits.reshape(-1, h_logits.shape[-1])
         criterion_h = nn.CrossEntropyLoss(ignore_index=-1).to(device=constants.device)
         criterion_l = nn.CrossEntropyLoss(ignore_index=0).to(device=constants.device)
-        loss = criterion_h(h_logits.reshape(-1, h_logits.shape[-1]), heads.reshape(-1))
+        loss = criterion_h(h_logits.reshape(h_logits.shape[0]*h_logits.shape[1],h_logits.shape[2]), heads.reshape(-1))
         loss += criterion_l(l_logits.reshape(-1, l_logits.shape[-1]), rels.reshape(-1))
         return loss
 
@@ -181,8 +186,7 @@ class ExtendibleStackLSTMParser(BaseParser):
         h_arc = self.dropout(F.relu(self.linear_arc_head(h_t)))
 
         h_logits = self.biaffine(h_arc, h_dep)
-        #h_logits = self.dropout(F.relu(self.linear_arc(torch.cat([h_arc, h_dep],dim=-1))))
-
+        # h_logits = self.dropout(F.relu(self.linear_arc(torch.cat([h_arc, h_dep],dim=-1))))
 
         # Zero logits for items after sentence length
         for i, sent_len in enumerate(sent_lens):
@@ -199,7 +203,7 @@ class ExtendibleStackLSTMParser(BaseParser):
             assert head is not None, 'During training head should not be None'
 
         l_head = l_head.gather(dim=1, index=head.unsqueeze(2).expand(l_head.size()))
-        #l_logits = self.dropout(F.relu(self.linear_label(torch.cat([l_dep, l_head],dim=-1))))
+        # l_logits = self.dropout(F.relu(self.linear_label(torch.cat([l_dep, l_head],dim=-1))))
         l_logits = self.bilinear_label(l_dep, l_head)
         return l_logits
 
@@ -338,7 +342,6 @@ class ArcEagerStackLSTM(ExtendibleStackLSTMParser):
                 return 0
             else:
                 parser.is_parse_complete(special_op=True)
-
 
     def parse_step(self, parser):
         best_action, probs = self.decide_action(parser)
