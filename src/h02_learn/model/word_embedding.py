@@ -58,7 +58,7 @@ class ActionEmbedding(nn.Module):
 
         self.embedding = nn.Embedding(self.action_size, self.embedding_size,
                                       _weight=pretrained_tensor, padding_idx=0)
-        self.embedding.weight.requires_grad = False
+        self.embedding.weight.requires_grad = True
 
     def forward(self, x):
         return self.embedding(x)
