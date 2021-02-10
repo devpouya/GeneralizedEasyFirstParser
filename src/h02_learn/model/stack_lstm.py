@@ -222,7 +222,8 @@ class ExtendibleStackLSTMParser(BaseParser):
         return h_logits
 
     def get_label_logits(self, h_t, head):
-        h_t = self.dropout(F.relu(nn.Linear(h_t.shape[1], self.embedding_size * 2)(h_t)))
+        h_t = self.dropout(F.relu(nn.Linear(h_t.shape[1], self.embedding_size * 2).to(device=constants.device)
+                                  (h_t)))
         l_dep = self.dropout(F.relu(self.linear_label_dep(h_t)))
         l_head = self.dropout(F.relu(self.linear_label_head(h_t)))
 
