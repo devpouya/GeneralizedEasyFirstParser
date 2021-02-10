@@ -165,21 +165,25 @@ class ExtendibleStackLSTMParser(BaseParser):
         for i, sentence in enumerate(x_emb):
             parser = ShiftReduceParser(sentence, self.embedding_size)
             # init stack_lstm pointer and buffer_lstm pointer
-            if i > 0:
-                self.stack_lstm.set_top(0)
-                self.buffer_lstm.set_top(0)
+            #if i > 0:
+            #    self.stack_lstm.set_top(0)
+            #    self.buffer_lstm.set_top(0)
             for word in sentence:
                 self.buffer_lstm.push()
                 self.buffer_lstm(word)
             # self.buffer_lstm(sentence)
             # push ROOT to the stack
             parser.stack.push((self.get_embeddings(root), -1))
+            self.stack_lstm.push()
+            self.stack_lstm(self.get_embeddings(root))
             self.shift()
             parser.shift(self.shift_embedding)
             actions_taken = []
             while not parser.is_parse_complete():
                 parser = self.parse_step(parser)
-                # print((parser.stack.get_len(),parser.buffer.get_len()))
+            #if i == 3:
+            #    self.stack_lstm.plot_structure(show=True)
+            # print((parser.stack.get_len(),parser.buffer.get_len()))
             head_probs[i, :, :] = parser.head_probs  # nn.Softmax(dim=-1)(parser.head_probs)#parser.head_probs
             # print(parser.head_probs)
             # action_probs.append(torch.stack(actions_taken))

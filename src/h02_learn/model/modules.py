@@ -8,8 +8,11 @@ from utils import constants
 class PointerLSTM(nn.Module):
     def __init__(self, id, prev_lstm, input_size, hidden_size, dropout, batch_first, bidirectional=False):
         super().__init__()
+        self.is_top = False
         self.is_root = False
+        self.is_final = True
         self.prev_lstm = prev_lstm
+        self.next_lstm = None
         self.hidden_size = hidden_size
         self.input_size = input_size
         self.lstm_cell = torch.nn.LSTM(input_size=input_size, hidden_size=hidden_size, num_layers=1,
@@ -25,6 +28,11 @@ class PointerLSTM(nn.Module):
 
     def set_previous(self, prev):
         self.prev_lstm = prev
+        self.is_root = False
+
+    def set_next(self, next):
+        self.next_lstm = next
+        self.is_final = False
 
 
 class StackLSTM(nn.Module):
@@ -36,42 +44,59 @@ class StackLSTM(nn.Module):
         self.dropout = dropout
         self.batch_first = batch_first
         self.bidirectional = bidirectional
-
         self.top_index = 0
-        self.top = PointerLSTM(id=0, prev_lstm=None, input_size=self.input_size, hidden_size=self.hidden_size,
-                               dropout=self.dropout, batch_first=self.batch_first,
-                               bidirectional=self.bidirectional)  # None
-        self.lstm_list = [self.top]
+        self.root = None
+        self.top = None #PointerLSTM(id=0, prev_lstm=None, input_size=self.input_size, hidden_size=self.hidden_size,
+                   #            dropout=self.dropout, batch_first=self.batch_first,
+                   #            bidirectional=self.bidirectional)  # None
+        self.lstm_list = [] #[self.top]
         # self.lstm2indx = {}
 
     def set_top(self, index):
         self.top = self.lstm_list[index]
-        self.top_index = index
+        self.top.is_top = True
+
+
+
 
     def pop(self):
         if self.top.prev_lstm is None:
             # do nothing
             pass
         else:
+            #self.top.is_final = False
+            self.top.is_top = False
             self.top = self.top.prev_lstm
+            self.top.is_final = False
+            self.top.is_top = True
+            #self.top.is_final = True
 
             # self.top_index = self.lstm2indx[self.top]
-            self.top_index = self.top.id
+            #self.top_index = self.top.id
 
-    def push(self, lstm=None):
+    def push(self, lstm=None, initialize=False):
         # if top = length of list
         # create and push
         # else, just push (don't add new lstm)
         # lstm has to be a PointerLSTM
         # assert(isinstance(lstm,PointerLSTM))
-        if self.top_index >= len(self.lstm_list)-1:
-            self.create_and_push()
-        else:
-            # move top_lstm by one
-            self.top_index += 1
-            prev = self.top
-            self.top = self.lstm_list[self.top_index]
-            self.top.prev_lstm = prev
+
+        #if self.top.is_final: #self.top_index >= len(self.lstm_list):
+        #if initialize:
+        #    self.top = self.root
+
+        self.create_and_push()
+        #else:
+        #    #self.create_and_push()
+        #    # move top_lstm by one
+        #    self.top.is_top = False
+        #    self.top = self.top.next_lstm
+        #    self.top.is_top = True
+        #    #self.top_index =
+        #    #prev = self.top
+        #    #self.top = self.top.next_lstm #self.lstm_list[self.top_index]
+        #    #self.top.prev_lstm = prev
+
 
         #lstm.prev_lstm = self.top
         #self.top = lstm
@@ -80,23 +105,36 @@ class StackLSTM(nn.Module):
         # self.lstm_list.append(lstm)
         # self.lstm2indx[lstm] = len(self.lstm_list) - 1
 
-    def create_and_push(self, lstm=None):
+    def create_and_push(self, lstm=None, make_root=False):
         if lstm is None:
-            if len(self.lstm_list) > 0:
-                lstm = PointerLSTM(id=len(self.lstm_list), prev_lstm=self.top, input_size=self.input_size
+            #if len(self.lstm_list) > 0:
+            lstm = PointerLSTM(id=len(self.lstm_list), prev_lstm=self.top, input_size=self.input_size
                                    , hidden_size=self.hidden_size, dropout=self.dropout,
                                    batch_first=self.batch_first, bidirectional=self.bidirectional)
-            else:
-                lstm = PointerLSTM(id=0, prev_lstm=None, input_size=self.input_size, hidden_size=self.hidden_size,
-                                   dropout=self.dropout, batch_first=self.batch_first,
-                                   bidirectional=self.bidirectional)
+            #else:
+            #    lstm = PointerLSTM(id=0, prev_lstm=None, input_size=self.input_size, hidden_size=self.hidden_size,
+            #                       dropout=self.dropout, batch_first=self.batch_first,
+            #
+            #                       bidirectional=self.bidirectional)
+        lstm.is_top = True
+        lstm.is_final = True
+        #if make_root:
+        #    lstm.is_root = True
+        #    self.top = lstm
 
-        lstm.prev_lstm = self.top
-        self.top = lstm
 
-        self.top_index = self.top.id  # self.lstm2indx[self.top]
+        if lstm.id == 0:
+            lstm.is_root = True
+            self.top = lstm
+            self.root = lstm
+        else:
+            lstm.prev_lstm = self.top
+            self.top.next_lstm = lstm
+            self.top.is_top = False
+            self.top.is_final = False
+            self.top = lstm
+
         self.lstm_list.append(lstm)
-        # self.lstm2indx[lstm] = len(self.lstm_list) - 1
 
     def forward(self, x):
 
@@ -144,13 +182,21 @@ class StackLSTM(nn.Module):
         G.add_nodes_from(range(len(self.lstm_list)))
 
         edges = set()
+        color_set = []
+        for node in G:
+            if self.lstm_list[node].is_top:
+                color_set.append("red")
+            elif self.lstm_list[node].is_root:
+                color_set.append("green")
+            else:
+                color_set.append("blue")
         for node in self.lstm_list:
             _, edge_list = self.get_branch(node)
             edges.update(edge for edge in edge_list)
 
         edges = list(edges)
         G.add_edges_from(edges)
-        nx.draw(G)
+        nx.draw(G,node_color=color_set)
         if save:
             plt.savefig(path)
         if show:
