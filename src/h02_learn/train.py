@@ -147,7 +147,7 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
     while not train_info.finish:
         for (text, pos), (heads, rels) in trainloader:
             loss = train_batch(text, pos, heads, rels, model, optimizer)
-            print(loss)
+            #print(loss)
             train_info.new_batch(loss)
             if train_info.eval:
                 dev_results = evaluate(devloader, model)

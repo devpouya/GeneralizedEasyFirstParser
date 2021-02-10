@@ -59,7 +59,6 @@ class ExtendibleStackLSTMParser(BaseParser):
         ## self.arc_relu = nn.ReLU().to(device=constants.device)
         ## self.linear_arc = nn.Linear(arc_size*2,arc_size).to(device=constants.device)
         # self.biaffine = Biaffine(arc_size, arc_size)
-
         self.linear_label_dep = nn.Linear(self.embedding_size * 2, label_size).to(device=constants.device)
         self.linear_label_head = nn.Linear(self.embedding_size * 2, label_size).to(device=constants.device)
         ## self.linear_label = nn.Linear(label_size*2, label_size).to(device=constants.device)
@@ -187,17 +186,13 @@ class ExtendibleStackLSTMParser(BaseParser):
             # parsed_state = self.get_parser_state(parser)
             # head_i, heads_embed = parser.get_heads()
             # action_emb = self.get_action_embeddings(parser.action_history)
-            h_t[i, :, :] = parser.get_head_embeddings()  # heads_embed  # self.word_embeddings(heads)
+            #h_t[i, :, :] = parser.get_head_embeddings()  # heads_embed  # self.word_embeddings(heads)
             #predicted_heads[i, :, :] = parser.heads  # head_i
             #parser_states[i,:] = self.get_parser_state(parser)
             heads_list[i, :] = parser.head_list
         # print(h_t[0,:])
-        l_logits = self.get_label_logits(h_t,heads_list)
-        # want to predict labels from final parser state
-        # h_logits = self.get_head_logits(h_t, sent_lens)
-        # if head is None:
-        #    head = h_logits.argmax(-1)
-        # l_logits = self.get_label_logits(h_t, head)
+        l_logits = self.get_label_logits(head_probs,heads_list)
+
         return head_probs, l_logits
 
 
@@ -207,12 +202,10 @@ class ExtendibleStackLSTMParser(BaseParser):
         criterion_l = nn.CrossEntropyLoss(ignore_index=0).to(device=constants.device)
         loss = criterion_h(h_logits.reshape(-1, h_logits.shape[-1]), heads.reshape(-1))
 
-        #loss = criterion_h(h_logits.reshape(h_logits.shape[0] * h_logits.shape[1], h_logits.shape[2]),
-        #                   heads.reshape(-1))
         #print(l_logits.shape)
         #print(rels.reshape(-1).shape)
-        #loss += criterion_l(l_logits.reshape(-1, l_logits.shape[-1]), rels.reshape(-1))
-        # loss += criterion_l(l_logits.reshape(l_logits.shape[0]*l_logits.shape[1], l_logits.shape[1]), rels.reshape(-1))
+        loss += criterion_l(l_logits.reshape(-1, l_logits.shape[-1]), rels.reshape(-1))
+
         return loss
 
 
@@ -230,6 +223,7 @@ class ExtendibleStackLSTMParser(BaseParser):
         return h_logits
 
     def get_label_logits(self, h_t, head):
+        h_t = self.dropout(F.relu(nn.Linear(h_t.shape[1],self.embedding_size*2)(h_t)))
         l_dep = self.dropout(F.relu(self.linear_label_dep(h_t)))
         l_head = self.dropout(F.relu(self.linear_label_head(h_t)))
 
