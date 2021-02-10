@@ -9,7 +9,8 @@ from utils import constants
 from .base import BaseParser
 from .modules import Biaffine, Bilinear, StackLSTM
 from .word_embedding import WordEmbedding, ActionEmbedding
-from ..algorithm.transition_parsers import ShiftReduceParser, arc_standard, arc_eager, hybrid, non_projective, easy_first
+from ..algorithm.transition_parsers import ShiftReduceParser, arc_standard, arc_eager, hybrid, non_projective, \
+    easy_first
 
 # CONSTANTS and NAMES
 # root used to initialize the stack with \sigma_0
@@ -97,12 +98,12 @@ class ExtendibleStackLSTMParser(BaseParser):
         prob = self.chooser_relu(prob)
         # need to get legal actions here
         legal_actions, kept_ind = self.legal_action(parser)
-        prob = nn.Softmax(dim=0)(torch.matmul(legal_actions,prob.permute(1,0)))
-        #print(prob.shape)
+        prob = nn.Softmax(dim=0)(torch.matmul(legal_actions, prob.permute(1, 0)))
+        # print(prob.shape)
         # need to pad probs back to original length with zeros
         if len(kept_ind) < len(self.actions):
-            tmp = torch.zeros((len(self.actions),prob.shape[1])).to(device=constants.device)
-            tmp[kept_ind,:] = prob
+            tmp = torch.zeros((len(self.actions), prob.shape[1])).to(device=constants.device)
+            tmp[kept_ind, :] = prob
             prob = tmp
         return torch.argmax(prob).item(), prob
 
@@ -156,10 +157,10 @@ class ExtendibleStackLSTMParser(BaseParser):
             .to(device=constants.device)
         predicted_heads = torch.zeros((x_emb.shape[0], torch.max(sent_lens).item(), torch.max(sent_lens).item())) \
             .to(device=constants.device)
-        parser_states = torch.zeros((x_emb.shape[0], self.embedding_size*2*3))
+        parser_states = torch.zeros((x_emb.shape[0], self.embedding_size * 2 * 3))
         heads_list = torch.zeros((x_emb.shape[0], torch.max(sent_lens).item()), dtype=torch.int).to(
             device=constants.device)
-        head_probs = torch.zeros((x_emb.shape[0],torch.max(sent_lens).item(),torch.max(sent_lens).item()))\
+        head_probs = torch.zeros((x_emb.shape[0], torch.max(sent_lens).item(), torch.max(sent_lens).item())) \
             .to(device=constants.device)
         for i, sentence in enumerate(x_emb):
             parser = ShiftReduceParser(sentence, self.embedding_size)
@@ -178,23 +179,22 @@ class ExtendibleStackLSTMParser(BaseParser):
             actions_taken = []
             while not parser.is_parse_complete():
                 parser = self.parse_step(parser)
-                #print((parser.stack.get_len(),parser.buffer.get_len()))
-            head_probs[i,:,:] = parser.head_probs#nn.Softmax(dim=-1)(parser.head_probs)#parser.head_probs
-            #print(parser.head_probs)
-            #action_probs.append(torch.stack(actions_taken))
+                # print((parser.stack.get_len(),parser.buffer.get_len()))
+            head_probs[i, :, :] = parser.head_probs  # nn.Softmax(dim=-1)(parser.head_probs)#parser.head_probs
+            # print(parser.head_probs)
+            # action_probs.append(torch.stack(actions_taken))
 
             # parsed_state = self.get_parser_state(parser)
             # head_i, heads_embed = parser.get_heads()
             # action_emb = self.get_action_embeddings(parser.action_history)
-            #h_t[i, :, :] = parser.get_head_embeddings()  # heads_embed  # self.word_embeddings(heads)
-            #predicted_heads[i, :, :] = parser.heads  # head_i
-            #parser_states[i,:] = self.get_parser_state(parser)
+            # h_t[i, :, :] = parser.get_head_embeddings()  # heads_embed  # self.word_embeddings(heads)
+            # predicted_heads[i, :, :] = parser.heads  # head_i
+            # parser_states[i,:] = self.get_parser_state(parser)
             heads_list[i, :] = parser.head_list
         # print(h_t[0,:])
-        l_logits = self.get_label_logits(head_probs,heads_list)
+        l_logits = self.get_label_logits(head_probs, heads_list)
 
         return head_probs, l_logits
-
 
     @staticmethod
     def loss(h_logits, l_logits, heads, rels):
@@ -202,12 +202,11 @@ class ExtendibleStackLSTMParser(BaseParser):
         criterion_l = nn.CrossEntropyLoss(ignore_index=0).to(device=constants.device)
         loss = criterion_h(h_logits.reshape(-1, h_logits.shape[-1]), heads.reshape(-1))
 
-        #print(l_logits.shape)
-        #print(rels.reshape(-1).shape)
+        # print(l_logits.shape)
+        # print(rels.reshape(-1).shape)
         loss += criterion_l(l_logits.reshape(-1, l_logits.shape[-1]), rels.reshape(-1))
 
         return loss
-
 
     def get_head_logits(self, h_t, sent_lens):
         h_dep = self.dropout(F.relu(self.linear_arc_dep(h_t)))
@@ -223,7 +222,7 @@ class ExtendibleStackLSTMParser(BaseParser):
         return h_logits
 
     def get_label_logits(self, h_t, head):
-        h_t = self.dropout(F.relu(nn.Linear(h_t.shape[1],self.embedding_size*2)(h_t)))
+        h_t = self.dropout(F.relu(nn.Linear(h_t.shape[1], self.embedding_size * 2)(h_t)))
         l_dep = self.dropout(F.relu(self.linear_label_dep(h_t)))
         l_head = self.dropout(F.relu(self.linear_label_head(h_t)))
 
@@ -286,12 +285,12 @@ class ArcStandardStackLSTM(ExtendibleStackLSTMParser):
             return best_action, probs
         elif len(parser.buffer.buffer) == 0:
             # can't shift
-            probs[:,0] = 0
-            #probs = torch.cat([probs[:, 1], probs[:, 2]])
+            probs[:, 0] = 0
+            # probs = torch.cat([probs[:, 1], probs[:, 2]])
             return torch.argmax(probs).item(), probs
         else:
             # can only shift
-            probs[:,1:] = 0
+            probs[:, 1:] = 0
             return 0, probs
 
     def legal_action(self, parser):
@@ -300,22 +299,22 @@ class ArcStandardStackLSTM(ExtendibleStackLSTMParser):
             return all_actions, range(len(self.actions))
         elif parser.buffer.get_len() == 0:
             # can't shift
-            return all_actions[1:,:], [1,2]
+            return all_actions[1:, :], [1, 2]
         else:
             # can only shift
-            return all_actions[0,:].unsqueeze(0), [0]
+            return all_actions[0, :].unsqueeze(0), [0]
 
     def update_head_prob(self, probs, parser):
         if parser.stack.get_len() >= 2:
             top = parser.stack.top()
             second = parser.stack.second()
-            parser.head_probs[:,top[1],second[1]] = probs[1]
-            parser.head_probs[:,second[1],top[1]] = probs[2]
+            parser.head_probs[:, top[1], second[1]] = probs[1]
+            parser.head_probs[:, second[1], top[1]] = probs[2]
 
     def parse_step(self, parser):
         best_action, probs = self.decide_action(parser)
         self.update_head_prob(probs, parser)
-        #best_action, probs = self.best_legal_action(best_action, parser, probs)
+        # best_action, probs = self.best_legal_action(best_action, parser, probs)
         if best_action == 0:
             self.shift()
             shifted = parser.shift(self.shift_embedding)
@@ -370,11 +369,17 @@ class ArcEagerStackLSTM(ExtendibleStackLSTMParser):
         self.stack_lstm.pop()
         self.action_lstm(self.reduce_embedding)
 
-    def legal_action(self, parser):
-        pass
+    def update_head_prob(self, probs, parser):
+        if parser.stack.get_len() >= 1 and parser.buffer.get_len() >= 1:
+            top = parser.stack.top()
+            buffer_first = parser.buffer.left()
+            parser.head_probs[:, buffer_first[1], top[1]] = probs[1]
+            parser.head_probs[:, top[1], buffer_first[1]] = probs[2]
 
-    def best_legal_action(self, best_action, parser, probs):
+    def legal_action(self, parser):
         # first check the conditions
+        all_actions = self.action_embeddings.weight
+
         stack_non_empty = len(parser.stack.stack) > 1
         buffer_non_empty = len(parser.buffer.buffer) > 0
         if stack_non_empty:
@@ -383,26 +388,29 @@ class ArcEagerStackLSTM(ExtendibleStackLSTMParser):
             # left-arc eager and right-arc eager need buffer to be non-empty
             if not buffer_non_empty:
                 # can only reduce
-                return 3
+                return all_actions[3, :].unsqueeze(0), [3]
             else:
                 if top_has_incoming:
-                    legal_action_probs = torch.index_select(probs, -1, torch.tensor([0, 2, 3]).to(
-                        device=constants.device))  # legal action ids
-                    map_index2action = {0: 0, 1: 2, 2: 3}
+                    # legal_action_probs = torch.index_select(probs, -1, torch.tensor([0, 2, 3]).to(
+                    #    device=constants.device))  # legal action ids
+                    # map_index2action = {0: 0, 1: 2, 2: 3}
+                    ind = [0, 2, 3]
+                    return all_actions[ind, :], ind
                 else:  # if buffer_non_empty:
-                    legal_action_probs = probs[:, :3]
-                    map_index2action = {0: 0, 1: 1, 2: 2}
-                return map_index2action[torch.argmax(legal_action_probs, dim=-1).item()]
-
+                    # legal_action_probs = probs[:, :3]
+                    # map_index2action = {0: 0, 1: 1, 2: 2}
+                    ind = range(2)
+                    return all_actions[ind, :], ind
         else:
             if buffer_non_empty:
-                return 0
+                return all_actions[0, :].unsqueeze(0), [0]
             else:
                 parser.is_parse_complete(special_op=True)
 
     def parse_step(self, parser):
         best_action, probs = self.decide_action(parser)
-        best_action = self.best_legal_action(best_action, parser, probs)
+        # best_action = self.best_legal_action(best_action, parser, probs)
+        self.update_head_prob(probs, parser)
         if best_action == 0:
             self.shift()
             parser.shift(self.shift_embedding)
@@ -451,18 +459,25 @@ class HybridStackLSTM(ExtendibleStackLSTMParser):
         self.stack_lstm.pop()
         self.action_lstm(self.reduce_r_embedding)
 
-    def best_legal_action(self, best_action, parser, probs):
-        if (len(parser.stack.stack) > 1) and (len(parser.buffer.buffer) > 0):
-            return best_action
-        elif len(parser.buffer.buffer) == 0:
-            probs = torch.cat([probs[:, 1], probs[:, 2]])
-            return torch.argmax(probs).item() + 1
+    def update_head_prob(self, probs, parser):
+        if parser.stack.get_len() >= 1 and parser.buffer.get_len() >= 1:
+            top = parser.stack.top()
+            buffer_first = parser.buffer.left()
+            parser.head_probs[:, buffer_first[1], top[1]] = probs[1]
+            parser.head_probs[:, top[1], buffer_first[1]] = probs[2]
+
+    def legal_action(self, parser):
+        all_actions = self.action_embeddings.weight
+        if (parser.stack.get_len() > 1) and (parser.buffer.get_len() > 0):
+            return all_actions, range(len(self.actions))
+        elif parser.buffer.get_len() == 0:
+            return all_actions[1:,:], [1,2]
         else:
-            return 0
+            return all_actions[0,:].unsqueeze(0),[0]
 
     def parse_step(self, parser):
         best_action, probs = self.decide_action(parser)
-        best_action = self.best_legal_action(best_action, parser, probs)
+        self.update_head_prob(probs, parser)
         if best_action == 0:
             self.shift()
             parser.shift(self.shift_embedding)
@@ -513,7 +528,7 @@ class NonProjectiveStackLSTM(ExtendibleStackLSTMParser):
     def best_legal_action(self, best_action, parser, probs):
         buffer_non_empty = len(parser.buffer.buffer) > 0
         stack_gt_3 = len(parser.stack.stack) >= 3
-        #stack_lt_2 = len(parser.stack.stack) <= 2
+        # stack_lt_2 = len(parser.stack.stack) <= 2
         stack_lt_1 = len(parser.stack.stack) <= 1
         if buffer_non_empty:
             if stack_gt_3:
@@ -521,18 +536,16 @@ class NonProjectiveStackLSTM(ExtendibleStackLSTMParser):
             elif stack_lt_1:
                 return 0
             else:
-                probs = probs[:,:3]
+                probs = probs[:, :3]
                 return torch.argmax(probs).item()
         else:
-            probs = probs[:,1:]
-            ind2_act = {i:i+1 for i in range(4)}
+            probs = probs[:, 1:]
+            ind2_act = {i: i + 1 for i in range(4)}
             if stack_gt_3:
                 return ind2_act[torch.argmax(probs).item()]
             else:
-                probs = probs[:,:2]
+                probs = probs[:, :2]
                 return ind2_act[torch.argmax(probs).item()]
-
-
 
     def parse_step(self, parser):
         best_action, probs = self.decide_action(parser)
@@ -559,6 +572,7 @@ class NonProjectiveStackLSTM(ExtendibleStackLSTMParser):
             self.stack_lstm(item)
 
         return parser
+
 
 class EasyFirstStackLSTM(ExtendibleStackLSTMParser):
     pass
