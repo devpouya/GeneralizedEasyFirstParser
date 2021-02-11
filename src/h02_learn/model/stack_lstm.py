@@ -18,7 +18,7 @@ root = (torch.tensor(1).to(device=constants.device), torch.tensor(1).to(device=c
 
 
 class ExtendibleStackLSTMParser(BaseParser):
-    def __init__(self, vocabs, embedding_size, hidden_size, arc_size, label_size,
+    def __init__(self, vocabs, embedding_size, hidden_size, arc_size, label_size,batch_size,
                  nlayers=3, dropout=0.33, pretrained_embeddings=None, transition_system=None):
         super().__init__()
 
@@ -31,6 +31,8 @@ class ExtendibleStackLSTMParser(BaseParser):
         self.dropout_p = dropout
         self.actions = transition_system[0]  # [shift, reduce_l, reduce_r]
         self.transition_ids = transition_system[1]  # arc_standard
+
+        self.batch_size = batch_size
         _, _, rels = vocabs
 
         # continous representations
@@ -38,9 +40,9 @@ class ExtendibleStackLSTMParser(BaseParser):
             self.create_embeddings(vocabs, pretrained=pretrained_embeddings)
 
         # stack lstms
-        self.buffer_lstm = StackLSTM(embedding_size * 2, int(hidden_size / 2), dropout=(dropout if nlayers > 1 else 0),
+        self.buffer_lstm = StackLSTM(embedding_size * 2, int(hidden_size / 2), dropout=(dropout if nlayers > 1 else 0),batch_size=batch_size,
                                      batch_first=True, bidirectional=False)
-        self.stack_lstm = StackLSTM(embedding_size * 2, int(hidden_size / 2), dropout=(dropout if nlayers > 1 else 0),
+        self.stack_lstm = StackLSTM(embedding_size * 2, int(hidden_size / 2), dropout=(dropout if nlayers > 1 else 0),batch_size=batch_size,
                                     batch_first=True, bidirectional=False)
         self.action_lstm = nn.LSTM(embedding_size, int(hidden_size / 2), dropout=(dropout if nlayers > 1 else 0),
                                    batch_first=True, bidirectional=False)
@@ -116,22 +118,33 @@ class ExtendibleStackLSTMParser(BaseParser):
     def get_parser_state(self, parser):
         parser_stack = parser.get_stack_content()
         parser_buffer = parser.get_buffer_content()
-        if len(parser_stack) > 1:
-            stack_state = torch.stack(parser_stack)
-        else:
-            stack_state = parser_stack[0]
-
+        #if len(parser_stack) > 1:
+        #    stack_state = torch.stack(parser_stack)
+        #else:
+        #    stack_state = parser_stack[0]
+        stack_state = parser_stack[-1]
         if len(parser_buffer) > 1:
 
-            buffer_state = torch.stack(parser_buffer)
+            #buffer_state = torch.stack(parser_buffer)
+            buffer_state = parser_buffer[-1]
+
         elif len(parser_buffer) == 0:
             buffer_state = torch.zeros_like(stack_state).to(device=constants.device)
         else:
-            buffer_state = parser_buffer[0]
+            #buffer_state = parser_buffer[0]
+            buffer_state = parser_buffer[-1]
 
+        #buffer_state = parser_buffer[-1]
         action_history = parser.action_history
 
         action_embeddings = action_history[-1]
+
+        #print(stack_state.shape)
+        #print(buffer_state.shape)
+        stack_state = stack_state.reshape(1,self.batch_size,stack_state.shape[0])
+        buffer_state = buffer_state.reshape(1,self.batch_size,buffer_state.shape[0])
+        #print(action_embeddings.shape)
+        #action_embeddings = action_embeddings.reshape(action_embeddings.shape[0],self.batch_size,action_embeddings.shape[1])
         with torch.no_grad():
             so = self.stack_lstm(stack_state)[0]
             bo = self.buffer_lstm(buffer_state)[0]
@@ -166,18 +179,32 @@ class ExtendibleStackLSTMParser(BaseParser):
             parser = ShiftReduceParser(sentence, self.embedding_size)
             # init stack_lstm pointer and buffer_lstm pointer
             #if i > 0:
-            #    self.stack_lstm.set_top(0)
-            #    self.buffer_lstm.set_top(0)
-            for word in sentence:
-                self.buffer_lstm.push()
-                self.buffer_lstm(word)
+            #    self.stack_lstm.reset()
+            #    self.buffer_lstm.reset()
+            #    for word in sentence:
+            #        self.buffer_lstm.push(x=word)
+            #        self.buffer_lstm(word)
+            #    self.stack_lstm.push(x=self.get_embeddings(root))
+
+            #else:
+            #    for word in sentence:
+            #        self.buffer_lstm.push()
+            #        self.buffer_lstm(word)
+            #    self.stack_lstm.push()
             # self.buffer_lstm(sentence)
             # push ROOT to the stack
             parser.stack.push((self.get_embeddings(root), -1))
-            self.stack_lstm.push()
-            self.stack_lstm(self.get_embeddings(root))
+            root_emb = self.get_embeddings(root)
+            self.stack_lstm(root_emb.reshape(1,1,root_emb.shape[0]),first=True)
             self.shift()
             parser.shift(self.shift_embedding)
+            for ind, word in enumerate(sentence):
+                word = word.reshape(1,1,word.shape[0])
+                if ind == 0:
+                    self.buffer_lstm(word,first=True)
+                else:
+                    self.buffer_lstm(word)
+
             actions_taken = []
             while not parser.is_parse_complete():
                 parser = self.parse_step(parser)
@@ -254,9 +281,9 @@ class ExtendibleStackLSTMParser(BaseParser):
 
 
 class ArcStandardStackLSTM(ExtendibleStackLSTMParser):
-    def __init__(self, vocabs, embedding_size, hidden_size, arc_size, label_size,
+    def __init__(self, vocabs, embedding_size, hidden_size, arc_size, label_size,batch_size,
                  nlayers=3, dropout=0.33, pretrained_embeddings=None, transition_system=arc_standard):
-        super().__init__(vocabs, embedding_size, hidden_size, arc_size, label_size,
+        super().__init__(vocabs, embedding_size, hidden_size, arc_size, label_size,batch_size,
                          nlayers=nlayers, dropout=dropout, pretrained_embeddings=pretrained_embeddings,
                          transition_system=transition_system)
 
@@ -272,7 +299,7 @@ class ArcStandardStackLSTM(ExtendibleStackLSTMParser):
                                                                   self.reduce_r_embedding.shape[1])
 
     def shift(self):
-        self.stack_lstm.push()
+        #self.stack_lstm.push()
         self.buffer_lstm.pop()
         self.action_lstm(self.shift_embedding)
 
@@ -321,17 +348,23 @@ class ArcStandardStackLSTM(ExtendibleStackLSTMParser):
         self.update_head_prob(probs, parser)
         # best_action, probs = self.best_legal_action(best_action, parser, probs)
         if best_action == 0:
-            self.shift()
+            #self.shift()
+            self.buffer_lstm.pop()
+            self.action_lstm(self.shift_embedding)
             shifted = parser.shift(self.shift_embedding)
-            self.stack_lstm(shifted)
+            self.stack_lstm(shifted.reshape(1,self.batch_size,shifted.shape[0]))
         elif best_action == 1:
-            self.reduce_l()
+            #self.reduce_l()
+            self.stack_lstm.pop()
+            self.action_lstm(self.reduce_l_embedding)
             rep = parser.reduce_l(self.reduce_l_embedding)
-            self.stack_lstm(rep)
+            self.stack_lstm(rep.reshape(1,self.batch_size,rep.shape[0]))
         else:
-            self.reduce_r()
+            #self.reduce_r()
+            self.stack_lstm.pop()
+            self.action_lstm(self.reduce_r_embedding)
             rep = parser.reduce_r(self.reduce_r_embedding)
-            self.stack_lstm(rep)
+            self.stack_lstm(rep.reshape(1,self.batch_size,rep.shape[0]))
         return parser
 
 

@@ -4,6 +4,8 @@ import networkx as nx
 import matplotlib.pyplot as plt
 from utils import constants
 
+import numpy as np
+
 
 class PointerLSTM(nn.Module):
     def __init__(self, id, prev_lstm, input_size, hidden_size, dropout, batch_first, bidirectional=False):
@@ -16,7 +18,8 @@ class PointerLSTM(nn.Module):
         self.hidden_size = hidden_size
         self.input_size = input_size
         self.lstm_cell = torch.nn.LSTM(input_size=input_size, hidden_size=hidden_size, num_layers=1,
-                                       dropout=dropout, batch_first=batch_first, bidirectional=False).to(device=constants.device)
+                                       dropout=dropout, batch_first=batch_first, bidirectional=False).to(
+            device=constants.device)
 
         self.id = id
 
@@ -35,7 +38,122 @@ class PointerLSTM(nn.Module):
         self.is_final = False
 
 
+class HiddenOutput():
+    def __init__(self, weight):
+        self.weight = weight
+        self.hidden_weight = None
+        self.prev = None
+        self.next = []
+        self.is_top = False
+        self.is_root = False
+
+
+
 class StackLSTM(nn.Module):
+    def __init__(self, input_size, hidden_size, dropout, batch_size, batch_first, bidirectional=False):
+        super().__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.dropout = dropout
+        self.batch_first = batch_first
+        self.batch_size = batch_size
+        self.num_layers = 2
+        self.bidirectional = bidirectional
+
+        self.root = None
+        self.top = None
+
+        self.curr_len = 0
+
+        # A list of HiddenOutput
+        self.hidden_list = []
+
+        self.lstm = torch.nn.LSTM(input_size=input_size, hidden_size=hidden_size, num_layers=self.num_layers,
+                                  dropout=dropout, batch_first=batch_first, bidirectional=bidirectional) \
+            .to(device=constants.device)
+
+    def push(self, x, first=False):
+        #print("PUSH")
+        item = HiddenOutput(x)
+        if first:
+            self.top = item
+            item.is_root = True
+
+        else:
+            item.prev = self.top
+            self.top.next.append(x)
+            self.top = item
+        self.curr_len += 1
+
+    def pop(self):
+        #print("POP")
+        try:
+            self.top = self.top.prev
+            # self.curr_len -= 1
+        except:
+            self.top = self.top
+            # self.curr_len -= 1
+
+    def get_branch(self):
+        branch = []
+        curr = self.top
+        while not curr.is_root:
+            branch.append(curr)
+            curr = curr.prev
+        return branch[::-1]
+
+    def forward(self, input, first=False):
+        self.push(input,first)
+
+        if self.top.prev is None:
+            #print("INIT")
+            h_0 = torch.zeros((self.num_layers, self.top.weight.shape[1], self.top.weight.shape[2])).to(device=constants.device)
+            c_0 = torch.zeros((self.num_layers, self.top.weight.shape[1], self.top.weight.shape[2])).to(device=constants.device)
+            h_0 = nn.init.xavier_normal(h_0)
+            c_0 = nn.init.xavier_normal(c_0)
+            h = (h_0,c_0)
+            #print(item.weight.shape)
+            #print(h.shape)
+
+        else:
+            #print("NEXT")
+            h = self.top.prev.hidden
+            #print("HHHH {}".format(h.shape))
+        #print(self.top.weight.shape)
+        out, hidden = self.lstm(self.top.weight,h)
+        self.top.hidden = hidden
+        return out
+        #dp_table = []  # np.zeros((self.curr_len,self.curr_len))
+        #neighbor_table = []
+        #dp_table.append(hidden)
+        #if item.next is None:
+        #    return out_root
+        #else:
+        #    neighbor_table.append(item.next)
+        #    out_list = []
+        #    out_list.append(out_root)
+        #    for i in range(self.curr_len):
+        #        if len(neighbor_table)>1:
+        #            for curr in neighbor_table[i]:
+        #                print(neighbor_table)
+        #                print("hh")
+        #                out, hidden = self.lstm(curr.weight, dp_table[i])
+        #                neighbor_table.append(curr.next)
+        #                dp_table.append(hidden)
+        #                out_list.append(out)
+        #        else:
+        #            return torch.stack(out_list)
+
+        #    return torch.stack(out_list)
+
+
+
+    def plot_structure(self):
+        pass
+
+
+
+class StackLSTM2(nn.Module):
 
     def __init__(self, input_size, hidden_size, dropout, batch_first, bidirectional=False):
         super().__init__()
@@ -46,33 +164,30 @@ class StackLSTM(nn.Module):
         self.bidirectional = bidirectional
         self.top_index = 0
         self.root = None
-        self.top = None #PointerLSTM(id=0, prev_lstm=None, input_size=self.input_size, hidden_size=self.hidden_size,
-                   #            dropout=self.dropout, batch_first=self.batch_first,
-                   #            bidirectional=self.bidirectional)  # None
-        self.lstm_list = [] #[self.top]
+        self.top = None  # PointerLSTM(id=0, prev_lstm=None, input_size=self.input_size, hidden_size=self.hidden_size,
+        #            dropout=self.dropout, batch_first=self.batch_first,
+        #            bidirectional=self.bidirectional)  # None
+        self.lstm_list = []  # [self.top]
         # self.lstm2indx = {}
 
     def set_top(self, index):
         self.top = self.lstm_list[index]
         self.top.is_top = True
 
-
-
-
     def pop(self):
         if self.top.prev_lstm is None:
             # do nothing
             pass
         else:
-            #self.top.is_final = False
+            # self.top.is_final = False
             self.top.is_top = False
             self.top = self.top.prev_lstm
             self.top.is_final = False
             self.top.is_top = True
-            #self.top.is_final = True
+            # self.top.is_final = True
 
             # self.top_index = self.lstm2indx[self.top]
-            #self.top_index = self.top.id
+            # self.top_index = self.top.id
 
     def push(self, lstm=None, initialize=False):
         # if top = length of list
@@ -81,12 +196,12 @@ class StackLSTM(nn.Module):
         # lstm has to be a PointerLSTM
         # assert(isinstance(lstm,PointerLSTM))
 
-        #if self.top.is_final: #self.top_index >= len(self.lstm_list):
-        #if initialize:
+        # if self.top.is_final: #self.top_index >= len(self.lstm_list):
+        # if initialize:
         #    self.top = self.root
 
         self.create_and_push()
-        #else:
+        # else:
         #    #self.create_and_push()
         #    # move top_lstm by one
         #    self.top.is_top = False
@@ -97,34 +212,34 @@ class StackLSTM(nn.Module):
         #    #self.top = self.top.next_lstm #self.lstm_list[self.top_index]
         #    #self.top.prev_lstm = prev
 
-
-        #lstm.prev_lstm = self.top
-        #self.top = lstm
+        # lstm.prev_lstm = self.top
+        # self.top = lstm
 
         # self.top_index = self.lstm2indx[self.top]
         # self.lstm_list.append(lstm)
         # self.lstm2indx[lstm] = len(self.lstm_list) - 1
 
-    def create_and_push(self, lstm=None, make_root=False):
+    def create_and_push(self, x=None, lstm=None, make_root=False):
         if lstm is None:
-            #if len(self.lstm_list) > 0:
+            # if len(self.lstm_list) > 0:
             lstm = PointerLSTM(id=len(self.lstm_list), prev_lstm=self.top, input_size=self.input_size
-                                   , hidden_size=self.hidden_size, dropout=self.dropout,
-                                   batch_first=self.batch_first, bidirectional=self.bidirectional)
-            #else:
+                               , hidden_size=self.hidden_size, dropout=self.dropout,
+                               batch_first=self.batch_first, bidirectional=self.bidirectional)
+            # else:
             #    lstm = PointerLSTM(id=0, prev_lstm=None, input_size=self.input_size, hidden_size=self.hidden_size,
             #                       dropout=self.dropout, batch_first=self.batch_first,
             #
             #                       bidirectional=self.bidirectional)
         lstm.is_top = True
         lstm.is_final = True
-        #if make_root:
+        # if make_root:
         #    lstm.is_root = True
         #    self.top = lstm
 
-
         if lstm.id == 0:
             lstm.is_root = True
+            if self.top is not None:
+                lstm(self.stack_summary(x))
             self.top = lstm
             self.root = lstm
         else:
@@ -141,10 +256,10 @@ class StackLSTM(nn.Module):
         current_branch, _ = self.get_branch(self.top)
         # fix this
         if len(x.shape) < 2:
-            x = x.reshape(1,1,x.shape[0])
+            x = x.reshape(1, 1, x.shape[0])
         else:
             x = x.reshape(x.shape[0], 1, x.shape[1])
-        #print(x.shape)
+        # print(x.shape)
         # output = torch.empty()
         # print("output shape {}".format(output.shape))
 
@@ -154,12 +269,15 @@ class StackLSTM(nn.Module):
             hidden, _ = lstm(hidden)
             # print(hidden.shape)
 
-        #print("output shape {}".format(hidden.shape))
+        # print("output shape {}".format(hidden.shape))
         return hidden
 
     def stack_summary(self, x):
-        out, hidden = self.lstm_list[self.top_index](x)
-        return out
+        out, hidden = self.top(x)
+        return out, hidden
+
+    def reset(self):
+        self.lstm_list = []
 
     def get_branch(self, start_node):
         current_branch = []
@@ -196,7 +314,7 @@ class StackLSTM(nn.Module):
 
         edges = list(edges)
         G.add_edges_from(edges)
-        nx.draw(G,node_color=color_set)
+        nx.draw(G, node_color=color_set)
         if save:
             plt.savefig(path)
         if show:
