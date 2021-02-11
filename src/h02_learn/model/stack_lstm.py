@@ -215,7 +215,7 @@ class ExtendibleStackLSTMParser(BaseParser):
             #if i == 3:
             #    self.stack_lstm.plot_structure(show=True)
             # print((parser.stack.get_len(),parser.buffer.get_len()))
-            head_probs[i, :, :] = parser.head_probs  # nn.Softmax(dim=-1)(parser.head_probs)#parser.head_probs
+            head_probs[i, :, :] = nn.Softmax(dim=-1)(parser.head_probs)#parser.head_probs
             # print(parser.head_probs)
             # action_probs.append(torch.stack(actions_taken))
 
@@ -346,8 +346,8 @@ class ArcStandardStackLSTM(ExtendibleStackLSTMParser):
         if parser.stack.get_len() >= 2:
             top = parser.stack.top()
             second = parser.stack.second()
-            parser.head_probs[:, top[1], second[1]] = probs[1]
-            parser.head_probs[:, second[1], top[1]] = probs[2]
+            parser.head_probs[:, top[1], second[1]] = probs[2]
+            parser.head_probs[:, second[1], top[1]] = probs[1]
 
     def parse_step(self, parser):
         best_action, probs = self.decide_action(parser)
