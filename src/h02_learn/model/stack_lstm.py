@@ -233,6 +233,8 @@ class ExtendibleStackLSTMParser(BaseParser):
 
     @staticmethod
     def loss(h_logits, heads):
+        #print(h_logits)
+        #print(heads)
         criterion_h = nn.CrossEntropyLoss(ignore_index=-1).to(device=constants.device)
         #criterion_l = nn.CrossEntropyLoss(ignore_index=0).to(device=constants.device)
         loss = criterion_h(h_logits.reshape(-1, h_logits.shape[-1]), heads.reshape(-1))

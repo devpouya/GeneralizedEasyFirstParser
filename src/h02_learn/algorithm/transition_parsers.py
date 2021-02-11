@@ -152,6 +152,7 @@ class ShiftReduceParser():
         self.head_list = torch.zeros((1,len(self.sentence))).to(device=constants.device)
 
         self.head_probs = torch.zeros((1,len(self.sentence),len(self.sentence))).to(device=constants.device)
+        self.head_probs = nn.init.xavier_normal(self.head_probs)
         # used for learning representation for partial parse trees
         self.linear = nn.Linear(5 * embedding_size, 2 * embedding_size).to(device=constants.device)
         self.tanh = nn.Tanh().to(device=constants.device)
