@@ -153,7 +153,7 @@ class StackLSTM(nn.Module):
 
 
 
-class StackLSTM2(nn.Module):
+class GrowingStackLSTM(nn.Module):
 
     def __init__(self, input_size, hidden_size, dropout, batch_first, bidirectional=False):
         super().__init__()

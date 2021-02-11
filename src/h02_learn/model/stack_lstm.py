@@ -141,8 +141,8 @@ class ExtendibleStackLSTMParser(BaseParser):
 
         #print(stack_state.shape)
         #print(buffer_state.shape)
-        stack_state = stack_state.reshape(1,self.batch_size,stack_state.shape[0])
-        buffer_state = buffer_state.reshape(1,self.batch_size,buffer_state.shape[0])
+        stack_state = stack_state.reshape(1,1,stack_state.shape[0])
+        buffer_state = buffer_state.reshape(1,1,buffer_state.shape[0])
         #print(action_embeddings.shape)
         #action_embeddings = action_embeddings.reshape(action_embeddings.shape[0],self.batch_size,action_embeddings.shape[1])
         with torch.no_grad():
@@ -165,6 +165,7 @@ class ExtendibleStackLSTMParser(BaseParser):
 
     def forward(self, x, head=None):
         x_emb = self.dropout(self.get_embeddings(x))
+        #print(x_emb.shape)
         sent_lens = (x[0] != 0).sum(-1)
         h_t = torch.zeros((x_emb.shape[0], torch.max(sent_lens).item(), self.embedding_size * 2)) \
             .to(device=constants.device)
@@ -175,7 +176,9 @@ class ExtendibleStackLSTMParser(BaseParser):
             device=constants.device)
         head_probs = torch.zeros((x_emb.shape[0], torch.max(sent_lens).item(), torch.max(sent_lens).item())) \
             .to(device=constants.device)
+        steps = 0
         for i, sentence in enumerate(x_emb):
+            steps += 1
             parser = ShiftReduceParser(sentence, self.embedding_size)
             # init stack_lstm pointer and buffer_lstm pointer
             #if i > 0:
@@ -208,6 +211,7 @@ class ExtendibleStackLSTMParser(BaseParser):
             actions_taken = []
             while not parser.is_parse_complete():
                 parser = self.parse_step(parser)
+            #print(steps)
             #if i == 3:
             #    self.stack_lstm.plot_structure(show=True)
             # print((parser.stack.get_len(),parser.buffer.get_len()))
@@ -221,21 +225,21 @@ class ExtendibleStackLSTMParser(BaseParser):
             # h_t[i, :, :] = parser.get_head_embeddings()  # heads_embed  # self.word_embeddings(heads)
             # predicted_heads[i, :, :] = parser.heads  # head_i
             # parser_states[i,:] = self.get_parser_state(parser)
-            heads_list[i, :] = parser.head_list
+            #heads_list[i, :] = parser.head_list
         # print(h_t[0,:])
-        l_logits = self.get_label_logits(head_probs, heads_list)
+        #l_logits = self.get_label_logits(head_probs, heads_list)
 
-        return head_probs, l_logits
+        return head_probs#, l_logits
 
     @staticmethod
-    def loss(h_logits, l_logits, heads, rels):
+    def loss(h_logits, heads):
         criterion_h = nn.CrossEntropyLoss(ignore_index=-1).to(device=constants.device)
-        criterion_l = nn.CrossEntropyLoss(ignore_index=0).to(device=constants.device)
+        #criterion_l = nn.CrossEntropyLoss(ignore_index=0).to(device=constants.device)
         loss = criterion_h(h_logits.reshape(-1, h_logits.shape[-1]), heads.reshape(-1))
 
         # print(l_logits.shape)
         # print(rels.reshape(-1).shape)
-        loss += criterion_l(l_logits.reshape(-1, l_logits.shape[-1]), rels.reshape(-1))
+        #loss += criterion_l(l_logits.reshape(-1, l_logits.shape[-1]), rels.reshape(-1))
 
         return loss
 
@@ -352,19 +356,19 @@ class ArcStandardStackLSTM(ExtendibleStackLSTMParser):
             self.buffer_lstm.pop()
             self.action_lstm(self.shift_embedding)
             shifted = parser.shift(self.shift_embedding)
-            self.stack_lstm(shifted.reshape(1,self.batch_size,shifted.shape[0]))
+            self.stack_lstm(shifted.reshape(1,1,shifted.shape[0]))
         elif best_action == 1:
             #self.reduce_l()
             self.stack_lstm.pop()
             self.action_lstm(self.reduce_l_embedding)
             rep = parser.reduce_l(self.reduce_l_embedding)
-            self.stack_lstm(rep.reshape(1,self.batch_size,rep.shape[0]))
+            self.stack_lstm(rep.reshape(1,1,rep.shape[0]))
         else:
             #self.reduce_r()
             self.stack_lstm.pop()
             self.action_lstm(self.reduce_r_embedding)
             rep = parser.reduce_r(self.reduce_r_embedding)
-            self.stack_lstm(rep.reshape(1,self.batch_size,rep.shape[0]))
+            self.stack_lstm(rep.reshape(1,1,rep.shape[0]))
         return parser
 
 
