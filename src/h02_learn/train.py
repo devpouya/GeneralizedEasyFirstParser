@@ -11,6 +11,7 @@ from h02_learn.train_info import TrainInfo
 from h02_learn.algorithm.mst import get_mst_batch
 from utils import constants
 from utils import utils
+from h02_learn.model.random_tests import ttt
 
 
 def get_args():
@@ -64,7 +65,7 @@ def get_model(vocabs, embeddings, args):
             .to(device=constants.device)
     elif args.model == 'arc-standard':
         return ArcStandardStackLSTM(
-            vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size,
+            vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size,args.batch_size,
             nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings) \
             .to(device=constants.device)
     elif args.model == 'arc-eager':
@@ -147,7 +148,7 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
     while not train_info.finish:
         for (text, pos), (heads, rels) in trainloader:
             loss = train_batch(text, pos, heads, rels, model, optimizer)
-            #print(loss)
+            print(loss)
             train_info.new_batch(loss)
             if train_info.eval:
                 dev_results = evaluate(devloader, model)
