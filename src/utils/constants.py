@@ -109,3 +109,12 @@ UD_LANG_FOLDERS = {
 }
 
 UD_LANG_FNAMES = {name: '%s/%s' % (UD_PATH_RAW, folder) for name, folder in UD_LANG_FOLDERS.items()}
+
+
+
+# actions
+
+
+shift = "SHIFT"
+reduce_l = "REDUCE-L"
+reduce_r = "REDUCE-R"
