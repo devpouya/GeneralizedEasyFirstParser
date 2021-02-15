@@ -7,36 +7,7 @@ from utils import constants
 
 # CONSTANTS AND NAMES
 
-shift = "SHIFT"
 
-reduce_l = "REDUCE_L"
-
-reduce_r = "REDUCE_R"
-
-reduce = "REDUCE"
-
-left_arc_eager = "LEFT_ARC_EAGER"
-
-right_arc_eager = "RIGHT_ARC_EAGER"
-
-left_arc_hybrid = "LEFT_ARC_H"
-
-left_arc_2 = "LEFT_ARC_2"
-right_arc_2 = "RIGHT_ARC_2"
-
-arc_standard = ([shift, reduce_l, reduce_r], range(3))  # {shift: 0, reduce_l: 1, reduce_r: 2}
-# arc_standard_actions = {0: fshift, 1: freduce_l, 2: freduce_r}
-
-arc_eager = ([shift, left_arc_eager, right_arc_eager, reduce],
-             range(4))  # {shift: 0, left_arc_eager: 1, right_arc_eager: 2, reduce: 3}
-# arc_eager_actions = {0: fshift, 1: fleft_arc_eager, 2: fright_arc_eager, 3: freduce}
-
-hybrid = ([shift, left_arc_hybrid, reduce_r], range(3))  # {shift: 0, left_arc_hybrid: 1, reduce_r: 2}
-
-non_projective = ([shift,reduce_l,reduce_r,left_arc_2,right_arc_2],range(5))
-# hybrid_actions = {0: fshift, 1: fleft_arc, 2: freduce_r}
-
-easy_first = (0,0)
 # Classes for basic transition based data structures
 
 # Holds the arcs created during parsing
@@ -77,12 +48,14 @@ class Stack:
     def pop_second(self):
         # remove and return second to last element
         return self.stack.pop(-2)
+
     def pop_third(self):
         return self.stack.pop(-3)
 
     def second(self):
         # return the second element
         return self.stack[-2]
+
     def third(self):
         return self.stack[-3]
 
@@ -129,7 +102,7 @@ class Buffer:
 # arc-standard shift reduce parser
 class ShiftReduceParser():
 
-    def __init__(self, sentence, embedding_size):
+    def __init__(self, sentence, embedding_size, transition_system):
         # data structures
         self.stack = Stack()
         self.buffer = Buffer(sentence)
@@ -138,6 +111,8 @@ class ShiftReduceParser():
         # hold the action history (embedding) and names (string)
         self.action_history = []
         self.action_history_names = []
+        self.actions_probs = torch.zeros((1, len(transition_system))).to(device=constants.device)
+        self.oracle_action_history = []
 
         # sentence to parse
         self.sentence = sentence
@@ -149,9 +124,9 @@ class ShiftReduceParser():
         self.ind2continous = {i: vec for (vec, i) in self.buffer.buffer}
 
         self.heads = torch.zeros((1, len(self.sentence), len(self.sentence))).to(device=constants.device)
-        self.head_list = torch.zeros((1,len(self.sentence))).to(device=constants.device)
+        self.head_list = torch.zeros((1, len(self.sentence))).to(device=constants.device)
 
-        self.head_probs = torch.zeros((1,len(self.sentence),len(self.sentence))).to(device=constants.device)
+        self.head_probs = torch.zeros((1, len(self.sentence), len(self.sentence))).to(device=constants.device)
         self.head_probs = nn.init.xavier_normal(self.head_probs)
         # used for learning representation for partial parse trees
         self.linear = nn.Linear(5 * embedding_size, 2 * embedding_size).to(device=constants.device)
@@ -174,7 +149,7 @@ class ShiftReduceParser():
     def shift(self, act_emb):
         item = self.buffer.pop_left()
         self.stack.push(item)
-        self.action_history_names.append(shift)
+        self.action_history_names.append(constants.shift)
         self.action_history.append(act_emb)
         return item[0]
 
@@ -183,8 +158,8 @@ class ShiftReduceParser():
         item_second = self.stack.pop_second()
         self.arcs.add_arc(item_top[1], item_second[1])
         self.heads[0, item_second[1], item_top[1]] = 1
-        self.head_list[0,item_second[1]] = item_top[1]
-        self.action_history_names.append(reduce_l)
+        self.head_list[0, item_second[1]] = item_top[1]
+        self.action_history_names.append(constants.reduce_l)
         self.action_history.append(act_emb)
 
         # compute build representation and use this from now on
@@ -196,8 +171,8 @@ class ShiftReduceParser():
         top_item = self.stack.pop()
         self.arcs.add_arc(second_item[1], top_item[1])
         self.heads[0, top_item[1], second_item[1]] = 1
-        self.head_list[0,top_item[1]] = second_item[1]
-        self.action_history_names.append(reduce_r)
+        self.head_list[0, top_item[1]] = second_item[1]
+        self.action_history_names.append(constants.reduce_r)
         self.action_history.append(act_emb)
 
         # compute build representation and use this from now on
@@ -209,7 +184,7 @@ class ShiftReduceParser():
         # if self.arcs.has_incoming(stack_top):
         self.stack.pop()
         self.action_history.append(act_emb)
-        self.action_history_names.append(reduce)
+        self.action_history_names.append(constants.reduce)
 
     def left_arc_eager(self, act_emb):
         stack_top = self.stack.top()
@@ -218,9 +193,9 @@ class ShiftReduceParser():
         self.stack.pop()
         self.arcs.add_arc(buffer_first[1], stack_top[1])
         self.heads[0, stack_top[1], buffer_first[1]] = 1
-        self.head_list[0,stack_top[1]] = buffer_first[1]
+        self.head_list[0, stack_top[1]] = buffer_first[1]
         self.action_history.append(act_emb)
-        self.action_history_names.append(left_arc_eager)
+        self.action_history_names.append(constants.left_arc_eager)
         c = self.subtree_rep(buffer_first, stack_top, act_emb)
         return c
 
@@ -231,9 +206,9 @@ class ShiftReduceParser():
         self.buffer.pop_left()
         self.arcs.add_arc(stack_top[1], buffer_first[1])
         self.heads[0, buffer_first[1], stack_top[1]] = 1
-        self.head_list[0,buffer_first[1]] = stack_top[1]
+        self.head_list[0, buffer_first[1]] = stack_top[1]
         self.action_history.append(act_emb)
-        self.action_history_names.append(right_arc_eager)
+        self.action_history_names.append(constants.right_arc_eager)
         c = self.subtree_rep(stack_top, buffer_first, act_emb)
         return c
 
@@ -243,34 +218,33 @@ class ShiftReduceParser():
         self.stack.pop()
         self.arcs.add_arc(buffer_first[1], stack_top[1])
         self.heads[0, stack_top[1], buffer_first[1]] = 1
-        self.head_list[0,stack_top[1]] = buffer_first[1]
+        self.head_list[0, stack_top[1]] = buffer_first[1]
         self.action_history.append(act_emb)
-        self.action_history_names.append(left_arc_hybrid)
+        self.action_history_names.append(constants.left_arc_hybrid)
         c = self.subtree_rep(buffer_first, stack_top, act_emb)
         return c
 
     def left_arc_second(self, act_emb):
         third = self.stack.pop_third()
         top = self.stack.top()
-        self.arcs.add_arc(top[1],third[1])
-        self.heads[0,third[1],top[1]] = 1
+        self.arcs.add_arc(top[1], third[1])
+        self.heads[0, third[1], top[1]] = 1
         self.head_list[0, third[1]] = top[1]
         self.action_history.append(act_emb)
-        self.action_history_names.append(left_arc_2)
-        c = self.subtree_rep(top,third,act_emb)
+        self.action_history_names.append(constants.left_arc_2)
+        c = self.subtree_rep(top, third, act_emb)
         return c
 
     def right_arc_second(self, act_emb):
         third = self.stack.third()
         top = self.stack.pop()
-        self.arcs.add_arc(third,top)
-        self.heads[0,top[1],third[1]] = 1
-        self.head_list[0,top[1]] = third[1]
+        self.arcs.add_arc(third, top)
+        self.heads[0, top[1], third[1]] = 1
+        self.head_list[0, top[1]] = third[1]
         self.action_history.append(act_emb)
-        self.action_history_names.append(right_arc_2)
-        c = self.subtree_rep(third,top,act_emb)
+        self.action_history_names.append(constants.right_arc_2)
+        c = self.subtree_rep(third, top, act_emb)
         return c
-
 
     def is_parse_complete(self, special_op=False):
         if special_op:
@@ -281,7 +255,7 @@ class ShiftReduceParser():
         complete = buffer_empty and stack_empty
         return complete
 
-    def get_head_embeddings(self,non_proj=False):
+    def get_head_embeddings(self, non_proj=False):
         heads_embed = torch.zeros((1, len(self.sentence), self.embedding_size * 2)).to(device=constants.device)
         if non_proj:
             return heads_embed
@@ -292,7 +266,6 @@ class ShiftReduceParser():
                     heads_embed[0, i, :] = self.ind2continous[index]
                 except:
                     pass
-
 
             return heads_embed
 
@@ -309,3 +282,10 @@ class ShiftReduceParser():
                         continue
 
         return heads, heads_embed
+
+    def set_oracle_action(self, act):
+        self.oracle_action_history.append(act)
+
+    def set_action_probs(self, probs):
+
+        self.actions_probs = torch.cat([self.actions_probs, probs.transpose(1,0)], dim=0)

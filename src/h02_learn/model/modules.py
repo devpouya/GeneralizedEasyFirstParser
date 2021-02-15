@@ -63,6 +63,7 @@ class StackLSTM(nn.Module):
         self.root = None
         self.top = None
 
+
         self.curr_len = 0
 
         # A list of HiddenOutput
@@ -73,7 +74,6 @@ class StackLSTM(nn.Module):
             .to(device=constants.device)
 
     def push(self, x, first=False):
-        #print("PUSH")
         item = HiddenOutput(x)
         if first:
             self.top = item
@@ -86,21 +86,12 @@ class StackLSTM(nn.Module):
         self.curr_len += 1
 
     def pop(self):
-        #print("POP")
         try:
             self.top = self.top.prev
             # self.curr_len -= 1
         except:
             self.top = self.top
             # self.curr_len -= 1
-
-    def get_branch(self):
-        branch = []
-        curr = self.top
-        while not curr.is_root:
-            branch.append(curr)
-            curr = curr.prev
-        return branch[::-1]
 
     def forward(self, input, first=False):
         self.push(input,first)
@@ -112,49 +103,15 @@ class StackLSTM(nn.Module):
             h_0 = nn.init.xavier_normal(h_0)
             c_0 = nn.init.xavier_normal(c_0)
             h = (h_0,c_0)
-            #print(item.weight.shape)
-            #print(h.shape)
-
         else:
-            #print("NEXT")
             h = self.top.prev.hidden
-            #print("HHHH {}".format(h.shape))
-        #print(self.top.weight.shape)
+
         out, hidden = self.lstm(self.top.weight,h)
         self.top.hidden = hidden
         return out
-        #dp_table = []  # np.zeros((self.curr_len,self.curr_len))
-        #neighbor_table = []
-        #dp_table.append(hidden)
-        #if item.next is None:
-        #    return out_root
-        #else:
-        #    neighbor_table.append(item.next)
-        #    out_list = []
-        #    out_list.append(out_root)
-        #    for i in range(self.curr_len):
-        #        if len(neighbor_table)>1:
-        #            for curr in neighbor_table[i]:
-        #                print(neighbor_table)
-        #                print("hh")
-        #                out, hidden = self.lstm(curr.weight, dp_table[i])
-        #                neighbor_table.append(curr.next)
-        #                dp_table.append(hidden)
-        #                out_list.append(out)
-        #        else:
-        #            return torch.stack(out_list)
-
-        #    return torch.stack(out_list)
-
-
-
-    def plot_structure(self):
-        pass
-
-
 
 class GrowingStackLSTM(nn.Module):
-
+    """Useless lol"""
     def __init__(self, input_size, hidden_size, dropout, batch_first, bidirectional=False):
         super().__init__()
         self.input_size = input_size

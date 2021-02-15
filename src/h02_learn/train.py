@@ -114,22 +114,24 @@ def _evaluate(evalloader, model):
     dev_loss, dev_las, dev_uas, n_instances = 0, 0, 0, 0
     for (text, pos), (heads, rels) in evalloader:
         #h_logits, l_logits = model((text, pos))
-        h_logits = model((text, pos))
+        #h_logits = model((text, pos),heads)
+        actions_taken, true_actions = model((text, pos),heads)
         #loss = model.loss(h_logits, l_logits, heads, rels)
-        loss = model.loss(h_logits, heads)
+        #loss = model.loss(h_logits, heads)
+        loss = model.loss(actions_taken, true_actions)
         lengths = (text != 0).sum(-1)
-        heads_tgt = get_mst_batch(h_logits, lengths)
+        #heads_tgt = get_mst_batch(h_logits, lengths)
 
         #las, uas = calculate_attachment_score(heads_tgt, l_logits, heads, rels)
-        uas = calculate_attachment_score(heads_tgt, heads)
+        #uas = calculate_attachment_score(heads_tgt, heads)
 
         batch_size = text.shape[0]
         dev_loss += (loss * batch_size)
         #dev_las += (las * batch_size)
-        dev_uas += (uas * batch_size)
+        #dev_uas += (uas * batch_size)
         n_instances += batch_size
 
-    return dev_loss / n_instances, dev_las / n_instances, dev_uas / n_instances
+    return dev_loss / n_instances#, dev_las / n_instances, dev_uas / n_instances
 
 
 def evaluate(evalloader, model):
@@ -145,9 +147,10 @@ def train_batch(text, pos, heads, rels, model, optimizer):
     text, pos = text.to(device=constants.device), pos.to(device=constants.device)
     heads, rels = heads.to(device=constants.device), rels.to(device=constants.device)
     #h_logits, l_logits = model((text, pos))
-    h_logits = model((text, pos))
+    #h_logits = model((text, pos))
+    actions_taken, true_actions = model((text, pos),heads)
     #loss = model.loss(h_logits, l_logits, heads, rels)
-    loss = model.loss(h_logits, heads)
+    loss = model.loss(actions_taken, true_actions)
     loss.backward()
     optimizer.step()
 
@@ -160,11 +163,9 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
     optimizer, lr_scheduler = get_optimizer(model.parameters(), optim_alg, lr_decay)
     train_info = TrainInfo(wait_iterations, eval_batches)
     while not train_info.finish:
-        steps = 0
         for (text, pos), (heads, rels) in trainloader:
             loss = train_batch(text, pos, heads, rels, model, optimizer)
-            steps+=1
-            #print(steps)
+            #print(loss)
             train_info.new_batch(loss)
             if train_info.eval:
                 dev_results = evaluate(devloader, model)

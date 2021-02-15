@@ -48,7 +48,6 @@ def process_sentence(sentence, vocabs, transition_system=None):
         'rel_id': rels.ROOT_IDX,
     }]
     heads = []
-    #words_in_sentence = []
     for token in sentence:
         processed += [{
             'word': token[1],
@@ -62,61 +61,25 @@ def process_sentence(sentence, vocabs, transition_system=None):
             'rel': token[7],
             'rel_id': rels.idx(token[7]),
         }]
-        #print(words.idx(token[1]))
-        #words_in_sentence.append(token[1])
 
         heads.append(int(token[6]))
-    #print("MOSHT {}".format(len(sentence)))
-    #if len(sentence) == 1:
-    #    for token in sentence:
-    #        print(token[1])
-    #    print(heads)
-    words_in_sentence = [i for i in range(len(sentence))]
-    # make sentence as a tuple of (sentence, action_history)
-    if transition_system is not None:
-        action_history = []
 
-
-        action_history = transition_system(words_in_sentence,heads)
-
-        transitions = {'transitions':action_history}
-        ret = (processed, transitions)
-    else:
-        ret = processed
-
-    return ret  #processed
+    return processed
 
 
 def process_data(in_fname_base, out_path, mode, vocabs, transition_system=None,transition_name=None):
     in_fname = in_fname_base % mode
     out_fname = '%s/%s.json' % (out_path, mode)
-    if transition_system is not None:
-        out_fname_history = '%s/%s_actions_%s.json' % (out_path, transition_name,mode)
-        utils.remove_if_exists(out_fname_history)
+    #if transition_system is not None:
+    #    out_fname_history = '%s/%s_actions_%s.json' % (out_path, transition_name,mode)
+    #    utils.remove_if_exists(out_fname_history)
 
     utils.remove_if_exists(out_fname)
     print('Processing: %s' % in_fname)
-    failed_points = []
     with open(in_fname, 'r') as file:
-        i = 0
         for sentence in get_sentence(file):
-            if len(sentence) == 1:
-                failed_points.append(i)
-                continue
-            #print("PROCESSING ITER {}".format(i))
-            if transition_system is not None:
-                try:
-                    sent_processed,action_history = process_sentence(sentence, vocabs, transition_system)
-                except:
-                    print("SOME TING WENT WAWA Iteration {}\n\n Sentence:\n {}\n".format(i,sentence))
-                    failed_points.append(i)
-                utils.append_json(out_fname_history,action_history)
-                utils.append_json(out_fname, sent_processed)
-                i += 1
-            else:
-                sent_processed = process_sentence(sentence, vocabs)
-                utils.append_json(out_fname, sent_processed)
-        print("{} sentences failed to process ".format(len(failed_points)))
+            sent_processed = process_sentence(sentence, vocabs)
+            utils.append_json(out_fname, sent_processed)
 
 
 def add_sentence_vocab(sentence, words, tags, rels):
