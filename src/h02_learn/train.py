@@ -131,7 +131,7 @@ def _evaluate(evalloader, model):
         #dev_uas += (uas * batch_size)
         n_instances += batch_size
 
-    return dev_loss / n_instances#, dev_las / n_instances, dev_uas / n_instances
+    return dev_loss / n_instances, dev_las / n_instances, dev_uas / n_instances
 
 
 def evaluate(evalloader, model):
@@ -165,7 +165,7 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
     while not train_info.finish:
         for (text, pos), (heads, rels) in trainloader:
             loss = train_batch(text, pos, heads, rels, model, optimizer)
-            #print(loss)
+            print(loss)
             train_info.new_batch(loss)
             if train_info.eval:
                 dev_results = evaluate(devloader, model)
