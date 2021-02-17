@@ -58,6 +58,9 @@ class BaseBuffer:
         # return first element
         return self.buffer[0]
 
+    def put_left(self, x):
+        self.buffer[0] = x
+
     def get_len(self):
         # lol why did I implement this?
         return len(self.buffer)

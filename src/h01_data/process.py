@@ -7,6 +7,7 @@ import numpy as np
 sys.path.append('./src/')
 from h01_data import Vocab, save_vocabs, save_embeddings
 from h01_data.oracle import arc_standard_oracle, arc_eager_oracle
+from h01_data.oracle import is_projective, is_good
 from utils import utils
 from utils import constants
 
@@ -17,7 +18,7 @@ def get_args():
     parser.add_argument('--data-path', type=str, default='data/')
     parser.add_argument('--glove-file', type=str, required=True)
     parser.add_argument('--min-vocab-count', type=int, default=2)
-    parser.add_argument('--transition',type=str,default='arc-standard')
+    parser.add_argument('--transition', type=str, default='arc-standard')
     return parser.parse_args()
 
 
@@ -63,23 +64,50 @@ def process_sentence(sentence, vocabs, transition_system=None):
         }]
 
         heads.append(int(token[6]))
+    return processed, heads
 
-    return processed
 
-
-def process_data(in_fname_base, out_path, mode, vocabs, transition_system=None,transition_name=None):
+def process_data(in_fname_base, out_path, mode, vocabs, oracle=None, transition_name=None):
     in_fname = in_fname_base % mode
     out_fname = '%s/%s.json' % (out_path, mode)
-    #if transition_system is not None:
-    #    out_fname_history = '%s/%s_actions_%s.json' % (out_path, transition_name,mode)
-    #    utils.remove_if_exists(out_fname_history)
+    if oracle is not None:
+        out_fname_history = '%s/%s_actions_%s.json' % (out_path, transition_name, mode)
+        utils.remove_if_exists(out_fname_history)
 
     utils.remove_if_exists(out_fname)
     print('Processing: %s' % in_fname)
+    succ = 0
+    ff = 0
+    bad = 0
+    proj = 0
+    nonproj = 0
     with open(in_fname, 'r') as file:
         for sentence in get_sentence(file):
-            sent_processed = process_sentence(sentence, vocabs)
-            utils.append_json(out_fname, sent_processed)
+            sent_processed, heads = process_sentence(sentence, vocabs)
+
+            if is_good(heads):
+                proj += 1
+
+                actions, good, built, true = oracle(heads)
+                if good:
+                    actions_processed = {'transition': actions}
+                    utils.append_json(out_fname_history, actions_processed)
+                    utils.append_json(out_fname, sent_processed)
+                    succ += 1
+                else:
+                    ff += 1
+            else:
+                nonproj += 1
+                continue
+
+            # actions_processed = {'transition_sequence':actions}
+            # utils.append_json(out_fname, sent_processed)
+            # utils.append_json(out_fname_history,actions_processed)
+
+    print("NON PROJECTIVES {}".format(nonproj))
+    print("PROJECTIVES {}".format(proj))
+    print("SUCCESSES {}".format(succ))
+    print("Fails {}".format(ff))
 
 
 def add_sentence_vocab(sentence, words, tags, rels):
@@ -161,15 +189,15 @@ def main():
     embeddings = process_embeddings(args.glove_file, out_path)
 
     vocabs = get_vocabs(in_fname, out_path, min_count=args.min_vocab_count, embeddings=embeddings)
-    transition_system = None
+    oracle = None
     if args.transition == 'arc-standard':
-        transition_system = arc_standard_oracle
+        oracle = arc_standard_oracle
     elif args.transition == 'arc-eager':
-        transition_system = arc_eager_oracle
+        oracle = arc_eager_oracle
 
-    process_data(in_fname, out_path, 'train', vocabs, transition_system,args.transition)
-    process_data(in_fname, out_path, 'dev', vocabs, transition_system,args.transition)
-    process_data(in_fname, out_path, 'test', vocabs, transition_system,args.transition)
+    process_data(in_fname, out_path, 'train', vocabs, oracle, args.transition)
+    process_data(in_fname, out_path, 'dev', vocabs, oracle, args.transition)
+    process_data(in_fname, out_path, 'test', vocabs, oracle, args.transition)
 
 
 if __name__ == '__main__':

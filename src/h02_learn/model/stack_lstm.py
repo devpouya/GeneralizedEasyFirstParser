@@ -169,7 +169,7 @@ class ExtendibleStackLSTMParser(BaseParser):
     def shift(self):
         pass
 
-    def forward(self, x, head=None):
+    def forward(self, x, head=None,transitions=None):
         x_emb = self.dropout(self.get_embeddings(x))
         # print(x_emb.shape)
         sent_lens = (x[0] != 0).sum(-1)
@@ -208,15 +208,27 @@ class ExtendibleStackLSTMParser(BaseParser):
             .to(device=constants.device)
         for i in range(len(parser_actions)):
             actions_taken[i,:,:] = parser_actions[i]
-        for i in range(len(true_actions)):
-            actions_oracle[i,:true_actions[i].shape[0],:] = true_actions[i].unsqueeze(1)
+        #for i in range(len(true_actions)):
+        #    actions_oracle[i,:true_actions[i].shape[0],:] = true_actions[i].unsqueeze(1)
 
+
+        for i in range(x_emb.shape[0]):
+            actions_oracle[i,:transitions.shape[1],:] = transitions[i,:].unsqueeze(1)
+        #print(actions_oracle.shape)
         return actions_taken, actions_oracle
 
     @staticmethod
     def loss(parser_actions, oracle_actions):
         criterion_a = nn.CrossEntropyLoss().to(device=constants.device)
-        loss = criterion_a(parser_actions.reshape(-1, parser_actions.shape[-1]), oracle_actions.reshape(-1))
+        #print("----------------------")
+        #print(parser_actions.shape)
+        #print(oracle_actions.shape)
+        parser_actions = parser_actions.reshape(-1, parser_actions.shape[-1])
+        oracle_actions = oracle_actions.reshape(-1)
+        #print(parser_actions.shape)
+        #print(oracle_actions.shape)
+        #print("----------------------")
+        loss = criterion_a(parser_actions, oracle_actions)
         return loss
 
     def get_head_logits(self, h_t, sent_lens):

@@ -5,7 +5,7 @@ import torch.optim as optim
 
 sys.path.append('./src/')
 from h02_learn.dataset import get_data_loaders
-from h02_learn.model import BiaffineParser, MSTParser, ArcStandardStackLSTM,\
+from h02_learn.model import BiaffineParser, MSTParser, ArcStandardStackLSTM, \
     ArcEagerStackLSTM, HybridStackLSTM, NonProjectiveStackLSTM
 from h02_learn.train_info import TrainInfo
 from h02_learn.algorithm.mst import get_mst_batch
@@ -64,7 +64,7 @@ def get_model(vocabs, embeddings, args):
             .to(device=constants.device)
     elif args.model == 'arc-standard':
         return ArcStandardStackLSTM(
-            vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size,args.batch_size,
+            vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size, args.batch_size,
             nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings) \
             .to(device=constants.device)
     elif args.model == 'arc-eager':
@@ -88,6 +88,7 @@ def get_model(vocabs, embeddings, args):
             nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings) \
             .to(device=constants.device)
 
+
 """
 def calculate_attachment_score(heads_tgt, l_logits, heads, rels):
     acc_h = (heads_tgt == heads)[heads != -1]
@@ -98,37 +99,42 @@ def calculate_attachment_score(heads_tgt, l_logits, heads, rels):
 
     return las, uas
 """
+
+
 def calculate_attachment_score(heads_tgt, heads):
     acc_h = (heads_tgt == heads)[heads != -1]
-    #acc_l = (l_logits.argmax(-1) == rels)[heads != -1]
+    # acc_l = (l_logits.argmax(-1) == rels)[heads != -1]
 
     uas = acc_h.float().mean().item()
-    #las = (acc_h & acc_l).float().mean().item()
+    # las = (acc_h & acc_l).float().mean().item()
 
     return uas
-
 
 
 def _evaluate(evalloader, model):
     # pylint: disable=too-many-locals
     dev_loss, dev_las, dev_uas, n_instances = 0, 0, 0, 0
-    for (text, pos), (heads, rels) in evalloader:
-        #h_logits, l_logits = model((text, pos))
-        #h_logits = model((text, pos),heads)
-        actions_taken, true_actions = model((text, pos),heads)
-        #loss = model.loss(h_logits, l_logits, heads, rels)
-        #loss = model.loss(h_logits, heads)
+    #steps = 0
+    for (text, pos), (heads, rels),transitions in evalloader:
+        #steps += 1
+        #print(steps)
+        # h_logits, l_logits = model((text, pos))
+        # h_logits = model((text, pos),heads)
+        actions_taken, true_actions = model((text, pos), heads,transitions)
+        # loss = model.loss(h_logits, l_logits, heads, rels)
+        # loss = model.loss(h_logits, heads)
         loss = model.loss(actions_taken, true_actions)
+        print(loss)
         lengths = (text != 0).sum(-1)
-        #heads_tgt = get_mst_batch(h_logits, lengths)
+        # heads_tgt = get_mst_batch(h_logits, lengths)
 
-        #las, uas = calculate_attachment_score(heads_tgt, l_logits, heads, rels)
-        #uas = calculate_attachment_score(heads_tgt, heads)
+        # las, uas = calculate_attachment_score(heads_tgt, l_logits, heads, rels)
+        # uas = calculate_attachment_score(heads_tgt, heads)
 
         batch_size = text.shape[0]
         dev_loss += (loss * batch_size)
-        #dev_las += (las * batch_size)
-        #dev_uas += (uas * batch_size)
+        # dev_las += (las * batch_size)
+        # dev_uas += (uas * batch_size)
         n_instances += batch_size
 
     return dev_loss / n_instances, dev_las / n_instances, dev_uas / n_instances
@@ -142,14 +148,16 @@ def evaluate(evalloader, model):
     return result
 
 
-def train_batch(text, pos, heads, rels, model, optimizer):
+def train_batch(text, pos, heads, rels, transitions, model, optimizer):
     optimizer.zero_grad()
     text, pos = text.to(device=constants.device), pos.to(device=constants.device)
     heads, rels = heads.to(device=constants.device), rels.to(device=constants.device)
-    #h_logits, l_logits = model((text, pos))
-    #h_logits = model((text, pos))
-    actions_taken, true_actions = model((text, pos),heads)
-    #loss = model.loss(h_logits, l_logits, heads, rels)
+    transitions = transitions.to(device=constants.device)
+
+    # h_logits, l_logits = model((text, pos))
+    # h_logits = model((text, pos))
+    actions_taken, true_actions = model((text, pos), heads, transitions)
+    # loss = model.loss(h_logits, l_logits, heads, rels)
     loss = model.loss(actions_taken, true_actions)
     loss.backward()
     optimizer.step()
@@ -163,8 +171,8 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
     optimizer, lr_scheduler = get_optimizer(model.parameters(), optim_alg, lr_decay)
     train_info = TrainInfo(wait_iterations, eval_batches)
     while not train_info.finish:
-        for (text, pos), (heads, rels) in trainloader:
-            loss = train_batch(text, pos, heads, rels, model, optimizer)
+        for (text, pos), (heads, rels), transitions in trainloader:
+            loss = train_batch(text, pos, heads, rels, transitions, model, optimizer)
             print(loss)
             train_info.new_batch(loss)
             if train_info.eval:
@@ -190,9 +198,16 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
 def main():
     # pylint: disable=too-many-locals
     args = get_args()
+    if args.model == "arc-standard":
+        transition_system = constants.arc_standard
+    elif args.model == "arc-eager":
+        transition_system = constants.arc_eager
+    elif args.model == "hybrid":
+        transition_system = constants.hybrid
 
     trainloader, devloader, testloader, vocabs, embeddings = \
-        get_data_loaders(args.data_path, args.language, args.batch_size, args.batch_size_eval)
+        get_data_loaders(args.data_path, args.language, args.batch_size, args.batch_size_eval, args.model,
+                         transition_system)
     print('Train size: %d Dev size: %d Test size: %d' %
           (len(trainloader.dataset), len(devloader.dataset), len(testloader.dataset)))
 

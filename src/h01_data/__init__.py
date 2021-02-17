@@ -33,3 +33,9 @@ def get_ud_fname(fpath):
     fname_dev = '%s/%s.json' % (fpath, 'dev')
     fname_test = '%s/%s.json' % (fpath, 'test')
     return (fname_train, fname_dev, fname_test)
+
+def get_oracle_actions(fpath,transition):
+    fname_train = '%s/%s_actions_%s.json' % (fpath, transition,'train')
+    fname_dev = '%s/%s_actions_%s.json' % (fpath, transition,'dev')
+    fname_test = '%s/%s_actions_%s.json' % (fpath, transition,'test')
+    return (fname_train, fname_dev, fname_test)
