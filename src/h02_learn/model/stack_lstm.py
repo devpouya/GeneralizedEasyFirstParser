@@ -111,16 +111,18 @@ class ExtendibleStackLSTMParser(BaseParser):
         # need to get legal actions here
         legal_actions, ind_2_zero = self.legal_action(parser)
         prob = self.to_action(prob)
+        #print(prob)
         #print(ind_2_zero)
         #print(prob)
         #print(prob.shape)
-        prob2decide = prob
+        #prob2decide = prob
         if len(ind_2_zero) == 0:
             pass
         else:
-            prob2decide[:,ind_2_zero] = -float("inf")
+            prob[:,ind_2_zero] = -float("inf")
         #print(prob)
         prob = nn.Softmax(dim=-1)(prob)
+        #print(prob)
         ##if len(ind_2_zero) == 0:
         ##    pass
         ##else:
@@ -138,7 +140,7 @@ class ExtendibleStackLSTMParser(BaseParser):
         #    prob = tmp
         #print(torch.argmax(prob2decide,dim=-1).item())
         #print(ind_2_zero)
-        return torch.argmax(prob2decide,dim=-1).item(), prob
+        return torch.argmax(prob).item(), prob
 
     def update_head_prob(self, probs, parser):
         pass
@@ -199,17 +201,24 @@ class ExtendibleStackLSTMParser(BaseParser):
         # print(x_emb.shape)
         sent_lens = (x[0] != 0).sum(-1)
         steps = 0
-        true_actions = []#torch.zeros((x_emb.shape[0], 1)).to(device=constants.device)
-        parser_actions = []#torch.zeros((x_emb.shape[0])).to(device=constants.device)
+        #true_actions = []#torch.zeros((x_emb.shape[0], 1)).to(device=constants.device)
+        actions_taken = torch.zeros((0,len(self.transition_system)))
         for i, sentence in enumerate(x_emb):
             steps += 1
             parser = ShiftReduceParser(sentence, self.embedding_size, self.transition_system)
             # fuck the root I think
-            parser.stack.push((self.get_embeddings(root), 0))
-            root_emb = self.get_embeddings(root)
-            self.stack_lstm(root_emb.reshape(1, 1, root_emb.shape[0]), first=True)
-            self.shift()
-            parser.shift(self.shift_embedding)
+            #parser.stack.push((self.get_embeddings(root), 0))
+            # just do a push always
+            actions_probs = torch.zeros((1, len(self.transition_system))).to(
+                device=constants.device)
+            shifted = parser.shift(self.shift_embedding)
+            self.stack_lstm(shifted.reshape(1, 1, shifted.shape[0]),first = True)
+            # need to add a [1,0,0,..0] to actions_prob
+            actions_probs[:,0] = 1
+            #root_emb = self.get_embeddings(root)
+            #self.stack_lstm(root_emb.reshape(1, 1, root_emb.shape[0]), first=True)
+            #self.shift()
+            #parser.shift(self.shift_embedding)
             for ind, word in enumerate(sentence):
                 word = word.reshape(1, 1, word.shape[0])
                 if ind == 0:
@@ -217,22 +226,26 @@ class ExtendibleStackLSTMParser(BaseParser):
                 else:
                     self.buffer_lstm(word)
 
+
             while not parser.is_parse_complete():
-                parser = self.parse_step(parser, head[i, :])
+                parser, probs= self.parse_step(parser, head[i, :])
+                #print("HHH {}".format(probs))
+                actions_probs = torch.cat([actions_probs, probs.transpose(1,0)], dim=0)
 
-            actions_oracle = parser.oracle_action_history[:-1]
-            actions_oracle_ids = torch.tensor([self.transition_system[act] for act in actions_oracle])
-            true_actions.append(actions_oracle_ids)
-            parser_actions.append(parser.actions_probs)
+                #print("action {}".format(actions_probs))
+            #print(actions_probs.shape)
+            #actions_oracle = parser.oracle_action_history[:-1]
+            #actions_oracle_ids = torch.tensor([self.transition_system[act] for act in actions_oracle])
+            #true_actions.append(actions_oracle_ids)
+            actions_taken = torch.cat([actions_taken,actions_probs],dim=0)
 
-        max_num_actions = max([item.shape[0] for item in parser_actions])
-
-        actions_taken = torch.zeros((x_emb.shape[0],max_num_actions,len(self.transition_system)))\
+        #actions_taken = torch.zeros((x_emb.shape[0],max_num_actions,len(self.transition_system)))\
+        #    .to(device=constants.device)
+        #actions_taken= torch.cat(parser_actions,out=actions_taken)
+        actions_oracle = torch.zeros((x_emb.shape[0],actions_probs.shape[0],1),dtype=torch.long)\
             .to(device=constants.device)
-        actions_oracle = torch.zeros((x_emb.shape[0],max_num_actions,1),dtype=torch.long)\
-            .to(device=constants.device)
-        for i in range(len(parser_actions)):
-            actions_taken[i,:,:] = parser_actions[i]
+        #for i in range(len(parser_actions)):
+        #    actions_taken[i,:,:] = parser_actions[i]
         #for i in range(len(true_actions)):
         #    actions_oracle[i,:true_actions[i].shape[0],:] = true_actions[i].unsqueeze(1)
 
@@ -383,11 +396,11 @@ class ArcStandardStackLSTM(ExtendibleStackLSTMParser):
             rep = parser.reduce_r(self.reduce_r_embedding)
             self.stack_lstm(rep.reshape(1, 1, rep.shape[0]))
 
-        oracle_action_name = arc_standard_oracle(parser, heads)
-        parser.set_oracle_action(oracle_action_name)
-        parser.set_action_probs(probs)
+        #oracle_action_name = arc_standard_oracle(parser, heads)
+        #parser.set_oracle_action(oracle_action_name)
+        #parser.set_action_probs(probs)
 
-        return parser
+        return parser, probs
 
 
 class ArcEagerStackLSTM(ExtendibleStackLSTMParser):

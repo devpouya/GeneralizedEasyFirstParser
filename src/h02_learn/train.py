@@ -114,9 +114,9 @@ def calculate_attachment_score(heads_tgt, heads):
 def _evaluate(evalloader, model):
     # pylint: disable=too-many-locals
     dev_loss, dev_las, dev_uas, n_instances = 0, 0, 0, 0
-    #steps = 0
+    steps = 0
     for (text, pos), (heads, rels),transitions in evalloader:
-        #steps += 1
+        steps += 1
         #print(steps)
         # h_logits, l_logits = model((text, pos))
         # h_logits = model((text, pos),heads)
@@ -124,7 +124,7 @@ def _evaluate(evalloader, model):
         # loss = model.loss(h_logits, l_logits, heads, rels)
         # loss = model.loss(h_logits, heads)
         loss = model.loss(actions_taken, true_actions)
-        print(loss)
+        print("eval loss in step {} is {}".format(steps,loss))
         lengths = (text != 0).sum(-1)
         # heads_tgt = get_mst_batch(h_logits, lengths)
 
@@ -176,9 +176,12 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
     optimizer, lr_scheduler = get_optimizer(model.parameters(), optim_alg, lr_decay)
     train_info = TrainInfo(wait_iterations, eval_batches)
     while not train_info.finish:
+        steps = 0
+
         for (text, pos), (heads, rels), transitions in trainloader:
+            steps += 1
             loss = train_batch(text, pos, heads, rels, transitions, model, optimizer)
-            print(loss)
+            print("train loss in step {} is {}".format(steps,loss))
             train_info.new_batch(loss)
             if train_info.eval:
                 dev_results = evaluate(devloader, model)

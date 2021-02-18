@@ -100,8 +100,8 @@ class StackLSTM(nn.Module):
             #print("INIT")
             h_0 = torch.zeros((self.num_layers, self.top.weight.shape[1], self.top.weight.shape[2])).to(device=constants.device)
             c_0 = torch.zeros((self.num_layers, self.top.weight.shape[1], self.top.weight.shape[2])).to(device=constants.device)
-            h_0 = nn.init.xavier_normal(h_0)
-            c_0 = nn.init.xavier_normal(c_0)
+            h_0 = nn.init.xavier_normal_(h_0)
+            c_0 = nn.init.xavier_normal_(c_0)
             h = (h_0,c_0)
         else:
             h = self.top.prev.hidden
