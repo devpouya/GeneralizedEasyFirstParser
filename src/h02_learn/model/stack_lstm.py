@@ -202,7 +202,7 @@ class ExtendibleStackLSTMParser(BaseParser):
         sent_lens = (x[0] != 0).sum(-1)
         steps = 0
         #true_actions = []#torch.zeros((x_emb.shape[0], 1)).to(device=constants.device)
-        actions_taken = torch.zeros((0,len(self.transition_system)))
+        actions_taken = torch.zeros((0,len(self.transition_system))).to(device=constants.device)
         for i, sentence in enumerate(x_emb):
             steps += 1
             parser = ShiftReduceParser(sentence, self.embedding_size, self.transition_system)
