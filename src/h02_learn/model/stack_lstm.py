@@ -55,6 +55,7 @@ class ExtendibleStackLSTMParser(BaseParser):
 
         # mlp for deciding actions
         self.chooser_linear = nn.Linear(embedding_size * 2 * 3, embedding_size).to(device=constants.device)
+        self.to_action = nn.Linear(embedding_size,len(self.transition_system)).to(device=constants.device)
         self.chooser_relu = nn.ReLU().to(device=constants.device)
         self.chooser_softmax = nn.Softmax().to(device=constants.device)
         self.dropout = nn.Dropout(dropout).to(device=constants.device)
@@ -104,16 +105,40 @@ class ExtendibleStackLSTMParser(BaseParser):
 
         prob = self.chooser_linear(parser_state)
         prob = self.chooser_relu(prob)
+        #prob = nn.Softmax(dim=-1)(self.to_action(prob))
+        #prob = prob.permute(1,0)
+        #print(prob)
         # need to get legal actions here
-        legal_actions, kept_ind = self.legal_action(parser)
-        prob = nn.Softmax(dim=0)(torch.matmul(legal_actions, prob.permute(1, 0)))
+        legal_actions, ind_2_zero = self.legal_action(parser)
+        prob = self.to_action(prob)
+        #print(ind_2_zero)
+        #print(prob)
+        #print(prob.shape)
+        prob2decide = prob
+        if len(ind_2_zero) == 0:
+            pass
+        else:
+            prob2decide[:,ind_2_zero] = -float("inf")
+        #print(prob)
+        prob = nn.Softmax(dim=-1)(prob)
+        ##if len(ind_2_zero) == 0:
+        ##    pass
+        ##else:
+        #    prob[:,ind_2_zero] = 0
+
+        prob = prob.permute(1,0)
+        #print(prob)
+
+        #prob = nn.Softmax(dim=0)(torch.matmul(legal_actions, prob.permute(1, 0)))
         # print(prob.shape)
         # need to pad probs back to original length with zeros
-        if len(kept_ind) < len(self.actions):
-            tmp = torch.zeros((len(self.actions), prob.shape[1])).to(device=constants.device)
-            tmp[kept_ind, :] = prob
-            prob = tmp
-        return torch.argmax(prob).item(), prob
+        #if len(kept_ind) < len(self.actions):
+        #    tmp = torch.zeros((len(self.actions), prob.shape[1])).to(device=constants.device)
+        #    tmp[kept_ind, :] = prob
+        #    prob = tmp
+        #print(torch.argmax(prob2decide,dim=-1).item())
+        #print(ind_2_zero)
+        return torch.argmax(prob2decide,dim=-1).item(), prob
 
     def update_head_prob(self, probs, parser):
         pass
@@ -320,13 +345,13 @@ class ArcStandardStackLSTM(ExtendibleStackLSTMParser):
     def legal_action(self, parser):
         all_actions = self.action_embeddings.weight
         if (parser.stack.get_len() > 1) and (parser.buffer.get_len() > 0):
-            return all_actions, range(len(self.actions))
+            return all_actions, []#range(len(self.actions))
         elif parser.buffer.get_len() == 0:
             # can't shift
-            return all_actions[1:, :], [1, 2]
+            return all_actions[1:, :], [0]#[1, 2]
         else:
             # can only shift
-            return all_actions[0, :].unsqueeze(0), [0]
+            return all_actions[0, :].unsqueeze(0), [1,2]#[0]
 
     def update_head_prob(self, probs, parser):
         if parser.stack.get_len() >= 2:

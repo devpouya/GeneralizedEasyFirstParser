@@ -157,6 +157,11 @@ def train_batch(text, pos, heads, rels, transitions, model, optimizer):
     # h_logits, l_logits = model((text, pos))
     # h_logits = model((text, pos))
     actions_taken, true_actions = model((text, pos), heads, transitions)
+    print("************///////********************//////******************")
+    print("took this route {}".format(torch.argmax(actions_taken,dim=-1)))
+    print("although we should've {}".format(true_actions))
+    print("************///////********************//////******************")
+
     # loss = model.loss(h_logits, l_logits, heads, rels)
     loss = model.loss(actions_taken, true_actions)
     loss.backward()
