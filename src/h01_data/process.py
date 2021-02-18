@@ -85,16 +85,18 @@ def process_data(in_fname_base, out_path, mode, vocabs, oracle=None, transition_
         for sentence in get_sentence(file):
             sent_processed, heads = process_sentence(sentence, vocabs)
 
-            if is_good(heads):
+            if is_projective(heads):
                 proj += 1
 
                 actions, good, built, true = oracle(heads)
+
                 if good:
                     actions_processed = {'transition': actions}
                     utils.append_json(out_fname_history, actions_processed)
                     utils.append_json(out_fname, sent_processed)
                     succ += 1
                 else:
+
                     ff += 1
             else:
                 nonproj += 1
