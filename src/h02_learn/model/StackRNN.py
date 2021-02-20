@@ -161,7 +161,7 @@ class NeuralTransitionParser(nn.Module):
             # reduce-l
             stack.pop()
             action.push(self.reduce_l_embedding)
-            tmp = parser.head_probs.clone().detach()
+            tmp = parser.head_probs.clone().detach().to(device=constants.device)
             tmp[:,parser.buffer.left()[1],parser.stack.top()[1]]= action_probabilities[:,1]
             parser.head_probs = nn.Softmax(dim=1)(torch.mul(parser.head_probs,tmp))
             parser.reduce_l(self.reduce_l_embedding)
@@ -171,7 +171,7 @@ class NeuralTransitionParser(nn.Module):
             # reduce-r
             buffer.push(stack.pop()) #not sure, should replace in buffer actually...
             action.push(self.reduce_r_embedding)
-            tmp = parser.head_probs.clone().detach()
+            tmp = parser.head_probs.clone().detach().to(device=constants.device)
             tmp[:, parser.stack.top()[1], parser.buffer.left()[1]] = action_probabilities[:, 2]
             parser.head_probs = nn.Softmax(dim=1)(torch.mul(parser.head_probs, tmp))
             parser.reduce_r(self.reduce_r_embedding)
