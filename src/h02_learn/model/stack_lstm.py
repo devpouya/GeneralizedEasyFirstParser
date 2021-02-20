@@ -17,7 +17,7 @@ from ..algorithm.transition_parsers import ShiftReduceParser
 
 # CONSTANTS and NAMES
 # root used to initialize the stack with \sigma_0
-root = (torch.tensor(1).to(device=constants.device), torch.tensor(1).to(device=constants.device))
+root = (torch.tensor(1)#.to(device=constants.device), torch.tensor(1).to(device=constants.device))
 
 
 class ExtendibleStackLSTMParser(BaseParser):
@@ -54,24 +54,24 @@ class ExtendibleStackLSTMParser(BaseParser):
                                    batch_first=True, bidirectional=False)
 
         # mlp for deciding actions
-        self.chooser_linear = nn.Linear(embedding_size * 2 * 3, embedding_size).to(device=constants.device)
-        self.to_action = nn.Linear(embedding_size,len(self.transition_system)).to(device=constants.device)
-        self.chooser_relu = nn.ReLU().to(device=constants.device)
-        self.chooser_softmax = nn.Softmax().to(device=constants.device)
-        self.dropout = nn.Dropout(dropout).to(device=constants.device)
+        self.chooser_linear = nn.Linear(embedding_size * 2 * 3, embedding_size)#.to(device=constants.device)
+        self.to_action = nn.Linear(embedding_size,len(self.transition_system))#.to(device=constants.device)
+        self.chooser_relu = nn.ReLU()#.to(device=constants.device)
+        self.chooser_softmax = nn.Softmax()#.to(device=constants.device)
+        self.dropout = nn.Dropout(dropout)#.to(device=constants.device)
 
         self.label_linear_h = nn.Linear(embedding_size * 2 * 3, label_size)
         self.label_linear_d = nn.Linear(embedding_size * 2 * 3, label_size)
         self.rels_linear = nn.Linear(label_size, rels.size)
 
-        # self.linear_arc_dep = nn.Linear(self.embedding_size * 2, arc_size).to(device=constants.device)
-        # self.linear_arc_head = nn.Linear(self.embedding_size * 2, arc_size).to(device=constants.device)
-        ## self.arc_relu = nn.ReLU().to(device=constants.device)
-        ## self.linear_arc = nn.Linear(arc_size*2,arc_size).to(device=constants.device)
+        # self.linear_arc_dep = nn.Linear(self.embedding_size * 2, arc_size)#.to(device=constants.device)
+        # self.linear_arc_head = nn.Linear(self.embedding_size * 2, arc_size)#.to(device=constants.device)
+        ## self.arc_relu = nn.ReLU()#.to(device=constants.device)
+        ## self.linear_arc = nn.Linear(arc_size*2,arc_size)#.to(device=constants.device)
         # self.biaffine = Biaffine(arc_size, arc_size)
-        self.linear_label_dep = nn.Linear(self.embedding_size * 2, label_size).to(device=constants.device)
-        self.linear_label_head = nn.Linear(self.embedding_size * 2, label_size).to(device=constants.device)
-        ## self.linear_label = nn.Linear(label_size*2, label_size).to(device=constants.device)
+        self.linear_label_dep = nn.Linear(self.embedding_size * 2, label_size)#.to(device=constants.device)
+        self.linear_label_head = nn.Linear(self.embedding_size * 2, label_size)#.to(device=constants.device)
+        ## self.linear_label = nn.Linear(label_size*2, label_size)#.to(device=constants.device)
         self.bilinear_label = Bilinear(label_size, label_size, rels.size)
 
     def create_embeddings(self, vocabs, pretrained=None):
@@ -135,7 +135,7 @@ class ExtendibleStackLSTMParser(BaseParser):
         # print(prob.shape)
         # need to pad probs back to original length with zeros
         #if len(kept_ind) < len(self.actions):
-        #    tmp = torch.zeros((len(self.actions), prob.shape[1])).to(device=constants.device)
+        #    tmp = torch.zeros((len(self.actions), prob.shape[1]))#.to(device=constants.device)
         #    tmp[kept_ind, :] = prob
         #    prob = tmp
         #print(torch.argmax(prob2decide,dim=-1).item())
@@ -162,7 +162,7 @@ class ExtendibleStackLSTMParser(BaseParser):
             buffer_state = parser_buffer[-1]
 
         elif len(parser_buffer) == 0:
-            buffer_state = torch.zeros_like(stack_state).to(device=constants.device)
+            buffer_state = torch.zeros_like(stack_state)#.to(device=constants.device)
         else:
             # buffer_state = parser_buffer[0]
             buffer_state = parser_buffer[-1]
@@ -232,8 +232,8 @@ class ExtendibleStackLSTMParser(BaseParser):
             max_num_actions_taken = max(actions_probs.shape[0],max_num_actions_taken)
 
         max_num_actions_taken = max(max_num_actions_taken,transitions.shape[1])
-        actions_taken = torch.zeros((batch_size,max_num_actions_taken,len(self.transition_system))).to(device=constants.device)
-        actions_oracle = torch.zeros((batch_size,max_num_actions_taken),dtype=torch.long).to(device=constants.device)
+        actions_taken = torch.zeros((batch_size,max_num_actions_taken,len(self.transition_system)))#.to(device=constants.device)
+        actions_oracle = torch.zeros((batch_size,max_num_actions_taken),dtype=torch.long)#.to(device=constants.device)
         for i in range(batch_size):
             actions_taken[i,:actions_batches[i].shape[0],:] = actions_batches[i].unsqueeze(0).clone()
             actions_oracle[i,:transitions.shape[1]] = transitions[i,:]
@@ -243,7 +243,7 @@ class ExtendibleStackLSTMParser(BaseParser):
 
     @staticmethod
     def loss(parser_actions, oracle_actions):
-        criterion_a = nn.CrossEntropyLoss().to(device=constants.device)
+        criterion_a = nn.CrossEntropyLoss()#.to(device=constants.device)
         #print("----------------------")
         #print(parser_actions.shape)
         #print(oracle_actions.shape)
@@ -269,7 +269,7 @@ class ExtendibleStackLSTMParser(BaseParser):
         return h_logits
 
     def get_label_logits(self, h_t, head):
-        h_t = self.dropout(F.relu(nn.Linear(h_t.shape[1], self.embedding_size * 2).to(device=constants.device)
+        h_t = self.dropout(F.relu(nn.Linear(h_t.shape[1], self.embedding_size * 2)#.to(device=constants.device)
                                   (h_t)))
         l_dep = self.dropout(F.relu(self.linear_label_dep(h_t)))
         l_head = self.dropout(F.relu(self.linear_label_head(h_t)))
@@ -298,10 +298,14 @@ class ArcStandardStackLSTM(ExtendibleStackLSTMParser):
         super().__init__(vocabs, embedding_size, hidden_size, arc_size, label_size, batch_size,
                          nlayers=nlayers, dropout=dropout, pretrained_embeddings=pretrained_embeddings,
                          transition_system=transition_system)
-
+        """
         self.shift_embedding = self.action_embeddings(torch.LongTensor([0]).to(device=constants.device))
         self.reduce_l_embedding = self.action_embeddings(torch.LongTensor([1]).to(device=constants.device))
-        self.reduce_r_embedding = self.action_embeddings(torch.LongTensor([2]).to(device=constants.device))
+        self.reduce_r_embedding = self.action_embeddings(torch.LongTensor([2]).to(device=constants.device)) 
+        """
+        self.shift_embedding = self.action_embeddings(torch.LongTensor([0]))
+        self.reduce_l_embedding = self.action_embeddings(torch.LongTensor([1]))
+        self.reduce_r_embedding = self.action_embeddings(torch.LongTensor([2]))
 
         self.shift_embedding = self.shift_embedding.reshape(1, self.shift_embedding.shape[0],
                                                             self.shift_embedding.shape[1])
