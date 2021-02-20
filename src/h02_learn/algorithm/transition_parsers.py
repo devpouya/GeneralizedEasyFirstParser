@@ -129,7 +129,7 @@ class ShiftReduceParser():
         self.ind2continous = {i: vec for (vec, i) in self.buffer.buffer}
 
         self.heads = torch.zeros((1, len(self.sentence), len(self.sentence)))#.to(device=constants.device)
-        self.head_list = torch.zeros((1, len(self.sentence))).to(device=constants.device)
+        self.head_list = torch.zeros((1, len(self.sentence)))#.to(device=constants.device)
 
         self.head_probs = torch.zeros((1, len(self.sentence), len(self.sentence)))#.to(device=constants.device)
         self.head_probs = nn.Softmax(dim=1)(nn.init.xavier_normal_(self.head_probs))
