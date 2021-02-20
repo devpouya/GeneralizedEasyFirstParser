@@ -198,27 +198,25 @@ class ExtendibleStackLSTMParser(BaseParser):
 
     def forward(self, x, head=None,transitions=None):
         x_emb = self.dropout(self.get_embeddings(x))
+        batch_size = x_emb.shape[0]
         # print(x_emb.shape)
         sent_lens = (x[0] != 0).sum(-1)
         steps = 0
-        #true_actions = []#torch.zeros((x_emb.shape[0], 1)).to(device=constants.device)
-        actions_taken = torch.zeros((0,len(self.transition_system))).to(device=constants.device)
+
+        max_num_actions_taken = 0
+
+        actions_batches = []
+
         for i, sentence in enumerate(x_emb):
             steps += 1
             parser = ShiftReduceParser(sentence, self.embedding_size, self.transition_system)
-            # fuck the root I think
-            #parser.stack.push((self.get_embeddings(root), 0))
-            # just do a push always
             actions_probs = torch.zeros((1, len(self.transition_system))).to(
                 device=constants.device)
             shifted = parser.shift(self.shift_embedding)
             self.stack_lstm(shifted.reshape(1, 1, shifted.shape[0]),first = True)
             # need to add a [1,0,0,..0] to actions_prob
             actions_probs[:,0] = 1
-            #root_emb = self.get_embeddings(root)
-            #self.stack_lstm(root_emb.reshape(1, 1, root_emb.shape[0]), first=True)
-            #self.shift()
-            #parser.shift(self.shift_embedding)
+
             for ind, word in enumerate(sentence):
                 word = word.reshape(1, 1, word.shape[0])
                 if ind == 0:
@@ -229,30 +227,18 @@ class ExtendibleStackLSTMParser(BaseParser):
 
             while not parser.is_parse_complete():
                 parser, probs= self.parse_step(parser, head[i, :])
-                #print("HHH {}".format(probs))
                 actions_probs = torch.cat([actions_probs, probs.transpose(1,0)], dim=0)
+            actions_batches.append(actions_probs)
+            max_num_actions_taken = max(actions_probs.shape[0],max_num_actions_taken)
 
-                #print("action {}".format(actions_probs))
-            #print(actions_probs.shape)
-            #actions_oracle = parser.oracle_action_history[:-1]
-            #actions_oracle_ids = torch.tensor([self.transition_system[act] for act in actions_oracle])
-            #true_actions.append(actions_oracle_ids)
-            actions_taken = torch.cat([actions_taken,actions_probs],dim=0)
-
-        #actions_taken = torch.zeros((x_emb.shape[0],max_num_actions,len(self.transition_system)))\
-        #    .to(device=constants.device)
-        #actions_taken= torch.cat(parser_actions,out=actions_taken)
-        actions_oracle = torch.zeros((x_emb.shape[0],actions_probs.shape[0],1),dtype=torch.long)\
-            .to(device=constants.device)
-        #for i in range(len(parser_actions)):
-        #    actions_taken[i,:,:] = parser_actions[i]
-        #for i in range(len(true_actions)):
-        #    actions_oracle[i,:true_actions[i].shape[0],:] = true_actions[i].unsqueeze(1)
+        max_num_actions_taken = max(max_num_actions_taken,transitions.shape[1])
+        actions_taken = torch.zeros((batch_size,max_num_actions_taken,len(self.transition_system))).to(device=constants.device)
+        actions_oracle = torch.zeros((batch_size,max_num_actions_taken),dtype=torch.long).to(device=constants.device)
+        for i in range(batch_size):
+            actions_taken[i,:actions_batches[i].shape[0],:] = actions_batches[i].unsqueeze(0).clone()
+            actions_oracle[i,:transitions.shape[1]] = transitions[i,:]
 
 
-        for i in range(x_emb.shape[0]):
-            actions_oracle[i,:transitions.shape[1],:] = transitions[i,:].unsqueeze(1)
-        #print(actions_oracle.shape)
         return actions_taken, actions_oracle
 
     @staticmethod
@@ -290,11 +276,7 @@ class ExtendibleStackLSTMParser(BaseParser):
 
         if self.training:
             assert head is not None, 'During training head should not be None'
-        # print("lhead shape {}".format(l_head.shape))
-        # print("head shape {}".format(head.shape))
-        # print("stuff {}".format(head.unsqueeze(2).expand(l_head.size()).shape))
-        # l_head = l_head.gather(dim=1, index=head.unsqueeze(2).expand(l_head.size()))
-        # l_logits = self.dropout(F.relu(self.linear_label(torch.cat([l_dep, l_head],dim=-1))))
+
         l_logits = self.bilinear_label(l_dep, l_head)
         return l_logits
 

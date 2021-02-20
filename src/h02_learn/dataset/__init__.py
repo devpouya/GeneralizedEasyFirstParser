@@ -35,7 +35,7 @@ def generate_batch(batch):
     pos = tensor.new_zeros(batch_size, max_length)
     heads = tensor.new_ones(batch_size, max_length) * -1
     rels = tensor.new_zeros(batch_size, max_length)
-    transitions = tensor.new_zeros(batch_size,max_length_actions) #* -1
+    transitions = tensor.new_ones(batch_size,max_length_actions)# * -1
     for i, sentence in enumerate(batch):
         sent_len = len(sentence[0][0])
         text[i, :sent_len] = sentence[0][0]

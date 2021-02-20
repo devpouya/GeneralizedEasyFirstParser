@@ -5,6 +5,7 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 import torch.nn.functional as F
 from utils import constants
 
+
 # CONSTANTS AND NAMES
 
 
@@ -90,6 +91,10 @@ class Buffer:
         # pop left (first) element
         return self.buffer.pop(0)
 
+    def put_left(self, x):
+        (_, ind) = self.buffer[0]
+        self.buffer[0] = (x, ind)
+
     def left(self):
         # return first element
         return self.buffer[0]
@@ -111,7 +116,7 @@ class ShiftReduceParser():
         # hold the action history (embedding) and names (string)
         self.action_history = []
         self.action_history_names = []
-        self.actions_probs = torch.zeros((1, len(transition_system)),requires_grad=True).to(device=constants.device)
+        self.actions_probs = torch.zeros((1, len(transition_system[0])), requires_grad=True).to(device=constants.device)
         self.oracle_action_history = []
 
         # sentence to parse
@@ -127,7 +132,7 @@ class ShiftReduceParser():
         self.head_list = torch.zeros((1, len(self.sentence))).to(device=constants.device)
 
         self.head_probs = torch.zeros((1, len(self.sentence), len(self.sentence))).to(device=constants.device)
-        self.head_probs = nn.init.xavier_normal_(self.head_probs)
+        self.head_probs = nn.Softmax(dim=1)(nn.init.xavier_normal_(self.head_probs))
         # used for learning representation for partial parse trees
         self.linear = nn.Linear(5 * embedding_size, 2 * embedding_size).to(device=constants.device)
         self.tanh = nn.Tanh().to(device=constants.device)
@@ -139,11 +144,13 @@ class ShiftReduceParser():
         return [item[0] for item in self.buffer.buffer]
 
     def subtree_rep(self, top, second, act_emb):
+
         reprs = torch.cat([top[0], second[0], act_emb.reshape(self.embedding_size)],
                           dim=-1)
         c = self.tanh(self.linear(reprs))
         self.ind2continous[top[1]] = c
-        self.stack.set_top(c)
+        # self.stack.set_top(c)
+        self.buffer.put_left(c)
         return c
 
     def shift(self, act_emb):
@@ -154,6 +161,18 @@ class ShiftReduceParser():
         return item[0]
 
     def reduce_l(self, act_emb):
+        top = self.stack.top()
+        left = self.buffer.left()
+        self.arcs.add_arc(top[1], left[1])
+        self.head_list[0, left[1]] = top[1]
+        # self.heads[0,left[1],top[1]] = 1
+        self.action_history_names.append(constants.reduce_l)
+        self.action_history.append(act_emb)
+        c = self.subtree_rep(top, left, act_emb)
+
+        self.stack.pop()
+
+        """
         item_top = self.stack.top()
         item_second = self.stack.pop_second()
         self.arcs.add_arc(item_top[1], item_second[1])
@@ -164,9 +183,22 @@ class ShiftReduceParser():
 
         # compute build representation and use this from now on
         c = self.subtree_rep(item_top, item_second, act_emb)
+        """
         return c
 
     def reduce_r(self, act_emb):
+        left = self.buffer.left()
+        top = self.stack.pop()
+
+        self.arcs.add_arc(left[1], top[1])
+        # self.heads[0, top[1], left[1]] = 1
+        self.head_list[0, top[1]] = left[1]
+        self.action_history_names.append(constants.reduce_r)
+        self.action_history.append(act_emb)
+        self.buffer.put_left(top)
+        # compute build representation and use this from now on
+        c = self.subtree_rep(left, top, act_emb)
+        """
         second_item = self.stack.second()
         top_item = self.stack.pop()
         self.arcs.add_arc(second_item[1], top_item[1])
@@ -177,6 +209,7 @@ class ShiftReduceParser():
 
         # compute build representation and use this from now on
         c = self.subtree_rep(second_item, top_item, act_emb)
+        """
         return c
 
     def reduce(self, act_emb):
@@ -288,4 +321,4 @@ class ShiftReduceParser():
 
     def set_action_probs(self, probs):
 
-        self.actions_probs = torch.cat([self.actions_probs, probs.transpose(1,0)], dim=0)
+        self.actions_probs = torch.cat([self.actions_probs, probs.transpose(1, 0)], dim=0)
