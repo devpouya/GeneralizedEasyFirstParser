@@ -28,11 +28,11 @@ class SyntaxDataset(Dataset):
 
     def actionsequence2tensor(self, actions):
         ids = [self.transition_system[act] for act in actions]
-        return torch.LongTensor(ids)#.to(device=constants.device)
+        return torch.LongTensor(ids).to(device=constants.device)
 
     @staticmethod
     def list2tensor(data):
-        return torch.LongTensor(data)#.to(device=constants.device)
+        return torch.LongTensor(data).to(device=constants.device)
 
     @staticmethod
     def get_n_instances(fname):

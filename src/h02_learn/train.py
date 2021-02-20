@@ -70,7 +70,7 @@ def get_model(vocabs, embeddings, args):
             vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size, args.batch_size,
             nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings,
             transition_system=constants.arc_standard) \
-            #.to(device=constants.device)
+            .to(device=constants.device)
     """
     elif args.model == 'arc-eager':
         return ArcEagerStackLSTM(
@@ -165,14 +165,14 @@ def evaluate(evalloader, model):
 
 def train_batch(text, pos, heads, rels, transitions, model, optimizer):
     optimizer.zero_grad()
-    """
-    text, pos = #.to(device=constants.device), #.to(device=constants.device)
-    heads, rels = #.to(device=constants.device), #.to(device=constants.device)
-    transitions = #.to(device=constants.device)
-    """
-    text, pos = text, pos
-    heads, rels = heads, rels
-    transitions = transitions
+
+    text, pos = text.to(device=constants.device), pos.to(device=constants.device)
+    heads, rels = heads.to(device=constants.device), rels.to(device=constants.device)
+    transitions = transitions.to(device=constants.device)
+
+    #text, pos = text, pos
+    #heads, rels = heads, rels
+    #transitions = transitions
 
     # h_logits, l_logits = model((text, pos))
     # h_logits = model((text, pos))

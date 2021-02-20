@@ -52,7 +52,7 @@ class ActionEmbedding(nn.Module):
         self.action_size = len(actions)
         self.embedding_size = embedding_size
 
-        pretrained_tensor = torch.zeros(size=(self.action_size,self.embedding_size))#.to(device=constants.device)
+        pretrained_tensor = torch.zeros(size=(self.action_size,self.embedding_size)).to(device=constants.device)
         for i in range(self.action_size):
             pretrained_tensor[i,i] = 1
 
