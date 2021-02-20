@@ -116,7 +116,7 @@ class ShiftReduceParser():
         # hold the action history (embedding) and names (string)
         self.action_history = []
         self.action_history_names = []
-        self.actions_probs = torch.zeros((1, len(transition_system[0])), requires_grad=True).to(device=constants.device)
+        self.actions_probs = torch.zeros((1, len(transition_system[0])))#.to(device=constants.device)
         self.oracle_action_history = []
 
         # sentence to parse
