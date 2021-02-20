@@ -159,7 +159,6 @@ def evaluate(evalloader, model):
 
 
 def train_batch(text, pos, heads, rels, transitions, model, optimizer):
-    torch.autograd.set_detect_anomaly(True)
     optimizer.zero_grad()
     text, pos = text.to(device=constants.device), pos.to(device=constants.device)
     heads, rels = heads.to(device=constants.device), rels.to(device=constants.device)

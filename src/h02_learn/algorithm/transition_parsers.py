@@ -116,7 +116,7 @@ class ShiftReduceParser():
         # hold the action history (embedding) and names (string)
         self.action_history = []
         self.action_history_names = []
-        self.actions_probs = torch.zeros((1, len(transition_system[0])))#.to(device=constants.device)
+        self.actions_probs = torch.zeros((1, len(transition_system[0]))).to(device=constants.device)
         self.oracle_action_history = []
 
         # sentence to parse
@@ -128,14 +128,14 @@ class ShiftReduceParser():
         # it uses the most recent representation (from the combinations)
         self.ind2continous = {i: vec for (vec, i) in self.buffer.buffer}
 
-        self.heads = torch.zeros((1, len(self.sentence), len(self.sentence)))#.to(device=constants.device)
-        self.head_list = torch.zeros((1, len(self.sentence)))#.to(device=constants.device)
+        self.heads = torch.zeros((1, len(self.sentence), len(self.sentence))).to(device=constants.device)
+        self.head_list = torch.zeros((1, len(self.sentence))).to(device=constants.device)
 
-        self.head_probs = torch.zeros((1, len(self.sentence), len(self.sentence)))#.to(device=constants.device)
+        self.head_probs = torch.zeros((1, len(self.sentence), len(self.sentence))).to(device=constants.device)
         self.head_probs = nn.Softmax(dim=1)(nn.init.xavier_normal_(self.head_probs))
         # used for learning representation for partial parse trees
-        self.linear = nn.Linear(5 * embedding_size, 2 * embedding_size)#.to(device=constants.device)
-        self.tanh = nn.Tanh()#.to(device=constants.device)
+        self.linear = nn.Linear(5 * embedding_size, 2 * embedding_size).to(device=constants.device)
+        self.tanh = nn.Tanh().to(device=constants.device)
 
     def get_stack_content(self):
         return [item[0] for item in self.stack.stack]
