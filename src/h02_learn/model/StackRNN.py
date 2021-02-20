@@ -215,8 +215,7 @@ class NeuralTransitionParser(nn.Module):
             #print((parser.buffer.get_len(), parser.stack.get_len()))
             parser.shift(self.shift_embedding)
 
-            actions_probs = torch.zeros((1, self.num_actions)).to(
-                device=constants.device)
+            actions_probs = torch.zeros((1, self.num_actions))#.to(device=constants.device)
             actions_probs[:, 0] = 1
             #print((parser.buffer.get_len(), parser.stack.get_len()))
 
