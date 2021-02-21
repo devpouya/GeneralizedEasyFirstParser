@@ -18,10 +18,12 @@ from ..algorithm.transition_parsers import ShiftReduceParser
 
 # taken from stack-lstm-ner (will give credit)
 class StackRNN(object):
-    def __init__(self, cell, initial_state, dropout, p_empty_embedding=None):
+    def __init__(self, cell, initial_state,initial_hidden,dropout, p_empty_embedding=None):
         self.cell = cell
         self.dropout = dropout
-        self.s = [(initial_state, None)]
+        #self.s = [(initial_state, None)]
+        self.s = [(initial_state,initial_hidden)]
+
         self.empty = None
         if p_empty_embedding is not None:
             self.empty = p_empty_embedding
@@ -29,15 +31,22 @@ class StackRNN(object):
     def push(self, expr, extra=None):
         #print(self.s[-1][0][0].shape)
         #print(expr.shape)
-        self.dropout(self.s[-1][0][0])
-        self.s.append((self.cell(expr, self.s[-1][0]), extra))
+        #self.dropout(self.s[-1][0][0])
+        #print("(seqlen,batchsize,indim) {}".format(expr.shape))
+        #print("has to be a tuple {}".format(self.s[-1][0][0].shape))
+        #print("has to be a tuple {}".format(self.s[-1][0][1].shape))
+        #print(len(self.s[-1][0]))
+        #self.s.append((self.cell(expr, (self.s[-1][0][0],self.s[-1][0][1])), extra))
+        #print(len(self.s[-1]))
+        out,hidden = self.cell(expr,self.s[-1][1])
+        self.s.append((out,hidden))
 
     def pop(self):
         #x = self.s.pop()#[1]
         ##y = self.s.pop([0]
         #print("x {}".format(x[0]))
         #print("< {}".format(x[1]))
-        return self.s.pop()[0][0]
+        return self.s.pop()[0]#[0]
 
     def embedding(self):
         return self.s[-1][0][0] if len(self.s) > 1 else self.empty
@@ -78,9 +87,10 @@ class NeuralTransitionParser(nn.Module):
         self.word_embeddings, self.tag_embeddings, self.action_embeddings = \
             self.create_embeddings(vocabs, pretrained=pretrained_embeddings)
 
-        self.shift_embedding = self.action_embeddings(torch.LongTensor([0]).to(device=constants.device))
-        self.reduce_l_embedding = self.action_embeddings(torch.LongTensor([1]).to(device=constants.device))
-        self.reduce_r_embedding = self.action_embeddings(torch.LongTensor([2]).to(device=constants.device))
+        self.shift_embedding = self.action_embeddings(torch.LongTensor([0]).to(device=constants.device)).unsqueeze(0)
+        self.reduce_l_embedding = self.action_embeddings(torch.LongTensor([1]).to(device=constants.device)).unsqueeze(0)
+        self.reduce_r_embedding = self.action_embeddings(torch.LongTensor([2]).to(device=constants.device)).unsqueeze(0)
+
         """
             MLP[stack_lstm_output,buffer_lstm_output,action_lstm_output] ---> decide next transition
         """
@@ -88,27 +98,27 @@ class NeuralTransitionParser(nn.Module):
         # neural model parameters
         self.dropout = nn.Dropout(self.dropout_prob)
         # lstms
-        self.stack_lstm = nn.LSTMCell(self.embedding_size * 2, int(self.hidden_size/2)).to(device=constants.device)
-        self.buffer_lstm = nn.LSTMCell(self.embedding_size * 2, int(self.hidden_size/2)).to(device=constants.device)
-        self.action_lsttm = nn.LSTMCell(self.embedding_size, int(self.hidden_size/2)).to(device=constants.device)
+        self.stack_lstm = nn.LSTM(self.embedding_size * 2, int(self.hidden_size/2)).to(device=constants.device)
+        self.buffer_lstm = nn.LSTM(self.embedding_size * 2, int(self.hidden_size/2)).to(device=constants.device)
+        self.action_lsttm = nn.LSTM(self.embedding_size, int(self.hidden_size/2)).to(device=constants.device)
 
         # parser state
         self.parser_state = nn.Parameter(torch.zeros((self.batch_size, self.hidden_size * 3 * 2))).to(
             device=constants.device)
         # init params
-        input_init = torch.zeros((1,int(self.hidden_size/2))).to(
+        input_init = torch.zeros((1,1,int(self.hidden_size/2))).to(
             device=constants.device)
-        hidden_init = torch.zeros((1,int(self.hidden_size/2))).to(
+        hidden_init = torch.zeros((1,1,int(self.hidden_size/2))).to(
             device=constants.device)
 
-        input_init_act = torch.zeros((1, int(self.hidden_size/2))).to(
+        input_init_act = torch.zeros((1, 1,int(self.hidden_size/2))).to(
             device=constants.device)
-        hidden_init_act = torch.zeros((1, int(self.hidden_size/2))).to(
+        hidden_init_act = torch.zeros((1, 1,int(self.hidden_size/2))).to(
             device=constants.device)
 
         self.lstm_init_state = (nn.init.xavier_normal_(input_init), nn.init.xavier_normal_(hidden_init))
         self.lstm_init_state_actions = (nn.init.xavier_normal_(input_init_act), nn.init.xavier_normal_(hidden_init_act))
-        self.gaurd = torch.zeros((1,self.embedding_size*2))
+        self.gaurd = torch.zeros((1,1,self.embedding_size*2))
         self.empty_initial = nn.Parameter(torch.randn(self.batch_size, self.hidden_size))
         # MLP it's actually a one layer network
         self.mlp_lin = nn.Linear(int(self.hidden_size/2)*3,self.num_actions)#nn.Softmax(dim=-1)(nn.ReLU()(nn.Linear(self.hidden_size * 3, self.num_actions)())())()
@@ -147,7 +157,7 @@ class NeuralTransitionParser(nn.Module):
             #print("can be 1,2 {}".format(best_action))
 
         else:
-            best_action = torch.argmax(action_probabilities, dim=-1).item()
+            best_action = torch.argmax(action_probabilities.clone().detach(), dim=-1).item()
             #print("can be 0,1,2 {}".format(best_action))
 
         # do the action
@@ -185,9 +195,9 @@ class NeuralTransitionParser(nn.Module):
             mode = "predict"
         else:
             mode = "train"
-        stack = StackRNN(self.stack_lstm, self.lstm_init_state, self.dropout, self.empty_initial)
-        buffer = StackRNN(self.buffer_lstm, self.lstm_init_state, self.dropout, self.empty_initial)
-        action = StackRNN(self.action_lsttm, self.lstm_init_state_actions, self.dropout, self.empty_initial)
+        stack = StackRNN(self.stack_lstm, self.lstm_init_state, self.lstm_init_state,self.dropout, self.empty_initial)
+        buffer = StackRNN(self.buffer_lstm, self.lstm_init_state, self.lstm_init_state,self.dropout, self.empty_initial)
+        action = StackRNN(self.action_lsttm, self.lstm_init_state_actions, self.lstm_init_state_actions,self.dropout, self.empty_initial)
 
         x_emb = self.get_embeddings(x)
 
@@ -206,10 +216,10 @@ class NeuralTransitionParser(nn.Module):
 
             # initialize buffer first
             for word in sentence:
-                buffer.push(word.unsqueeze(0))
+                buffer.push(word.reshape(1,1,word.shape[0]))
             # push first word to stack
             #item = buffer.pop()
-            #print("item {}".format(item.shape))
+            #print("item {}".format(len(item)))
             stack.push(buffer.pop())
             action.push(self.shift_embedding)
             #print((parser.buffer.get_len(), parser.stack.get_len()))
