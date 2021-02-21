@@ -138,7 +138,7 @@ class NeuralTransitionParser(nn.Module):
         return word_embeddings, tag_embeddings, action_embedding
 
     def get_embeddings(self, x):
-        return torch.cat([self.word_embeddings(x[0]), self.tag_embeddings(x[1])], dim=-1)
+        return torch.cat([self.word_embeddings(x[0]), self.tag_embeddings(x[1])], dim=-1).to(device=constants.device)
 
     def parse_step(self, parser, stack, buffer, action, oracle, mode):
         # get parser state
