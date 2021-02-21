@@ -140,7 +140,7 @@ class NeuralTransitionParser(nn.Module):
             #print("can be 0 {}".format(best_action))
         elif parser.buffer.get_len() == 1:
             # can't shift
-            tmp = action_probabilities.detach().clone()
+            tmp = action_probabilities.detach().clone().to(device=constants.device)
             tmp[:, 0] = -float('inf')
             #tmp[:, 2] = -float('inf')
             best_action = torch.argmax(tmp, dim=-1).item()
