@@ -88,9 +88,9 @@ class NeuralTransitionParser(nn.Module):
         # neural model parameters
         self.dropout = nn.Dropout(self.dropout_prob)
         # lstms
-        self.stack_lstm = nn.LSTMCell(self.embedding_size * 2, int(self.hidden_size/2))#.to(device=constants.device)
-        self.buffer_lstm = nn.LSTMCell(self.embedding_size * 2, int(self.hidden_size/2))#.to(device=constants.device)
-        self.action_lsttm = nn.LSTMCell(self.embedding_size, int(self.hidden_size/2))#.to(device=constants.device)
+        self.stack_lstm = nn.LSTMCell(self.embedding_size * 2, int(self.hidden_size/2)).to(device=constants.device)
+        self.buffer_lstm = nn.LSTMCell(self.embedding_size * 2, int(self.hidden_size/2)).to(device=constants.device)
+        self.action_lsttm = nn.LSTMCell(self.embedding_size, int(self.hidden_size/2)).to(device=constants.device)
 
         # parser state
         self.parser_state = nn.Parameter(torch.zeros((self.batch_size, self.hidden_size * 3 * 2))).to(
@@ -161,7 +161,7 @@ class NeuralTransitionParser(nn.Module):
             # reduce-l
             stack.pop()
             action.push(self.reduce_l_embedding)
-            tmp = parser.head_probs.clone().detach()#.to(device=constants.device)
+            tmp = parser.head_probs.clone().detach().to(device=constants.device)
             tmp[:,parser.buffer.left()[1],parser.stack.top()[1]]= action_probabilities[:,1]
             parser.head_probs = nn.Softmax(dim=1)(torch.mul(parser.head_probs,tmp))
             parser.reduce_l(self.reduce_l_embedding)
@@ -171,7 +171,7 @@ class NeuralTransitionParser(nn.Module):
             # reduce-r
             buffer.push(stack.pop()) #not sure, should replace in buffer actually...
             action.push(self.reduce_r_embedding)
-            tmp = parser.head_probs.clone().detach()#.to(device=constants.device)
+            tmp = parser.head_probs.clone().detach().to(device=constants.device)
             tmp[:, parser.stack.top()[1], parser.buffer.left()[1]] = action_probabilities[:, 2]
             parser.head_probs = nn.Softmax(dim=1)(torch.mul(parser.head_probs, tmp))
             parser.reduce_r(self.reduce_r_embedding)
@@ -193,7 +193,7 @@ class NeuralTransitionParser(nn.Module):
 
         sent_len = x_emb.shape[1]
         max_num_actions_taken = 0
-        heads_batch = torch.ones((x_emb.shape[0],sent_len),requires_grad=False)#.to(device=constants.device)
+        heads_batch = torch.ones((x_emb.shape[0],sent_len),requires_grad=False).to(device=constants.device)
         heads_batch *= -1
         actions_batch = []
         stack.push(self.gaurd)
@@ -215,7 +215,7 @@ class NeuralTransitionParser(nn.Module):
             #print((parser.buffer.get_len(), parser.stack.get_len()))
             parser.shift(self.shift_embedding)
 
-            actions_probs = torch.zeros((1, self.num_actions))#.to(device=constants.device)
+            actions_probs = torch.zeros((1, self.num_actions)).to(device=constants.device)
             actions_probs[:, 0] = 1
             #print((parser.buffer.get_len(), parser.stack.get_len()))
 
@@ -244,7 +244,7 @@ class NeuralTransitionParser(nn.Module):
         sent_lens = (x[0] != 0).sum(-1)
         h_logits = self.get_head_logits(head_probs_batch, sent_lens)
 
-        return actions_taken, actions_oracle, heads_batch
+        return actions_taken, actions_oracle, h_logits
 
 
     def get_head_logits(self, h_logits, sent_lens):
@@ -262,8 +262,8 @@ class NeuralTransitionParser(nn.Module):
 
     @staticmethod
     def loss(parser_actions, oracle_actions, h_logits, heads):
-        criterion_a = nn.CrossEntropyLoss()#.to(device=constants.device)
-        criterion_h = nn.CrossEntropyLoss(ignore_index=-1)#.to(device=constants.device)
+        criterion_a = nn.CrossEntropyLoss().to(device=constants.device)
+        criterion_h = nn.CrossEntropyLoss(ignore_index=-1).to(device=constants.device)
         loss = criterion_h(h_logits.reshape(-1, h_logits.shape[-1]), heads.reshape(-1))
 
         #print("----------------------")
