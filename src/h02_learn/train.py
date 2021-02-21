@@ -32,7 +32,7 @@ def get_args():
                                             'arc-eager', 'hybrid', 'non-projective'],
                         default='arc-standard')
     # Optimization
-    parser.add_argument('--optim', choices=['adam', 'adamw','sgd'], default='sgd')
+    parser.add_argument('--optim', choices=['adam', 'adamw','sgd'], default='adam')
     parser.add_argument('--eval-batches', type=int, default=20)
     parser.add_argument('--wait-epochs', type=int, default=10)
     parser.add_argument('--lr-decay', type=float, default=.5)
