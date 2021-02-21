@@ -88,9 +88,9 @@ class NeuralTransitionParser(nn.Module):
         # word, tag and action embeddings
         self.word_embeddings, self.tag_embeddings, self.action_embeddings = \
             self.create_embeddings(vocabs, pretrained=pretrained_embeddings)
-        root = (torch.tensor(1).to(device=constants.device), torch.tensor(1).to(device=constants.device))
+        self.root = (torch.tensor(1).to(device=constants.device), torch.tensor(1).to(device=constants.device))
 
-        self.root_embed = self.get_embeddings(root)
+        #self.root_embed = self.get_embeddings(root)
         self.shift_embedding = self.action_embeddings(torch.LongTensor([0]).to(device=constants.device)).unsqueeze(0)
         self.reduce_l_embedding = self.action_embeddings(torch.LongTensor([1]).to(device=constants.device)).unsqueeze(0)
         self.reduce_r_embedding = self.action_embeddings(torch.LongTensor([2]).to(device=constants.device)).unsqueeze(0)
@@ -240,8 +240,8 @@ class NeuralTransitionParser(nn.Module):
             curr_sentence_length = sent_lens[i]
             sentence = sentence[:curr_sentence_length, :]
             # heads_proper = torch.cat([torch.tensor([0]).to(device=constants.device),heads[i][:sent_lens[i]]],dim=0)#[0] + heads
-            sentence_proper = torch.cat([self.root_embed.unsqueeze(0), sentence],
-                                        dim=0)  # list(range(len(heads_proper)))
+            sentence_proper = torch.cat([self.get_embeddings(self.root).unsqueeze(0), sentence],
+                                        dim=0).to(device=constants.device)  # list(range(len(heads_proper)))
             # print("heads proper len {}".format(len(heads_proper)))
             # print("proper len {}".format(len(sentence_proper)))
             # print("sentence len {}".format(len(sentence)))
