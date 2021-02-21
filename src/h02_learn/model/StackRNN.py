@@ -153,7 +153,7 @@ class NeuralTransitionParser(nn.Module):
                 # last action
                 parser.stack.pop()
                 stack.pop()
-                target = torch.tensor([1])
+                target = torch.tensor([1]).to(device=constants.device)
                 l = criterion_a(action_probabilities, target)
                 return parser, action_probabilities, (stack, buffer, action), l
             best_action = oracle.item()
