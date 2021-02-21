@@ -90,7 +90,8 @@ class NeuralTransitionParser(nn.Module):
             self.create_embeddings(vocabs, pretrained=pretrained_embeddings)
 
         self.root_embed = self.get_embeddings(
-            (torch.tensor(1).to(device=constants.device), torch.tensor(1).to(device=constants.device))).to(device=constants.device)
+            (torch.tensor([1]).to(device=constants.device), torch.tensor([1]).to(device=constants.device)))\
+            .to(device=constants.device)
         self.shift_embedding = self.action_embeddings(torch.LongTensor([0]).to(device=constants.device)).unsqueeze(0)
         self.reduce_l_embedding = self.action_embeddings(torch.LongTensor([1]).to(device=constants.device)).unsqueeze(0)
         self.reduce_r_embedding = self.action_embeddings(torch.LongTensor([2]).to(device=constants.device)).unsqueeze(0)
