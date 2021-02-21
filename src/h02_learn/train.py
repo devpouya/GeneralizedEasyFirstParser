@@ -32,7 +32,7 @@ def get_args():
                                             'arc-eager', 'hybrid', 'non-projective'],
                         default='arc-standard')
     # Optimization
-    parser.add_argument('--optim', choices=['adam', 'adamw'], default='adamw')
+    parser.add_argument('--optim', choices=['adam', 'adamw','sgd'], default='sgd')
     parser.add_argument('--eval-batches', type=int, default=20)
     parser.add_argument('--wait-epochs', type=int, default=10)
     parser.add_argument('--lr-decay', type=float, default=.5)
@@ -51,8 +51,11 @@ def get_args():
 def get_optimizer(paramters, optim_alg, lr_decay):
     if optim_alg == "adamw":
         optimizer = optim.AdamW(paramters, betas=(.9, .9))
-    else:
+    elif optim_alg == "adam":
         optimizer = optim.Adam(paramters, betas=(.9, .9))
+    else:
+        optimizer = optim.SGD(paramters, lr=0.01)
+
     lr_scheduler = optim.lr_scheduler.ExponentialLR(optimizer, lr_decay)
     return optimizer, lr_scheduler
 

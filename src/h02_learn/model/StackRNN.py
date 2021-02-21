@@ -243,11 +243,11 @@ class NeuralTransitionParser(nn.Module):
             max_num_actions_taken = max(actions_probs.shape[0], max_num_actions_taken)
 
         max_num_actions_taken = max(max_num_actions_taken, transitions.shape[1])
-        actions_taken = torch.zeros((self.batch_size, max_num_actions_taken, self.num_actions)).to(
+        actions_taken = torch.zeros((x_emb.shape[0], max_num_actions_taken, self.num_actions)).to(
             device=constants.device)
-        actions_oracle = torch.ones((self.batch_size, max_num_actions_taken), dtype=torch.long).to(
+        actions_oracle = torch.ones((x_emb.shape[0], max_num_actions_taken), dtype=torch.long).to(
             device=constants.device)#*-1
-        for i in range(self.batch_size):
+        for i in range(x_emb.shape[0]):
             actions_taken[i, :actions_batch[i].shape[0], :] = actions_batch[i].unsqueeze(0).clone()
             actions_oracle[i, :transitions.shape[1]] = transitions[i, :]
 
