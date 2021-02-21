@@ -118,7 +118,7 @@ class NeuralTransitionParser(nn.Module):
 
         self.lstm_init_state = (nn.init.xavier_normal_(input_init), nn.init.xavier_normal_(hidden_init))
         self.lstm_init_state_actions = (nn.init.xavier_normal_(input_init_act), nn.init.xavier_normal_(hidden_init_act))
-        self.gaurd = torch.zeros((1,1,self.embedding_size*2))
+        self.gaurd = torch.zeros((1,1,self.embedding_size*2)).to(device=constants.device)
         self.empty_initial = nn.Parameter(torch.randn(self.batch_size, self.hidden_size))
         # MLP it's actually a one layer network
         self.mlp_lin = nn.Linear(int(self.hidden_size/2)*3,self.num_actions)#nn.Softmax(dim=-1)(nn.ReLU()(nn.Linear(self.hidden_size * 3, self.num_actions)())())()
@@ -208,7 +208,7 @@ class NeuralTransitionParser(nn.Module):
         actions_batch = []
         stack.push(self.gaurd)
         buffer.push(self.gaurd)
-        head_probs_batch = torch.zeros((x_emb.shape[0],x_emb.shape[1],x_emb.shape[1]))
+        head_probs_batch = torch.zeros((x_emb.shape[0],x_emb.shape[1],x_emb.shape[1])).to(device=constants.device)
         # parse every sentence in batch
         for i, sentence in enumerate(x_emb):
             # initialize a parser
@@ -251,7 +251,7 @@ class NeuralTransitionParser(nn.Module):
             actions_taken[i, :actions_batch[i].shape[0], :] = actions_batch[i].unsqueeze(0).clone()
             actions_oracle[i, :transitions.shape[1]] = transitions[i, :]
 
-        sent_lens = (x[0] != 0).sum(-1)
+        sent_lens = (x[0] != 0).sum(-1).to(device=constants.device)
         h_logits = self.get_head_logits(head_probs_batch, sent_lens)
 
         return actions_taken, actions_oracle, h_logits
