@@ -10,10 +10,13 @@ def break_two_way(heads):
                 heads[i] = i
     return heads
 
-def get_arcs(heads):
+
+def get_arcs(word2head):
     arcs = []
-    for i in range(len(heads)):
-        arcs.append((heads[i], i))
+    for word in word2head:
+        arcs.append((word2head[word], word))
+    # for i in range(len(heads)):
+    #    arcs.append((heads[i], i))
     return arcs
 
 
@@ -40,21 +43,23 @@ def have_completed_expected_children(item, true_arcs, built_arcs):
             return False
     return True
 
+
 def neighbors(edges, node):
     neighbors = []
-    for (u,v) in edges:
+    for (u, v) in edges:
         if u == node:
             neighbors.append(u)
         elif v == node:
             neighbors.append(v)
     return neighbors
 
-def from_node(edges, node,visited,rec_stack):
+
+def from_node(edges, node, visited, rec_stack):
     visited[node] = True
     rec_stack[node] = True
     for neighbor in neighbors(edges, node):
         if not visited[neighbor]:
-            if from_node(edges,neighbor,visited,rec_stack):
+            if from_node(edges, neighbor, visited, rec_stack):
                 return True
             elif rec_stack[neighbor]:
                 return True
@@ -63,30 +68,34 @@ def from_node(edges, node,visited,rec_stack):
     return False
 
 
-
-
 def contains_cycles(heads):
     arc_list = get_arcs(heads)
-    visited = [False]*len(heads)
-    rec_stack = [False]*len(heads)
+    visited = [False] * len(heads)
+    rec_stack = [False] * len(heads)
     for node in range(len(heads)):
         if not visited[node]:
-            if from_node(arc_list,node,visited,rec_stack):
+            if from_node(arc_list, node, visited, rec_stack):
                 return True
     return False
 
-# adapted from NLTK (copy pasted out of laziness...will fix)
-def is_projective(heads):
-    arc_list = get_arcs(heads)
 
+# adapted from NLTK (copy pasted out of laziness...will fix)
+def is_projective(word2head):
+    arc_list = get_arcs(word2head)
+    # for i, (u,v) in enumerate(arc_list):
+    #    if u == "ROOT":
+    #        arc_list[i] = (0,v)
+    # print(arc_list)
     for (parentIdx, childIdx) in arc_list:
         # Ensure that childIdx < parentIdx
+        if childIdx == parentIdx:
+            continue
         if childIdx > parentIdx:
             temp = childIdx
             childIdx = parentIdx
             parentIdx = temp
         for k in range(childIdx + 1, parentIdx):
-            for m in range(len(heads)):
+            for m in range(len(word2head)):
                 if (m < childIdx) or (m > parentIdx):
                     if (k, m) in arc_list:
                         return False
@@ -94,72 +103,87 @@ def is_projective(heads):
                         return False
     return True
 
+
 def is_good(heads):
     return is_projective(heads) and not contains_cycles(heads)
 
-def arc_standard_oracle(heads):
+
+def test_oracle(action_history, sentence, true_arcs):
+    sigma = []
+    beta = sentence.copy()
+    arcs = []
+
+    for action in action_history:
+        if action == constants.shift:
+            sigma.append(beta.pop(0))
+        elif action == constants.reduce_l:
+            arcs.append((beta[0], sigma[-1]))
+            sigma.pop(-1)
+        elif action is None:
+            arcs.append((sigma[-1], sigma[-1]))
+        else:
+            arcs.append((sigma[-1], beta[0]))
+            item = sigma.pop()
+            beta[0] = item
+
+    return set(arcs) == set(true_arcs)
+
+
+def arc_standard_oracle(sentence, word2head):
     # (head,tail)
     # heads[a] == b --> (b,a)
 
-    heads = break_two_way(heads)
-
-    sentence = list(range(max(max(heads)+1,len(heads))))
-
-    stack = BaseStack()
-    buffer = BaseBuffer(sentence)
-
-    true_arcs = get_arcs(heads)
+    stack = []  # BaseStack()
+    buffer = sentence.copy()  # BaseBuffer(sentence)
+    true_arcs = get_arcs(word2head)
     built_arcs = []
 
     action_history = []
 
-
-    while buffer.get_len() > 0:
-
-
-        built_arcs = list(set(built_arcs))
-        front = buffer.left()
-        if stack.get_len() > 0:
-            top = stack.top()
-            if (top,top) in true_arcs and have_completed_expected_children(top,true_arcs,built_arcs):
+    while len(buffer) > 0:
+        front = buffer[0]
+        if len(stack) > 0:
+            top = stack[-1]
+            if (top, top) in true_arcs and have_completed_expected_children(top, true_arcs, built_arcs):
                 action_history.append(constants.reduce_r)
-                built_arcs.append((top,top))
-                stack.pop()
+                built_arcs.append((top, top))
+                stack.pop(-1)
                 continue
-            if (front,top) in true_arcs:
+
+            if (front, top) in true_arcs:
                 action_history.append(constants.reduce_l)
-                built_arcs.append((front,top))
-                #stack.pop()
-                if have_completed_expected_children(top,true_arcs,built_arcs):
-                    stack.pop()
+                built_arcs.append((front, top))
+                # stack.pop()
+                if have_completed_expected_children(top, true_arcs, built_arcs):
+                    stack.pop(-1)
                 else:
                     action_history.append(constants.shift)
-                    stack.push(buffer.pop_left())
+                    stack.append(buffer.pop(0))
                 continue
-            if (top,front) in true_arcs:
-                precondition = have_completed_expected_children(front,true_arcs,built_arcs)
+            if (top, front) in true_arcs:
+                precondition = have_completed_expected_children(front, true_arcs, built_arcs)
                 if precondition:
                     action_history.append(constants.reduce_r)
-                    built_arcs.append((top,front))
-                    item = stack.pop()
-                    buffer.put_left(item)
+                    built_arcs.append((top, front))
+                    item = stack.pop(-1)
+                    buffer[0] = item
                     continue
             action_history.append(constants.shift)
-            stack.push(buffer.pop_left())
+            stack.append(buffer.pop(0))
 
         else:
+            stack.append(buffer.pop(0))
             action_history.append(constants.shift)
-            stack.push(buffer.pop_left())
-            if buffer.get_len() == 0:
-                top = stack.pop()
-                if (top,top) in true_arcs:
-                    built_arcs.append((top,top))
-                    action_history.append(constants.reduce_r)
+            if len(buffer) == 0:
+                top = stack.pop(-1)
+                if (top, top) in true_arcs:
+                    built_arcs.append((top, top))
+                    # action_history.append(constants.reduce_l)
+                    action_history.append(None)
 
+    # succ = set(true_arcs) == set(built_arcs)
 
-    succ = set(true_arcs) == set(built_arcs)
-    return action_history, succ, built_arcs, true_arcs
-
+    return action_history
 
 
 

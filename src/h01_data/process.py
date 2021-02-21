@@ -35,7 +35,7 @@ def get_sentence(file):
             sentence = []
 
 
-def process_sentence(sentence, vocabs, transition_system=None):
+def process_sentence(sentence, vocabs):
     words, tags, rels = vocabs
     processed = [{
         'word': words.ROOT,
@@ -76,40 +76,21 @@ def process_data(in_fname_base, out_path, mode, vocabs, oracle=None, transition_
 
     utils.remove_if_exists(out_fname)
     print('Processing: %s' % in_fname)
-    succ = 0
-    ff = 0
-    bad = 0
-    proj = 0
-    nonproj = 0
+
     with open(in_fname, 'r') as file:
         for sentence in get_sentence(file):
             sent_processed, heads = process_sentence(sentence, vocabs)
+            heads_proper = [0] + heads
+            sentence_proper = list(range(len(heads_proper)))
+            word2head = {w: h for (w, h) in zip(sentence_proper, heads_proper)}
+            if is_projective(word2head):
+                actions = oracle(sentence_proper, word2head)
+                actions_processed = {'transition': actions}
+                utils.append_json(out_fname_history, actions_processed)
+                utils.append_json(out_fname, sent_processed)
 
-            if is_projective(heads):
-                proj += 1
-
-                actions, good, built, true = oracle(heads)
-
-                if good:
-                    actions_processed = {'transition': actions}
-                    utils.append_json(out_fname_history, actions_processed)
-                    utils.append_json(out_fname, sent_processed)
-                    succ += 1
-                else:
-
-                    ff += 1
             else:
-                nonproj += 1
                 continue
-
-            # actions_processed = {'transition_sequence':actions}
-            # utils.append_json(out_fname, sent_processed)
-            # utils.append_json(out_fname_history,actions_processed)
-
-    print("NON PROJECTIVES {}".format(nonproj))
-    print("PROJECTIVES {}".format(proj))
-    print("SUCCESSES {}".format(succ))
-    print("Fails {}".format(ff))
 
 
 def add_sentence_vocab(sentence, words, tags, rels):
