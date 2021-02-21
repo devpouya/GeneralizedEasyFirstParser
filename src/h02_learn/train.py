@@ -121,7 +121,7 @@ def calculate_attachment_score(heads_tgt, heads):
 
 
 def simple_attachment_scores(predicted_heads, heads, lengths):
-    correct = torch.eq(predicted_heads, heads).sum().item()
+    correct = torch.eq(predicted_heads[:,lengths], heads[:,lengths]).sum().item()
     total = torch.sum(lengths).item()
 
     return correct / total
@@ -138,7 +138,7 @@ def _evaluate(evalloader, model):
         # h_logits = model((text, pos),heads)
         #actions_taken, true_actions, h_logits = model((text, pos), transitions)
         #act_loss, h_logits = model((text, pos), transitions)
-        loss = model((text, pos), transitions)
+        loss,predicted_heads = model((text, pos), transitions)
         # loss = model.loss(h_logits, l_logits, heads, rels)
         #loss = model.loss(h_logits, heads) + act_loss
         #loss = model.loss(actions_taken, true_actions, h_logits, heads)
@@ -149,12 +149,12 @@ def _evaluate(evalloader, model):
         # print(heads_tgt.shape)
         #heads_tgt = get_mst_batch(h_logits, lengths)
 
-        #las, uas = calculate_attachment_score(heads_tgt, heads)
-        # uas = simple_attachment_scores(heads_tgt, heads,lengths)
+        las, uas = calculate_attachment_score(predicted_heads, heads)
+        #uas = simple_attachment_scores(predicted_heads,heads,lengths)
         batch_size = text.shape[0]
-        # dev_loss += (loss * batch_size)
+        dev_loss += (loss * batch_size)
         # dev_las += (las * batch_size)
-        #dev_uas += (uas * batch_size)
+        dev_uas += (uas * batch_size)
         n_instances += batch_size
 
     return dev_loss / n_instances, dev_las / n_instances, dev_uas / n_instances
@@ -183,7 +183,7 @@ def train_batch(text, pos, heads, rels, transitions, model, optimizer):
     # h_logits = model((text, pos))
     #actions_taken, true_actions, predicted_heads = model((text, pos), transitions)
     #act_loss, predicted_heads = model((text, pos), transitions)
-    loss = model((text, pos), transitions)
+    loss,_ = model((text, pos), transitions)
     # print("************///////********************//////******************")
     # print("took this route {}".format(torch.argmax(actions_taken,dim=-1)))
     # print("although we should've {}".format(true_actions))

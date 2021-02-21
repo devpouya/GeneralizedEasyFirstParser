@@ -128,11 +128,11 @@ class ShiftReduceParser():
         # it uses the most recent representation (from the combinations)
         self.ind2continous = {i: vec for (vec, i) in self.buffer.buffer}
 
-        self.heads = torch.zeros((1, len(self.sentence), len(self.sentence))).to(device=constants.device)
-        self.head_list = torch.zeros((1, len(self.sentence))).to(device=constants.device)
+        #self.heads = torch.zeros((1, len(self.sentence), len(self.sentence))).to(device=constants.device)
+        #self.head_list = torch.zeros((1, len(self.sentence))).to(device=constants.device)
 
-        self.head_probs = torch.zeros((1, len(self.sentence), len(self.sentence))).to(device=constants.device)
-        self.head_probs = nn.Softmax(dim=1)(nn.init.xavier_normal_(self.head_probs))
+        #self.head_probs = torch.zeros((1, len(self.sentence), len(self.sentence))).to(device=constants.device)
+        #self.head_probs = nn.Softmax(dim=1)(nn.init.xavier_normal_(self.head_probs))
         # used for learning representation for partial parse trees
         self.linear = nn.Linear(5 * embedding_size, 2 * embedding_size).to(device=constants.device)
         self.tanh = nn.Tanh().to(device=constants.device)
@@ -164,7 +164,7 @@ class ShiftReduceParser():
         top = self.stack.top()
         left = self.buffer.left()
         self.arcs.add_arc(top[1], left[1])
-        self.head_list[0, left[1]] = top[1]
+        #self.head_list[0, left[1]] = top[1]
         # self.heads[0,left[1],top[1]] = 1
         self.action_history_names.append(constants.reduce_l)
         self.action_history.append(act_emb)
@@ -192,7 +192,7 @@ class ShiftReduceParser():
 
         self.arcs.add_arc(left[1], top[1])
         # self.heads[0, top[1], left[1]] = 1
-        self.head_list[0, top[1]] = left[1]
+        #self.head_list[0, top[1]] = left[1]
         self.action_history_names.append(constants.reduce_r)
         self.action_history.append(act_emb)
         self.buffer.put_left(top)
@@ -273,7 +273,7 @@ class ShiftReduceParser():
         top = self.stack.pop()
         self.arcs.add_arc(third, top)
         self.heads[0, top[1], third[1]] = 1
-        self.head_list[0, top[1]] = third[1]
+        #self.head_list[0, top[1]] = third[1]
         self.action_history.append(act_emb)
         self.action_history_names.append(constants.right_arc_2)
         c = self.subtree_rep(third, top, act_emb)
@@ -316,6 +316,14 @@ class ShiftReduceParser():
 
         return heads, heads_embed
 
+    def heads_from_arcs(self):
+        heads = [0]*(len(self.sentence)-1)
+        heads[0] = 0
+        for i in range(1,len(self.sentence)-1):
+            for (u,v) in self.arcs.arcs:
+                if v == i:
+                    heads[i] = u
+        return torch.tensor(heads).to(device=constants.device)
     def set_oracle_action(self, act):
         self.oracle_action_history.append(act)
 
