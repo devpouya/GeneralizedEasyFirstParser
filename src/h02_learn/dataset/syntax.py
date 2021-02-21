@@ -10,6 +10,7 @@ class SyntaxDataset(Dataset):
         self.fname = fname
         self.transition_file = transition_file
         self.transition_system = {act: i for (act, i) in zip(transition_system[0], transition_system[1])}
+        self.transition_system[None] = -2
         self.load_data(fname, transition_file)
         self.n_instances = len(self.words)
 

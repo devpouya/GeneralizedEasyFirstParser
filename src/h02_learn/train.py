@@ -136,23 +136,25 @@ def _evaluate(evalloader, model):
         # print(steps)
         # h_logits, l_logits = model((text, pos))
         # h_logits = model((text, pos),heads)
-        actions_taken, true_actions, h_logits = model((text, pos), transitions)
+        #actions_taken, true_actions, h_logits = model((text, pos), transitions)
+        #act_loss, h_logits = model((text, pos), transitions)
+        loss = model((text, pos), transitions)
         # loss = model.loss(h_logits, l_logits, heads, rels)
-        # loss = model.loss(h_logits, heads)
-        loss = model.loss(actions_taken, true_actions, h_logits, heads)
+        #loss = model.loss(h_logits, heads) + act_loss
+        #loss = model.loss(actions_taken, true_actions, h_logits, heads)
         # print("eval loss in step {} is {}".format(steps,loss))
         lengths = (text != 0).sum(-1)
         # print("lengths {}".format(lengths))
         # print(heads.shape)
         # print(heads_tgt.shape)
-        heads_tgt = get_mst_batch(h_logits, lengths)
+        #heads_tgt = get_mst_batch(h_logits, lengths)
 
-        las, uas = calculate_attachment_score(heads_tgt, heads)
+        #las, uas = calculate_attachment_score(heads_tgt, heads)
         # uas = simple_attachment_scores(heads_tgt, heads,lengths)
         batch_size = text.shape[0]
         # dev_loss += (loss * batch_size)
         # dev_las += (las * batch_size)
-        dev_uas += (uas * batch_size)
+        #dev_uas += (uas * batch_size)
         n_instances += batch_size
 
     return dev_loss / n_instances, dev_las / n_instances, dev_uas / n_instances
@@ -179,14 +181,17 @@ def train_batch(text, pos, heads, rels, transitions, model, optimizer):
 
     # h_logits, l_logits = model((text, pos))
     # h_logits = model((text, pos))
-    actions_taken, true_actions, predicted_heads = model((text, pos), transitions)
+    #actions_taken, true_actions, predicted_heads = model((text, pos), transitions)
+    #act_loss, predicted_heads = model((text, pos), transitions)
+    loss = model((text, pos), transitions)
     # print("************///////********************//////******************")
     # print("took this route {}".format(torch.argmax(actions_taken,dim=-1)))
     # print("although we should've {}".format(true_actions))
     # print("************///////********************//////******************")
 
     # loss = model.loss(h_logits, l_logits, heads, rels)
-    loss = model.loss(actions_taken, true_actions, predicted_heads, heads)
+    #loss = model.loss(actions_taken, true_actions, predicted_heads, heads)
+    #loss = model.loss(predicted_heads, heads) + act_loss
     loss.backward(retain_graph=True)
     optimizer.step()
 
@@ -204,7 +209,7 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
         for (text, pos), (heads, rels), transitions in trainloader:
             steps += 1
             loss = train_batch(text, pos, heads, rels, transitions, model, optimizer)
-            print("train loss in step {} is {}".format(steps,loss))
+            #print("train loss in step {} is {}".format(steps,loss))
             train_info.new_batch(loss)
             if train_info.eval:
                 dev_results = evaluate(devloader, model)
