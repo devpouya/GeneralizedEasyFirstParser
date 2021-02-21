@@ -263,7 +263,7 @@ class NeuralTransitionParser(nn.Module):
             oracle_actions = oracle_actions[1:]
             #print(len(oracle_actions))
             if oracle_actions[-1] != -2:
-                oracle_actions = torch.cat([oracle_actions,torch.tensor([-2])],dim=0)
+                oracle_actions = torch.cat([oracle_actions,torch.tensor([-2]).to(device=constants.device)],dim=0)
             #print(oracle_actions)
             try:
                 for step in range(len(oracle_actions)):
