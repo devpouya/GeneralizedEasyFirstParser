@@ -32,7 +32,7 @@ def get_args():
                                             'arc-eager', 'hybrid', 'non-projective'],
                         default='arc-standard')
     # Optimization
-    parser.add_argument('--optim', choices=['adam', 'adamw','sgd'], default='adam')
+    parser.add_argument('--optim', choices=['adam', 'adamw', 'sgd'], default='adam')
     parser.add_argument('--eval-batches', type=int, default=20)
     parser.add_argument('--wait-epochs', type=int, default=10)
     parser.add_argument('--lr-decay', type=float, default=.5)
@@ -61,41 +61,37 @@ def get_optimizer(paramters, optim_alg, lr_decay):
 
 
 def get_model(vocabs, embeddings, args):
-
     if args.model == 'mst':
         return MSTParser(
             vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size,
             nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings) \
-            #.to(device=constants.device)
-
+            .to(device=constants.device)
     if args.model == 'arc-standard':
         return NeuralTransitionParser(
             vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size, args.batch_size,
             nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings,
             transition_system=constants.arc_standard) \
             .to(device=constants.device)
-
     elif args.model == 'arc-eager':
         return ArcEagerStackLSTM(
             vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size,
             nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings) \
-            #.to(device=constants.device)
+            .to(device=constants.device)
     elif args.model == 'hybrid':
         return HybridStackLSTM(
             vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size,
             nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings) \
-            #.to(device=constants.device)
+            .to(device=constants.device)
     elif args.model == 'non-projective':
         return NonProjectiveStackLSTM(
             vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size,
             nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings) \
-            #.to(device=constants.device)
+            .to(device=constants.device)
     else:
         return BiaffineParser(
             vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size,
             nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings) \
-            #.to(device=constants.device)
-
+            .to(device=constants.device)
 
 
 """
@@ -121,7 +117,7 @@ def calculate_attachment_score(heads_tgt, heads):
 
 
 def simple_attachment_scores(predicted_heads, heads, lengths):
-    correct = torch.eq(predicted_heads[:,lengths], heads[:,lengths]).sum().item()
+    correct = torch.eq(predicted_heads[:, lengths], heads[:, lengths]).sum().item()
     total = torch.sum(lengths).item()
 
     return correct / total
@@ -136,21 +132,14 @@ def _evaluate(evalloader, model):
         # print(steps)
         # h_logits, l_logits = model((text, pos))
         # h_logits = model((text, pos),heads)
-        #actions_taken, true_actions, h_logits = model((text, pos), transitions)
-        #act_loss, h_logits = model((text, pos), transitions)
-        loss,predicted_heads = model((text, pos), transitions,mode='eval')
+        loss, predicted_heads = model((text, pos), transitions, mode='eval')
         # loss = model.loss(h_logits, l_logits, heads, rels)
-        #loss = model.loss(h_logits, heads) + act_loss
-        #loss = model.loss(actions_taken, true_actions, h_logits, heads)
-        # print("eval loss in step {} is {}".format(steps,loss))
         lengths = (text != 0).sum(-1)
-        # print("lengths {}".format(lengths))
-        # print(heads.shape)
-        # print(heads_tgt.shape)
-        #heads_tgt = get_mst_batch(h_logits, lengths)
+
+        # heads_tgt = get_mst_batch(h_logits, lengths)
 
         las, uas = calculate_attachment_score(predicted_heads, heads)
-        #uas = simple_attachment_scores(predicted_heads,heads,lengths)
+        # uas = simple_attachment_scores(predicted_heads,heads,lengths)
         batch_size = text.shape[0]
         dev_loss += (loss * batch_size)
         # dev_las += (las * batch_size)
@@ -175,23 +164,8 @@ def train_batch(text, pos, heads, rels, transitions, model, optimizer):
     heads, rels = heads.to(device=constants.device), rels.to(device=constants.device)
     transitions = transitions.to(device=constants.device)
 
-    #text, pos = text, pos
-    #heads, rels = heads, rels
-    #transitions = transitions
+    loss, _ = model((text, pos), transitions, mode='train')
 
-    # h_logits, l_logits = model((text, pos))
-    # h_logits = model((text, pos))
-    #actions_taken, true_actions, predicted_heads = model((text, pos), transitions)
-    #act_loss, predicted_heads = model((text, pos), transitions)
-    loss,_ = model((text, pos), transitions,mode='train')
-    # print("************///////********************//////******************")
-    # print("took this route {}".format(torch.argmax(actions_taken,dim=-1)))
-    # print("although we should've {}".format(true_actions))
-    # print("************///////********************//////******************")
-
-    # loss = model.loss(h_logits, l_logits, heads, rels)
-    #loss = model.loss(actions_taken, true_actions, predicted_heads, heads)
-    #loss = model.loss(predicted_heads, heads) + act_loss
     loss.backward(retain_graph=True)
     optimizer.step()
 
@@ -209,7 +183,7 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
         for (text, pos), (heads, rels), transitions in trainloader:
             steps += 1
             loss = train_batch(text, pos, heads, rels, transitions, model, optimizer)
-            #print("train loss in step {} is {}".format(steps,loss))
+            # print("train loss in step {} is {}".format(steps,loss))
             train_info.new_batch(loss)
             if train_info.eval:
                 dev_results = evaluate(devloader, model)

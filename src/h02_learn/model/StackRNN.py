@@ -28,8 +28,9 @@ def get_arcs(word2head):
 # root = (torch.tensor(1).to(device=constants.device), torch.tensor(1).to(device=constants.device))
 
 # adapted from stack-lstm-ner (https://github.com/clab/stack-lstm-ner)
-class StackRNN(object):
+class StackRNN(nn.Module):
     def __init__(self, cell, initial_state, initial_hidden, dropout, p_empty_embedding=None):
+        super().__init__()
         self.cell = cell
         self.dropout = dropout
         # self.s = [(initial_state, None)]
@@ -82,7 +83,6 @@ class NeuralTransitionParser(BaseParser):
     def __init__(self, vocabs, embedding_size, hidden_size, arc_size, label_size, batch_size,
                  nlayers=3, dropout=0.33, pretrained_embeddings=None, transition_system=None):
         super().__init__()
-
         # basic parameters
         self.vocabs = vocabs
         self.embedding_size = embedding_size
