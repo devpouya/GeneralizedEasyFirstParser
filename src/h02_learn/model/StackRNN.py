@@ -48,7 +48,7 @@ class StackRNN(object):
         ##y = self.s.pop([0]
         # print("x {}".format(x[0]))
         # print("< {}".format(x[1]))
-        return self.s.pop()[0]  # [0]
+        return self.s.pop(-1)[0]  # [0]
 
     def embedding(self):
         return self.s[-1][0] if len(self.s) > 1 else self.empty
@@ -153,6 +153,7 @@ class NeuralTransitionParser(nn.Module):
                 # last action
                 parser.stack.pop()
                 stack.pop()
+                #print("DONE")
                 target = torch.tensor([1]).to(device=constants.device)
                 l = criterion_a(action_probabilities, target)
                 return parser, action_probabilities, (stack, buffer, action), l
@@ -190,6 +191,7 @@ class NeuralTransitionParser(nn.Module):
             parser.reduce_l(self.reduce_l_embedding)
             # print(constants.reduce_l)
         elif best_action == -2:
+            #print("DONE")
             stack.pop()
             elem = parser.stack.pop()
             parser.arcs.append((elem[1], elem[1]))
@@ -260,13 +262,16 @@ class NeuralTransitionParser(nn.Module):
             oracle_actions_ind = torch.where(oracle_actions_redundant != -1)[0]
             oracle_actions = oracle_actions_redundant[oracle_actions_ind]
             oracle_actions = oracle_actions[1:]
+            #print("{}:".format(i),end='')
+            #print(oracle_actions)
             for step in range(len(oracle_actions)):
+                #print((parser.stack.get_len(),parser.buffer.get_len()))
                 parser, probs, configuration, l = self.parse_step(parser, stack, buffer, action, oracle_actions[step],
                                                                   mode)
                 (stack, buffer, action) = configuration
                 act_loss += l
+            #print((parser.buffer.get_len(),parser.stack.get_len()))
             heads_batch[i, :sent_lens[i]] = parser.heads_from_arcs()
-
         return act_loss, heads_batch
 
     def get_args(self):

@@ -65,6 +65,9 @@ class BaseBuffer:
         # lol why did I implement this?
         return len(self.buffer)
 
+    def last(self):
+        return self.buffer[-1]
+
 class BaseArcs:
 
     def __init__(self):
