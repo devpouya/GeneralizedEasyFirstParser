@@ -5,8 +5,8 @@ import torch.optim as optim
 
 sys.path.append('./src/')
 from h02_learn.dataset import get_data_loaders
-#from h02_learn.model import BiaffineParser, MSTParser, ArcStandardStackLSTM, \
-#    ArcEagerStackLSTM, HybridStackLSTM, NonProjectiveStackLSTM, \
+from h02_learn.model import BiaffineParser, MSTParser, ArcStandardStackLSTM, \
+    ArcEagerStackLSTM, HybridStackLSTM, NonProjectiveStackLSTM
 from h02_learn.model import NeuralTransitionParser
 from h02_learn.train_info import TrainInfo
 from h02_learn.algorithm.mst import get_mst_batch
@@ -61,20 +61,20 @@ def get_optimizer(paramters, optim_alg, lr_decay):
 
 
 def get_model(vocabs, embeddings, args):
-    """
+
     if args.model == 'mst':
         return MSTParser(
             vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size,
             nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings) \
             #.to(device=constants.device)
-    """
+
     if args.model == 'arc-standard':
         return NeuralTransitionParser(
             vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size, args.batch_size,
             nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings,
             transition_system=constants.arc_standard) \
             .to(device=constants.device)
-    """
+
     elif args.model == 'arc-eager':
         return ArcEagerStackLSTM(
             vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size,
@@ -95,7 +95,7 @@ def get_model(vocabs, embeddings, args):
             vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size,
             nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings) \
             #.to(device=constants.device)
-    """
+
 
 
 """
@@ -138,7 +138,7 @@ def _evaluate(evalloader, model):
         # h_logits = model((text, pos),heads)
         #actions_taken, true_actions, h_logits = model((text, pos), transitions)
         #act_loss, h_logits = model((text, pos), transitions)
-        loss,predicted_heads = model((text, pos), transitions)
+        loss,predicted_heads = model((text, pos), transitions,mode='eval')
         # loss = model.loss(h_logits, l_logits, heads, rels)
         #loss = model.loss(h_logits, heads) + act_loss
         #loss = model.loss(actions_taken, true_actions, h_logits, heads)
@@ -183,7 +183,7 @@ def train_batch(text, pos, heads, rels, transitions, model, optimizer):
     # h_logits = model((text, pos))
     #actions_taken, true_actions, predicted_heads = model((text, pos), transitions)
     #act_loss, predicted_heads = model((text, pos), transitions)
-    loss,_ = model((text, pos), transitions)
+    loss,_ = model((text, pos), transitions,mode='train')
     # print("************///////********************//////******************")
     # print("took this route {}".format(torch.argmax(actions_taken,dim=-1)))
     # print("although we should've {}".format(true_actions))

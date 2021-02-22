@@ -16,9 +16,18 @@ from .word_embedding import WordEmbedding, ActionEmbedding
 from ..algorithm.transition_parsers import ShiftReduceParser
 
 
+def get_arcs(word2head):
+    arcs = []
+    for word in word2head:
+        arcs.append((word2head[word], word))
+    # for i in range(len(heads)):
+    #    arcs.append((heads[i], i))
+    return arcs
+
+
 # root = (torch.tensor(1).to(device=constants.device), torch.tensor(1).to(device=constants.device))
 
-# taken from stack-lstm-ner (will give credit)
+# adapted from stack-lstm-ner (https://github.com/clab/stack-lstm-ner)
 class StackRNN(object):
     def __init__(self, cell, initial_state, initial_hidden, dropout, p_empty_embedding=None):
         self.cell = cell
@@ -30,6 +39,10 @@ class StackRNN(object):
         if p_empty_embedding is not None:
             self.empty = p_empty_embedding
 
+    def push_first(self, expr):
+        expr = expr.unsqueeze(0).unsqueeze(1)
+        out, hidden = self.cell(expr,self.s[0][1])
+        self.s[0] = (out,hidden)
     def push(self, expr, extra=None):
         # print(self.s[-1][0][0].shape)
         # print(expr.shape)
@@ -90,7 +103,7 @@ class NeuralTransitionParser(nn.Module):
             self.create_embeddings(vocabs, pretrained=pretrained_embeddings)
         self.root = (torch.tensor(1).to(device=constants.device), torch.tensor(1).to(device=constants.device))
 
-        #self.root_embed = self.get_embeddings(root)
+        # self.root_embed = self.get_embeddings(root)
         self.shift_embedding = self.action_embeddings(torch.LongTensor([0]).to(device=constants.device)).unsqueeze(0)
         self.reduce_l_embedding = self.action_embeddings(torch.LongTensor([1]).to(device=constants.device)).unsqueeze(0)
         self.reduce_r_embedding = self.action_embeddings(torch.LongTensor([2]).to(device=constants.device)).unsqueeze(0)
@@ -140,6 +153,8 @@ class NeuralTransitionParser(nn.Module):
     def get_embeddings(self, x):
         return torch.cat([self.word_embeddings(x[0]), self.tag_embeddings(x[1])], dim=-1).to(device=constants.device)
 
+
+
     def parse_step(self, parser, stack, buffer, action, oracle, mode):
         # get parser state
         parser_state = torch.cat([stack.embedding(), buffer.embedding(), action.embedding()], dim=-1)
@@ -149,30 +164,34 @@ class NeuralTransitionParser(nn.Module):
         criterion_a = nn.CrossEntropyLoss().to(device=constants.device)
         l = None
         if mode == 'train':
-            if oracle.item() == -2:
-                # last action
-                parser.stack.pop()
-                stack.pop()
-                #print("DONE")
-                target = torch.tensor([1]).to(device=constants.device)
-                l = criterion_a(action_probabilities, target)
-                return parser, action_probabilities, (stack, buffer, action), l
+
             best_action = oracle.item()
             target = oracle.reshape(1)
+            if best_action == -2:
+                target = torch.tensor([1]).to(device=constants.device)
 
             l = criterion_a(action_probabilities, target)
         else:
-            target = oracle.reshape(1)
-            l = criterion_a(action_probabilities, target)
-            if parser.stack.get_len() < 1:
+            if oracle is not None:
+                target = oracle.reshape(1)
+                if target.item() == -2:
+                    target = torch.tensor([1]).to(device=constants.device)
+
+                l = criterion_a(action_probabilities, target)
+            else:
+                # idk why 2 or what it should be,
+                # could extend action set by 1 DONE action!?
+                target = torch.tensor([1]).to(device=constants.device)
+                l = criterion_a(action_probabilities, target)
+            if len(parser.stack) < 1:
                 # can't left or right
                 best_action = torch.argmax(action_probabilities[:, 0], dim=-1).item()
-            elif parser.buffer.get_len() == 1:
+            elif len(parser.buffer) == 1:
                 # can't shift
                 tmp = action_probabilities.detach().clone().to(device=constants.device)
                 tmp[:, 0] = -float('inf')
                 best_action = torch.argmax(tmp, dim=-1).item()
-            elif parser.stack.get_len() == 1 and parser.buffer.get_len() == 0:
+            elif len(parser.stack) == 1 and len(parser.buffer) == 0:
                 best_action = -2
             else:
                 best_action = torch.argmax(action_probabilities.clone().detach(), dim=-1).item()
@@ -188,26 +207,62 @@ class NeuralTransitionParser(nn.Module):
             # reduce-l
             stack.pop()
             action.push(self.reduce_l_embedding)
-            parser.reduce_l(self.reduce_l_embedding)
+            ret = parser.reduce_l(self.reduce_l_embedding)
+            #buffer.push_first(ret)
             # print(constants.reduce_l)
-        elif best_action == -2:
-            #print("DONE")
+            stack.push(ret.unsqueeze(0).unsqueeze(1))
+
+        elif best_action == 2:
+            # reduce-r
+            #buffer.push(stack.pop())  # not sure, should replace in buffer actually...
+            action.push(self.reduce_r_embedding)
+            ret = parser.reduce_r(self.reduce_r_embedding)
+            #buffer.push_first(ret)
+            stack.pop()
+            stack.push(ret.unsqueeze(0).unsqueeze(1))
+        else:
             stack.pop()
             elem = parser.stack.pop()
             parser.arcs.append((elem[1], elem[1]))
-        else:
-            # reduce-r
-            buffer.push(stack.pop())  # not sure, should replace in buffer actually...
-            action.push(self.reduce_r_embedding)
-            parser.reduce_r(self.reduce_r_embedding)
 
         return parser, action_probabilities, (stack, buffer, action), l
 
-    def forward(self, x, transitions=None):
-        if transitions is None:
-            mode = "predict"
-        else:
-            mode = "train"
+    def dumb_parse(self, actions, heads, sent_lens):
+        stack = []
+        buffer = []
+        arcs = []
+        heads_proper = heads[:sent_lens].tolist()[0]
+
+        #heads_proper = [0] + heads_proper
+
+        sentence_proper_ind = list(range(len(heads_proper)))
+        word2head = {w: h for (w, h) in zip(sentence_proper_ind, heads_proper)}
+        true_arcs = get_arcs(word2head)
+        buffer = sentence_proper_ind.copy()
+        print(len(sentence_proper_ind))
+        print(len(heads_proper))
+        for act in actions:
+            if act == 0:
+                stack.append(buffer.pop(0))
+            elif act == 1:
+                t = stack[-1]
+                l = buffer[0]
+                arcs.append((l, t))
+                stack.pop(-1)
+            elif act == 2:
+                t = stack[-1]
+                l = buffer[0]
+                arcs.append((t, l))
+                buffer[0] = t
+                stack.pop(-1)
+            else:
+                item = stack.pop(-1)
+                arcs.append((item, item))
+        print(set(true_arcs) == set(arcs))
+        #print(true_arcs)
+        #print(arcs)
+
+    def forward(self, x, transitions, mode):
 
         stack = StackRNN(self.stack_lstm, self.lstm_init_state, self.lstm_init_state, self.dropout, self.empty_initial)
         buffer = StackRNN(self.buffer_lstm, self.lstm_init_state, self.lstm_init_state, self.dropout,
@@ -236,20 +291,23 @@ class NeuralTransitionParser(nn.Module):
         heads_batch = torch.ones((x_emb.shape[0], x_emb.shape[1]), requires_grad=False).to(device=constants.device)
         heads_batch *= -1
 
+        # for testing
+        #self.dumb_parse(transitions[0],heads,sent_lens)
+
         # parse every sentence in batch
         for i, sentence in enumerate(x_emb):
             # initialize a parser
             curr_sentence_length = sent_lens[i]
             sentence = sentence[:curr_sentence_length, :]
-            # heads_proper = torch.cat([torch.tensor([0]).to(device=constants.device),heads[i][:sent_lens[i]]],dim=0)#[0] + heads
-            sentence_proper = torch.cat([self.get_embeddings(self.root).unsqueeze(0), sentence],
-                                        dim=0).to(device=constants.device)  # list(range(len(heads_proper)))
-            # print("heads proper len {}".format(len(heads_proper)))
-            # print("proper len {}".format(len(sentence_proper)))
-            # print("sentence len {}".format(len(sentence)))
-            # print(sentence)
-            # word2head = {w: h for (w, h) in zip(sentence_proper, heads_proper)}
-            parser = ShiftReduceParser(sentence_proper, self.embedding_size, self.transition_system)
+
+            # for testing, uncomment
+            #heads_proper = heads[i,:sent_lens[i]].tolist()
+            ## heads_proper = [0] + heads_proper
+            #sentence_proper_ind = list(range(len(heads_proper)))
+            #word2head = {w: h for (w, h) in zip(sentence_proper_ind, heads_proper)}
+            #true_arcs = get_arcs(word2head)
+
+            parser = ShiftReduceParser(sentence, self.embedding_size, self.transition_system)
             # initialize buffer first
             for word in sentence:
                 buffer.push(word.reshape(1, 1, word.shape[0]))
@@ -262,16 +320,35 @@ class NeuralTransitionParser(nn.Module):
             oracle_actions_ind = torch.where(oracle_actions_redundant != -1)[0]
             oracle_actions = oracle_actions_redundant[oracle_actions_ind]
             oracle_actions = oracle_actions[1:]
-            #print("{}:".format(i),end='')
-            #print(oracle_actions)
-            for step in range(len(oracle_actions)):
-                #print((parser.stack.get_len(),parser.buffer.get_len()))
-                parser, probs, configuration, l = self.parse_step(parser, stack, buffer, action, oracle_actions[step],
-                                                                  mode)
-                (stack, buffer, action) = configuration
-                act_loss += l
-            #print((parser.buffer.get_len(),parser.stack.get_len()))
-            heads_batch[i, :sent_lens[i]] = parser.heads_from_arcs()
+
+            if mode == 'train':
+                for step in range(len(oracle_actions)):
+                    parser, probs, configuration, l = self.parse_step(parser, stack, buffer, action, oracle_actions[step],
+                                                                      mode)
+                    (stack, buffer, action) = configuration
+                    act_loss += l
+                act_loss /= len(oracle_actions)
+                heads_batch[i, :sent_lens[i]] = parser.heads_from_arcs()
+            else:
+                step = 0
+                while not parser.is_parse_complete():
+                    if step < len(oracle_actions):
+                        parser, probs, configuration, l = self.parse_step(parser, stack, buffer, action,
+                                                                          oracle_actions[step],
+                                                                          mode)
+                    else:
+                        parser, probs, configuration, l = self.parse_step(parser, stack, buffer, action,
+                                                                          None,
+                                                                          mode)
+
+                    (stack, buffer, action) = configuration
+                    act_loss += l
+                    step += 1
+                act_loss /= len(oracle_actions)
+                heads_batch[i, :sent_lens[i]] = parser.heads_from_arcs()
+
+        act_loss /= x_emb.shape[0]
+
         return act_loss, heads_batch
 
     def get_args(self):

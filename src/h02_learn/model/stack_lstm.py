@@ -17,7 +17,7 @@ from ..algorithm.transition_parsers import ShiftReduceParser
 
 # CONSTANTS and NAMES
 # root used to initialize the stack with \sigma_0
-root = (torch.tensor(1)#.to(device=constants.device), torch.tensor(1).to(device=constants.device))
+root = (torch.tensor(1))#.to(device=constants.device), torch.tensor(1).to(device=constants.device))
 
 
 class ExtendibleStackLSTMParser(BaseParser):
