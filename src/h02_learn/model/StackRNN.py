@@ -78,7 +78,7 @@ class StackRNN(object):
         return len(self.s) - 1
 
 
-class NeuralTransitionParser(nn.Module):
+class NeuralTransitionParser(BaseParser):
     def __init__(self, vocabs, embedding_size, hidden_size, arc_size, label_size, batch_size,
                  nlayers=3, dropout=0.33, pretrained_embeddings=None, transition_system=None):
         super().__init__()
