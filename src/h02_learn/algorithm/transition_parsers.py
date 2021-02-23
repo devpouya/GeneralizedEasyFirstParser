@@ -87,6 +87,7 @@ class Buffer:
         # each element is a tuple (TENSOR WORD, INT INDEX)
         s = sentence.clone().detach()
         self.buffer = [(word, i) for i, word in enumerate(s)]
+
     def pop_left(self):
         # pop left (first) element
         return self.buffer.pop(0)
@@ -111,15 +112,16 @@ class ShiftReduceParser():
         # data structures
         # data structures are buggyyy
         # regular lists do fine for now
-        #self.stack = Stack()
+        # self.stack = Stack()
         init_sent = []
         self.buffer = []
+        #self.buffer.append((torch.rand_like(sentence[0]),0))
         for i, word in enumerate(sentence):
-            self.buffer.append((word.clone().detach(),i))
+            self.buffer.append((word.clone().detach(), i))
         self.stack = []
         self.arcs = []
-        #self.buffer = Buffer(sentence)
-        #self.arcs = Arcs()
+        # self.buffer = Buffer(sentence)
+        # self.arcs = Arcs()
 
         # hold the action history (embedding) and names (string)
         self.action_history_names = []
@@ -131,20 +133,20 @@ class ShiftReduceParser():
         self.learned_repr = sentence
         self.embedding_size = embedding_size
 
-
         # used for learning representation for partial parse trees
         self.linear = nn.Linear(6 * embedding_size, 2 * embedding_size).to(device=constants.device)
-        self.tanh = nn.Tanh().to(device=constants.device)
+        torch.nn.init.kaiming_normal_(self.linear.weight,nonlinearity='relu')
 
+        self.tanh = nn.Tanh().to(device=constants.device)
 
     def subtree_rep(self, top, second, parser_state):
 
-        reprs = torch.cat([top[0], second[0], parser_state.reshape(self.embedding_size*2)],
+        reprs = torch.cat([top[0], second[0], parser_state.reshape(self.embedding_size * 2)],
                           dim=-1)
         c = self.tanh(self.linear(reprs))
 
-        (_,ind) = self.buffer[0]
-        self.buffer[0] = (c,ind)
+        (_, ind) = self.buffer[0]
+        self.buffer[0] = (c, ind)
         return c
 
     def shift(self):
@@ -153,21 +155,23 @@ class ShiftReduceParser():
         self.action_history_names.append(constants.shift)
         return item[0]
 
-    def reduce_l(self, parser_state,rel):
+    def reduce_l(self, parser_state, rel):
         top = self.stack.pop(-1)
         left = self.buffer[0]
-        self.arcs.append((left[1],top[1],rel))
+        self.arcs.append((left[1], top[1], rel))
         self.action_history_names.append(constants.reduce_l)
         c = self.subtree_rep(top, left, parser_state)
         return c
 
-    def reduce_r(self, parser_state,rel):
+    def reduce_r(self, parser_state, rel):
         left = self.buffer[0]
-        top = self.stack.pop(-1)
-        self.arcs.append((top[1],left[1],rel))
+        top = self.stack[-1]
+        self.arcs.append((top[1], left[1], rel))
         self.action_history_names.append(constants.reduce_r)
+        self.stack.pop(-1)
         self.buffer[0] = top
         c = self.subtree_rep(left, top, parser_state)
+
         return c
 
     def reduce(self, act_emb):
@@ -214,7 +218,7 @@ class ShiftReduceParser():
         return c
 
     def right_arc_second(self, act_emb):
-        #third = self.stack.third()
+        # third = self.stack.third()
         third = self.stack[-3]
         top = self.stack.pop(-1)
         self.arcs.append((third[1], top[1]))
@@ -231,19 +235,20 @@ class ShiftReduceParser():
         complete = buffer_empty and stack_empty
         return complete
 
-
-
-
     def heads_from_arcs(self):
-        heads = [0]*(len(self.sentence))
-        rels = [0]*(len(self.sentence))
-
-        for i in range(1,len(self.sentence)):
-            for (u,v,r) in self.arcs:
+        heads = [0] * (len(self.sentence)+1)
+        rels = [0] * (len(self.sentence)+1)
+        tmp = self.arcs.copy()
+        tmp.append((0,0,1))
+        for i in range(len(self.sentence)):
+            for (u, v, r) in tmp:
                 if v == i:
-                    heads[i] = u
-                    rels[i] = r
-        return torch.tensor(heads).to(device=constants.device),torch.tensor(rels).to(device=constants.device)
+                    heads[i+1] = u
+                    rels[i+1] = r
+        heads.pop(0)
+        rels.pop(0)
+        return torch.tensor(heads).to(device=constants.device), torch.tensor(rels).to(device=constants.device)
+
     def set_oracle_action(self, act):
         self.oracle_action_history.append(act)
 

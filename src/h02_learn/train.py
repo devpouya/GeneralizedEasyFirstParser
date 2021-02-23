@@ -108,7 +108,7 @@ def calculate_attachment_score(heads_tgt, l_logits, heads, rels):
 
 def calculate_attachment_score(heads_tgt, heads,predicted_rels,rels):
     acc_h = (heads_tgt == heads)[heads != -1]
-    acc_l = (predicted_rels == rels)[heads != -1]
+    acc_l = (predicted_rels == rels)[rels != 0]
 
     uas = acc_h.float().mean().item()
     las = (acc_h & acc_l).float().mean().item()
@@ -131,11 +131,22 @@ def _evaluate(evalloader, model):
         # print(steps)
         # h_logits, l_logits = model((text, pos))
         # h_logits = model((text, pos),heads)
+        #print("********************{}***************".format("EVAAL"))
+
         loss, predicted_heads, predicted_rels = model((text, pos), transitions, relations_in_order, mode='eval')
         # loss = model.loss(h_logits, l_logits, heads, rels)
         lengths = (text != 0).sum(-1)
 
         # heads_tgt = get_mst_batch(h_logits, lengths)
+
+        #print("predicted heads {}".format(predicted_heads))
+        #print("predicted rels {}".format(predicted_rels))
+        #print("real heads {}".format(heads))
+        #print((torch.eq(predicted_heads, heads)==True).sum(0))
+        #print((torch.eq(predicted_rels, rels)==True).sum(0))
+
+        #print("real rels {}".format(rels))
+        #print("********************{}***************".format("EVAAL"))
 
         las, uas = calculate_attachment_score(predicted_heads, heads,predicted_rels,rels)
         # uas = simple_attachment_scores(predicted_heads,heads,lengths)
@@ -163,8 +174,22 @@ def train_batch(text, pos, heads, rels, transitions, relations_in_order, model, 
     #heads, rels = heads.to(device=constants.device), rels.to(device=constants.device)
     transitions = transitions.to(device=constants.device)
     relations_in_order = relations_in_order.to(device=constants.device)
+    #print("********************{}***************".format("TRAAAAIN"))
 
-    loss, _ ,_= model((text, pos), transitions, relations_in_order, mode='train')
+    loss, pred_h ,pred_rel= model((text, pos), transitions, relations_in_order,mode='train')
+    #for param in model.parameters():
+    #    print("*********{}*******************".format(loss))
+    #    print(param.data)
+    #    print("*********{}*******************".format(loss))
+
+    #print("predicted heads {}".format(pred_h))
+    #print("predicted rels {}".format(pred_rel))
+    #print(torch.all(torch.eq(pred_h,heads)).item())
+    #print(torch.all(torch.eq(pred_rel,rels)).item())
+
+    #print("real heads {}".format(heads))
+    #print("real rels {}".format(rels))
+    #print("********************{}***************".format("TRAAAAIN"))
 
     loss.backward(retain_graph=True)
     optimizer.step()
@@ -181,6 +206,7 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
         steps = 0
 
         for (text, pos), (heads, rels), (transitions, relations_in_order) in trainloader:
+
             steps += 1
             loss = train_batch(text, pos, heads, rels, transitions, relations_in_order, model, optimizer)
             # print("train loss in step {} is {}".format(steps,loss))
