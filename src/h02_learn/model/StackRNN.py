@@ -145,8 +145,8 @@ class NeuralTransitionParser(BaseParser):
         self.empty_initial = nn.Parameter(torch.randn(self.batch_size, self.hidden_size))
         # MLP it's actually a one layer network
         self.mlp_lin1 = nn.Linear(int(self.hidden_size / 2) * 3,
-                                  300)
-        self.mlp_lin2 = nn.Linear(300,
+                                  self.embedding_size*2)
+        self.mlp_lin2 = nn.Linear(self.embedding_size*2,
                                   self.num_actions)
         # self.mlp_relu = nn.ReLU()
         self.mlp_softmax = nn.Softmax(dim=-1)
@@ -206,6 +206,7 @@ class NeuralTransitionParser(BaseParser):
         parser_state = torch.cat([stack.embedding(), buffer.embedding(), action.embedding()], dim=-1)
 
         parser_state = nn.ReLU()(self.mlp_lin1(parser_state))
+        #self.parser_state = parser_state
         action_probabilities = nn.ReLU()(self.mlp_lin2(parser_state))
         # action_probabilities = self.mlp_relu(action_probabilities)
         action_probabilities = self.mlp_softmax(action_probabilities).squeeze(0)  # .clone()
@@ -247,13 +248,14 @@ class NeuralTransitionParser(BaseParser):
             # shift
             stack.push(buffer.pop())
             action.push(self.shift_embedding)
-            parser.shift(self.shift_embedding)
+            #parser.shift(self.shift_embedding)
+            parser.shift()
             # print(constants.shift)
         elif best_action == 1:
             # reduce-l
             stack.pop()
             action.push(self.reduce_l_embedding)
-            ret = parser.reduce_l(self.reduce_l_embedding,rel)
+            ret = parser.reduce_l(parser_state,rel)
             # buffer.push_first(ret)
             # print(constants.reduce_l)
             stack.push(ret.unsqueeze(0).unsqueeze(1))
@@ -262,7 +264,7 @@ class NeuralTransitionParser(BaseParser):
             # reduce-r
             # buffer.push(stack.pop())  # not sure, should replace in buffer actually...
             action.push(self.reduce_r_embedding)
-            ret = parser.reduce_r(self.reduce_r_embedding,rel)
+            ret = parser.reduce_r(parser_state,rel)
             # buffer.push_first(ret)
             stack.pop()
             stack.push(ret.unsqueeze(0).unsqueeze(1))
@@ -283,30 +285,21 @@ class NeuralTransitionParser(BaseParser):
         action = StackRNN(self.action_lsttm, self.lstm_init_state_actions, self.lstm_init_state_actions, self.dropout,
                           self.empty_initial)
         sent_lens = (x[0] != 0).sum(-1).to(device=constants.device)
-        # print(sent_lens)
 
         x_emb = self.get_embeddings(x)
-        # print(x_emb.shape)
-        max_num_actions_taken = 0
 
-        actions_batch = []
         stack.push(self.gaurd)
         buffer.push(self.gaurd)
 
         act_loss = 0
-        # if mode == 'train':
 
-        # if oracle_actions[-1] != -2:
-        #    oracle_actions = torch.cat([oracle_actions, torch.tensor([-2]).to(device=constants.device)], dim=0)
-        # else:
         heads_batch = torch.ones((x_emb.shape[0], x_emb.shape[1]), requires_grad=False).to(device=constants.device)
         rels_batch = torch.ones((x_emb.shape[0], x_emb.shape[1]), requires_grad=False).to(device=constants.device)
         heads_batch *= -1
 
         # for testing
         # self.sanity_parse(transitions[0],heads,sent_lens)
-        #print(transitions.shape)
-        #print(relations.shape)
+
         # parse every sentence in batch
         for i, sentence in enumerate(x_emb):
             # initialize a parser
@@ -329,7 +322,7 @@ class NeuralTransitionParser(BaseParser):
 
             stack.push(buffer.pop())
             action.push(self.shift_embedding)
-            parser.shift(self.shift_embedding)
+            parser.shift()
             #oracle_actions_redundant = transitions[i]
             #oracle_actions_ind = torch.where(oracle_actions_redundant != -1)[0]
             #oracle_actions = oracle_actions_redundant[oracle_actions_ind]
@@ -337,7 +330,7 @@ class NeuralTransitionParser(BaseParser):
             labeled_transitions = labeled_transitions[1:]
 
             if mode == 'train':
-                # print(labeled_transitions)
+
                 for step in range(len(labeled_transitions)):
                     parser, probs, configuration, l = self.parse_step(parser, stack, buffer, action,
                                                                       labeled_transitions[step],
@@ -369,7 +362,7 @@ class NeuralTransitionParser(BaseParser):
 
         act_loss /= x_emb.shape[0]
 
-        return act_loss, heads_batch
+        return act_loss, heads_batch, rels_batch
 
     def get_args(self):
         return {

@@ -106,13 +106,12 @@ def calculate_attachment_score(heads_tgt, l_logits, heads, rels):
 """
 
 
-def calculate_attachment_score(heads_tgt, heads):
+def calculate_attachment_score(heads_tgt, heads,predicted_rels,rels):
     acc_h = (heads_tgt == heads)[heads != -1]
-    # acc_l = (l_logits.argmax(-1) == rels)[heads != -1]
+    acc_l = (predicted_rels == rels)[heads != -1]
 
     uas = acc_h.float().mean().item()
-    # las = (acc_h & acc_l).float().mean().item()
-    las = 0
+    las = (acc_h & acc_l).float().mean().item()
     return las, uas
 
 
@@ -132,17 +131,17 @@ def _evaluate(evalloader, model):
         # print(steps)
         # h_logits, l_logits = model((text, pos))
         # h_logits = model((text, pos),heads)
-        loss, predicted_heads = model((text, pos), transitions, relations_in_order, mode='eval')
+        loss, predicted_heads, predicted_rels = model((text, pos), transitions, relations_in_order, mode='eval')
         # loss = model.loss(h_logits, l_logits, heads, rels)
         lengths = (text != 0).sum(-1)
 
         # heads_tgt = get_mst_batch(h_logits, lengths)
 
-        las, uas = calculate_attachment_score(predicted_heads, heads)
+        las, uas = calculate_attachment_score(predicted_heads, heads,predicted_rels,rels)
         # uas = simple_attachment_scores(predicted_heads,heads,lengths)
         batch_size = text.shape[0]
         dev_loss += (loss * batch_size)
-        # dev_las += (las * batch_size)
+        dev_las += (las * batch_size)
         dev_uas += (uas * batch_size)
         n_instances += batch_size
 
@@ -165,7 +164,7 @@ def train_batch(text, pos, heads, rels, transitions, relations_in_order, model, 
     transitions = transitions.to(device=constants.device)
     relations_in_order = relations_in_order.to(device=constants.device)
 
-    loss, _ = model((text, pos), transitions, relations_in_order, mode='train')
+    loss, _ ,_= model((text, pos), transitions, relations_in_order, mode='train')
 
     loss.backward(retain_graph=True)
     optimizer.step()
