@@ -29,7 +29,7 @@ class TrainInfo:
 
     @property
     def finish(self):
-        print("is stuck {}".format(self.stuck))
+        #print("is stuck {}".format(self.stuck))
         return self.stuck and (self.lr_reductions >= self.MAX_REDUCTIONS)
 
     @property

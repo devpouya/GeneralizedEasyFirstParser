@@ -36,6 +36,7 @@ def generate_batch(batch):
     heads = tensor.new_ones(batch_size, max_length) * -1
     rels = tensor.new_zeros(batch_size, max_length)
     transitions = tensor.new_ones(batch_size,max_length_actions) * -1
+    relations_in_order = tensor.new_zeros(batch_size,max_length)
     for i, sentence in enumerate(batch):
         sent_len = len(sentence[0][0])
         text[i, :sent_len] = sentence[0][0]
@@ -43,13 +44,16 @@ def generate_batch(batch):
         heads[i, :sent_len] = sentence[1][0]
         rels[i, :sent_len] = sentence[1][1]
 
+
     for i, sentence in enumerate(batch):
         num_actions = len(sentence[2][0])
         #print(num_actions)
         transitions[i,:num_actions] = sentence[2][0]
+        num_rels = len(sentence[2][1])
+        relations_in_order[i, :num_rels] = sentence[2][1]
 
 
-    return (text, pos), (heads, rels), transitions
+    return (text, pos), (heads, rels), (transitions, relations_in_order)
 
 
 def get_data_loader(fname, transitions_file,transition_system,batch_size, shuffle):

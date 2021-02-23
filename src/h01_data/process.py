@@ -49,6 +49,8 @@ def process_sentence(sentence, vocabs):
         'rel_id': rels.ROOT_IDX,
     }]
     heads = []
+    relations = []
+    rel2id = {}
     for token in sentence:
         processed += [{
             'word': token[1],
@@ -64,8 +66,24 @@ def process_sentence(sentence, vocabs):
         }]
 
         heads.append(int(token[6]))
-    return processed, heads
+        relations.append(token[7])
+        rel2id[token[7]] = rels.idx(token[7])
 
+    return processed, heads, relations, rel2id
+
+def labeled_action_pairs(actions,relations):
+    labeled_acts = []
+    tmp_rels = relations.copy()
+
+    for act in actions:
+        if act == constants.shift or act is None:
+            labeled_acts.append((act,-1))
+        elif act is not None:
+            labeled_acts.append((act,tmp_rels[0]))
+            tmp_rels.pop(0)
+
+
+    return labeled_acts
 
 def process_data(in_fname_base, out_path, mode, vocabs, oracle=None, transition_name=None):
     in_fname = in_fname_base % mode
@@ -79,13 +97,26 @@ def process_data(in_fname_base, out_path, mode, vocabs, oracle=None, transition_
 
     with open(in_fname, 'r') as file:
         for sentence in get_sentence(file):
-            sent_processed, heads = process_sentence(sentence, vocabs)
+            sent_processed, heads, relations,rel2id = process_sentence(sentence, vocabs)
             heads_proper = [0] + heads
+
+            # print(heads_proper)
+            # print(relations)
+            arc2label = {arc: rel for (arc, rel) in zip(list(range(len(heads))), relations)}
+            #relations = ['root'] + relations
+            # print(len(heads_proper))
+            # print(len(relations))
             sentence_proper = list(range(len(heads_proper)))
+            #word2headrels = {w: (h, r) for (w, h, r) in zip(sentence_proper, heads_proper, relations)}
+            # print(word2headrels)
             word2head = {w: h for (w, h) in zip(sentence_proper, heads_proper)}
             if is_projective(word2head):
-                actions = oracle(sentence_proper, word2head)
-                actions_processed = {'transition': actions}
+                actions,relations_order = oracle(sentence_proper, word2head,relations)
+                relation_ids = [rel2id[rel] for rel in relations_order]
+
+                #labeled_actions = labeled_action_pairs(actions,relation_ids.copy())
+                #actions_processed = {'transition': actions, 'relations':relation_ids,'labeled_actions':labeled_actions}
+                actions_processed = {'transition': actions, 'relations':relation_ids,}
                 utils.append_json(out_fname_history, actions_processed)
                 utils.append_json(out_fname, sent_processed)
 

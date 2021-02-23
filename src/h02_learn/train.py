@@ -127,12 +127,12 @@ def _evaluate(evalloader, model):
     # pylint: disable=too-many-locals
     dev_loss, dev_las, dev_uas, n_instances = 0, 0, 0, 0
     steps = 0
-    for (text, pos), (heads, rels), transitions in evalloader:
+    for (text, pos), (heads, rels), (transitions, relations_in_order) in evalloader:
         steps += 1
         # print(steps)
         # h_logits, l_logits = model((text, pos))
         # h_logits = model((text, pos),heads)
-        loss, predicted_heads = model((text, pos), transitions, mode='eval')
+        loss, predicted_heads = model((text, pos), transitions, relations_in_order, mode='eval')
         # loss = model.loss(h_logits, l_logits, heads, rels)
         lengths = (text != 0).sum(-1)
 
@@ -157,14 +157,15 @@ def evaluate(evalloader, model):
     return result
 
 
-def train_batch(text, pos, heads, rels, transitions, model, optimizer):
+def train_batch(text, pos, heads, rels, transitions, relations_in_order, model, optimizer):
     optimizer.zero_grad()
 
     text, pos = text.to(device=constants.device), pos.to(device=constants.device)
-    heads, rels = heads.to(device=constants.device), rels.to(device=constants.device)
+    #heads, rels = heads.to(device=constants.device), rels.to(device=constants.device)
     transitions = transitions.to(device=constants.device)
+    relations_in_order = relations_in_order.to(device=constants.device)
 
-    loss, _ = model((text, pos), transitions, mode='train')
+    loss, _ = model((text, pos), transitions, relations_in_order, mode='train')
 
     loss.backward(retain_graph=True)
     optimizer.step()
@@ -180,9 +181,9 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
     while not train_info.finish:
         steps = 0
 
-        for (text, pos), (heads, rels), transitions in trainloader:
+        for (text, pos), (heads, rels), (transitions, relations_in_order) in trainloader:
             steps += 1
-            loss = train_batch(text, pos, heads, rels, transitions, model, optimizer)
+            loss = train_batch(text, pos, heads, rels, transitions, relations_in_order, model, optimizer)
             # print("train loss in step {} is {}".format(steps,loss))
             train_info.new_batch(loss)
             if train_info.eval:

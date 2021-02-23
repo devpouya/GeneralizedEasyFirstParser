@@ -168,19 +168,19 @@ class ShiftReduceParser():
         self.action_history.append(act_emb)
         return item[0]
 
-    def reduce_l(self, act_emb):
+    def reduce_l(self, act_emb,rel):
         top = self.stack.pop(-1)
         left = self.buffer[0]
-        self.arcs.append((left[1],top[1]))
+        self.arcs.append((left[1],top[1],rel))
         self.action_history_names.append(constants.reduce_l)
         self.action_history.append(act_emb)
         c = self.subtree_rep(top, left, act_emb)
         return c
 
-    def reduce_r(self, act_emb):
+    def reduce_r(self, act_emb,rel):
         left = self.buffer[0]
         top = self.stack.pop(-1)
-        self.arcs.append((top[1],left[1]))
+        self.arcs.append((top[1],left[1],rel))
         self.action_history_names.append(constants.reduce_r)
         self.action_history.append(act_emb)
         self.buffer[0] = top
@@ -258,12 +258,14 @@ class ShiftReduceParser():
 
     def heads_from_arcs(self):
         heads = [0]*(len(self.sentence))
-        heads[0] = 0
+        rels = [0]*(len(self.sentence))
+
         for i in range(1,len(self.sentence)):
-            for (u,v) in self.arcs:
+            for (u,v,r) in self.arcs:
                 if v == i:
                     heads[i] = u
-        return torch.tensor(heads).to(device=constants.device)
+                    rels[i] = r
+        return torch.tensor(heads).to(device=constants.device),torch.tensor(rels).to(device=constants.device)
     def set_oracle_action(self, act):
         self.oracle_action_history.append(act)
 

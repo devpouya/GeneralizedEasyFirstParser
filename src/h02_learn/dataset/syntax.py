@@ -17,6 +17,8 @@ class SyntaxDataset(Dataset):
     def load_data(self, fname, transition_file):
         self.words, self.pos, self.heads, self.rels = [], [], [], []
         self.actions = []
+        self.relations_in_order = []
+        #self.labeled_actions = []
         with open(fname, 'r') as file, open(transition_file, 'r') as file2:
             for line, action in zip(file.readlines(), file2.readlines()):
                 sentence = json.loads(line)
@@ -26,10 +28,20 @@ class SyntaxDataset(Dataset):
                 self.heads += [self.list2tensor([word['head'] for word in sentence])]
                 self.rels += [self.list2tensor([word['rel_id'] for word in sentence])]
                 self.actions += [self.actionsequence2tensor(tranisiton['transition'])]
+                self.relations_in_order += [self.list2tensor(tranisiton['relations'])]
+                #self.labeled_actions += [self.labeled_act2tensor(tranisiton['labeled_actions'])]
 
     def actionsequence2tensor(self, actions):
         ids = [self.transition_system[act] for act in actions]
         return torch.LongTensor(ids).to(device=constants.device)
+
+    def labeled_act2tensor(self,labeled_actions):
+        ret = []
+        for (act,lab) in labeled_actions:
+            act_id = torch.LongTensor(self.transition_system[act]).to(device=constants.device)
+            lab_tens = torch.LongTensor(lab).to(device=constants.device)
+            ret.append((act_id,lab_tens))
+        return ret
 
     @staticmethod
     def list2tensor(data):
@@ -50,4 +62,5 @@ class SyntaxDataset(Dataset):
         #print(self.actions[index])
         #return (self.words[index], self.pos[index]), \
         #       (self.heads[index], self.rels[index]), self.actions[index]
-        return (self.words[index], self.pos[index]), (self.heads[index], self.rels[index]), (self.actions[index],)
+        return (self.words[index], self.pos[index]), (self.heads[index], self.rels[index]),\
+               (self.actions[index],self.relations_in_order[index])
