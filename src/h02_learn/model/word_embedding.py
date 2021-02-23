@@ -19,7 +19,7 @@ class WordEmbedding(nn.Module):
 
         self.embedding = nn.Embedding(self.vocab_size, self.embedding_size,
                                       _weight=pretrained_tensor, padding_idx=0)
-        self.embedding.weight.requires_grad = False
+        self.embedding.weight.requires_grad = True
 
     def dict2tensor(self, vocab_size, embedding_size, pretrained_dict):
         scale = np.sqrt(3.0 / embedding_size)
