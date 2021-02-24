@@ -454,7 +454,7 @@ class NeuralTransitionParser(BaseParser):
             'arc_size': self.arc_size,
             'label_size': self.label_size,
             'nlayers': self.nlayers,
-            'dropout': self.dropout_p,
+            'dropout': self.dropout_prob,
         }
 
     def check_if_good(self, built, heads, sent_lens):
