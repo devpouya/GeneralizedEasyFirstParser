@@ -33,11 +33,16 @@ $ python src/h01_data/process.py --language <language-code> --glove-file <glove-
 ```
 Where language is the ISO 639-1 code for the language, and glove file is the path to a txt file containing one word and its embedding per line.
 GloVe embeddings for wikipedia can be trained with [this repository](https://github.com/tpimentelms/GloVe).
+For a transition based parser, you need to also specify the transition system:
+```bash
+$ python src/h01_data/process.py --language <language-code> --glove-file <glove-vectors-filename> --transition <transition-system>
+```
 
 Then, train the model with the command:
 ```bash
-$ python src/h02_learn/train.py --language <language-code>
+$ python src/h02_learn/train.py --language <language-code> --model <model-name>
 ```
+This code will, by default, train a [Stack-LSTM Transition Parser](https://www.aclweb.org/anthology/P15-1033.pdf).
 This code will, by default, train a [Deep Biaffine Parser](https://arxiv.org/abs/1611.01734).
 To train the model using the [MST parser loss](https://arxiv.org/abs/1701.00874) add the argument `--model mst`.
 

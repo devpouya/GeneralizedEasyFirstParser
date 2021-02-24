@@ -64,7 +64,6 @@ def process_sentence(sentence, vocabs):
             'rel': token[7],
             'rel_id': rels.idx(token[7]),
         }]
-
         heads.append(int(token[6]))
         relations.append(token[7])
         rel2id[token[7]] = rels.idx(token[7])
