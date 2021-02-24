@@ -136,12 +136,12 @@ class NeuralTransitionParser(BaseParser):
         self.empty_initial = nn.Parameter(torch.randn(self.batch_size, self.hidden_size))
         # MLP it's actually a one layer network
         self.mlp_lin1 = nn.Linear(int(self.hidden_size / 2) * 3,
-                                  self.embedding_size * 2)
+                                  self.embedding_size * 2).to(device=constants.device)
         self.mlp_lin2 = nn.Linear(self.embedding_size * 2,
-                                  self.embedding_size)
+                                  self.embedding_size).to(device=constants.device)
 
-        self.mlp_act = nn.Linear(self.embedding_size,self.num_actions)
-        self.mlp_rel = nn.Linear(self.embedding_size,self.num_rels)
+        self.mlp_act = nn.Linear(self.embedding_size,self.num_actions).to(device=constants.device)
+        self.mlp_rel = nn.Linear(self.embedding_size,self.num_rels).to(device=constants.device)
 
         torch.nn.init.kaiming_uniform_(self.mlp_lin1.weight,nonlinearity='relu')
         torch.nn.init.kaiming_uniform_(self.mlp_lin2.weight,nonlinearity='relu')
