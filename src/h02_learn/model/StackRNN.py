@@ -168,7 +168,7 @@ class NeuralTransitionParser(BaseParser):
 
         return labeled_acts
 
-    def parser_probabilities(self, parser):
+    def parser_probabilities(self):
         parser_state = torch.cat([self.stack.embedding(), self.buffer.embedding(), self.action.embedding()], dim=-1)
 
         parser_state = self.dropout(F.relu(self.mlp_lin1(parser_state)))
@@ -181,7 +181,7 @@ class NeuralTransitionParser(BaseParser):
 
     def parse_step_arc_standard(self, parser, labeled_transitions, mode):
         # get parser state
-        action_probabilities, rel_probabilities = self.parser_probabilities(parser)
+        action_probabilities, rel_probabilities = self.parser_probabilities()
         if labeled_transitions is not None:
             best_action = labeled_transitions[0].item()
             rel = labeled_transitions[1]
@@ -260,7 +260,7 @@ class NeuralTransitionParser(BaseParser):
         return parser, (action_probabilities, rel_probabilities), (action_target, rel_target)
 
     def parse_step_arc_eager(self, parser, labeled_transitions, mode):
-        action_probabilities, rel_probabilities = self.parser_probabilities(parser)
+        action_probabilities, rel_probabilities = self.parser_probabilities()
         if labeled_transitions is not None:
             best_action = labeled_transitions[0].item()
             rel = labeled_transitions[1]
@@ -282,7 +282,7 @@ class NeuralTransitionParser(BaseParser):
                 rel_ev = torch.argmax(rel_probabilities,dim=-1)
                 rel = int(rel_ev.item())
                 rel_embed = self.rel_embeddings(rel_ev).to(device=constants.device)
-            if len(parser.stack) < 1:
+            if len(parser.stack) < 1 and len(parser.buffer) > 0:
                 # can only shift
                 best_action = torch.argmax(action_probabilities[:, 0], dim=-1).item()
             else:
