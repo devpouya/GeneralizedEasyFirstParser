@@ -80,7 +80,7 @@ class NeuralTransitionParser(BaseParser):
         # lstms
         self.stack_lstm = nn.LSTM(self.embedding_size * 3, self.embedding_size * 3).to(device=constants.device)
         self.buffer_lstm = nn.LSTM(self.embedding_size * 3, self.embedding_size * 3).to(device=constants.device)
-        self.action_lstm = nn.LSTM(self.embedding_size, self.embedding_size).to(device=constants.device)
+        self.action_lstm = nn.LSTM(16, 16).to(device=constants.device)
 
         # parser state
         # self.parser_state = nn.Parameter(torch.zeros((self.batch_size, self.hidden_size * 3 * 2))).to(
@@ -91,9 +91,9 @@ class NeuralTransitionParser(BaseParser):
         hidden_init = torch.zeros((1, 1, self.embedding_size * 3)).to(
             device=constants.device)
 
-        input_init_act = torch.zeros((1, 1, self.embedding_size)).to(
+        input_init_act = torch.zeros((1, 1, 16)).to(
             device=constants.device)
-        hidden_init_act = torch.zeros((1, 1, self.embedding_size)).to(
+        hidden_init_act = torch.zeros((1, 1, 16)).to(
             device=constants.device)
 
         self.lstm_init_state = (nn.init.kaiming_uniform_(input_init), nn.init.kaiming_uniform_(hidden_init))
@@ -101,10 +101,10 @@ class NeuralTransitionParser(BaseParser):
             nn.init.kaiming_uniform_(input_init_act), nn.init.kaiming_uniform_(hidden_init_act))
 
         self.empty_initial = nn.Parameter(torch.zeros(1, 1, self.embedding_size * 3))
-        self.empty_initial_act = nn.Parameter(torch.zeros(1, 1, self.embedding_size))
+        self.empty_initial_act = nn.Parameter(torch.zeros(1, 1, 16))
 
         # MLP
-        self.mlp_lin1 = nn.Linear(self.embedding_size * 7,
+        self.mlp_lin1 = nn.Linear(self.embedding_size * 6 + 16,
                                   self.embedding_size * 5).to(device=constants.device)
         self.mlp_lin2 = nn.Linear(self.embedding_size * 5,
                                   self.embedding_size * 3).to(device=constants.device)
@@ -132,10 +132,10 @@ class NeuralTransitionParser(BaseParser):
         words, tags, rels = vocabs
         word_embeddings = WordEmbedding(words, self.embedding_size, pretrained=pretrained)
         tag_embeddings = nn.Embedding(tags.size, self.embedding_size)
-        rel_embeddings = nn.Embedding(rels.size + 1, self.embedding_size)
+        rel_embeddings = nn.Embedding(rels.size + 1, 60)
 
         learned_embeddings = nn.Embedding(words.size, self.embedding_size)
-        action_embedding = nn.Embedding(self.num_actions, self.embedding_size)
+        action_embedding = nn.Embedding(self.num_actions, 16)
         return word_embeddings, tag_embeddings, learned_embeddings, action_embedding, rel_embeddings
 
     def get_embeddings(self, x):
