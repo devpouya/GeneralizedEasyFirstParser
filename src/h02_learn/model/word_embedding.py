@@ -25,7 +25,7 @@ class WordEmbedding(nn.Module):
         scale = np.sqrt(3.0 / embedding_size)
         pretrained = np.empty([vocab_size, embedding_size], dtype=np.float32)
         pretrained[:3, :] = np.random.uniform(
-            - scale, scale, [3, embedding_size]).astype(np.float32) # Special symbols
+            - scale, scale, [3, embedding_size]).astype(np.float32)  # Special symbols
 
         oov = 0
         for word, index in self.vocab.items():
@@ -44,6 +44,7 @@ class WordEmbedding(nn.Module):
     def forward(self, x):
         return self.embedding(x)
 
+
 class ActionEmbedding(nn.Module):
     # pylint: disable=arguments-differ
     def __init__(self, actions, embedding_size):
@@ -52,12 +53,11 @@ class ActionEmbedding(nn.Module):
         self.action_size = len(actions)
         self.embedding_size = embedding_size
 
-        pretrained_tensor = torch.zeros(size=(self.action_size,self.embedding_size)).to(device=constants.device)
-        for i in range(self.action_size):
-            pretrained_tensor[i,i] = 1
+        #pretrained_tensor = torch.zeros(size=(self.action_size, self.embedding_size)).to(device=constants.device)
+        #for i in range(self.action_size):
+        #    pretrained_tensor[i, i] = 1
 
-        self.embedding = nn.Embedding(self.action_size, self.embedding_size,
-                                      _weight=pretrained_tensor, padding_idx=0)
+        self.embedding = nn.Embedding(self.action_size, self.embedding_size, padding_idx=0)
         self.embedding.weight.requires_grad = True
 
     def forward(self, x):
