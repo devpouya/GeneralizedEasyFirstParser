@@ -195,10 +195,10 @@ class NeuralTransitionParser(BaseParser):
 
     def get_action_embed(self, act):
         idx = self.action2id[act]
-        t = torch.tensor(idx, dtype=torch.long)
+        t = torch.tensor(idx, dtype=torch.long).to(device=constants.device)
         # f = self.action_embeddings(t)
         # print(f.shape)
-        return self.action_embeddings(t).unsqueeze(0).unsqueeze(1)
+        return self.action_embeddings(t).unsqueeze(0).unsqueeze(1).to(device=constants.device)
 
     def labeled_action_pairs(self, actions, relations):
         labeled_acts = []
