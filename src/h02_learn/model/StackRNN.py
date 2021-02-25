@@ -101,7 +101,7 @@ class NeuralTransitionParser(BaseParser):
         self.action2id = {act: i for i, act in enumerate(self.actions)}
 
         # word, tag and action embeddings
-        self.word_embeddings, self.tag_embeddings, self.learned_embeddings, self.action_embeddings = \
+        self.word_embeddings, self.tag_embeddings, self.learned_embeddings, self.action_embeddings, self.rel_embeddings = \
             self.create_embeddings(vocabs, pretrained=pretrained_embeddings)
         self.root = (torch.tensor(1).to(device=constants.device), torch.tensor(1).to(device=constants.device))
 
@@ -178,13 +178,15 @@ class NeuralTransitionParser(BaseParser):
                                self.empty_initial_act)
 
     def create_embeddings(self, vocabs, pretrained):
-        words, tags, _ = vocabs
+        words, tags, rels = vocabs
         word_embeddings = WordEmbedding(words, self.embedding_size, pretrained=pretrained)
         tag_embeddings = nn.Embedding(tags.size, self.embedding_size)
+        rel_embeddings = nn.Embedding(rels.size+1, self.embedding_size)
+
         learned_embeddings = nn.Embedding(words.size, self.embedding_size)
         # action_embedding = ActionEmbedding(self.actions, self.embedding_size).embedding
         action_embedding = nn.Embedding(self.num_actions, self.embedding_size)
-        return word_embeddings, tag_embeddings, learned_embeddings, action_embedding
+        return word_embeddings, tag_embeddings, learned_embeddings, action_embedding, rel_embeddings
 
     def get_embeddings(self, x):
         return torch.cat([self.word_embeddings(x[0]), self.learned_embeddings(x[0]), self.tag_embeddings(x[1])],
@@ -270,7 +272,7 @@ class NeuralTransitionParser(BaseParser):
 
         rel_target = torch.tensor([rel], dtype=torch.long).to(device=constants.device)
         # l = criterion_a(action_probabilities,target)
-
+        rel_embed = self.rel_embeddings(rel_target).to(device=constants.device)
         if mode == 'eval':
             # final = False
             if len(parser.stack) < 1:
@@ -304,8 +306,9 @@ class NeuralTransitionParser(BaseParser):
         elif best_action == 1:
             # reduce-l
             self.stack.pop()
-            self.action.push(self.get_action_embed(constants.reduce_l))
-            ret = parser.reduce_l(state1, rel)
+            act_embed = self.get_action_embed(constants.reduce_l)
+            self.action.push(act_embed)
+            ret = parser.reduce_l(act_embed, rel,rel_embed)
             self.buffer.pop()
             self.buffer.push(ret.unsqueeze(0).unsqueeze(1))
             # self.stack.push(ret.unsqueeze(0).unsqueeze(1))
@@ -313,9 +316,10 @@ class NeuralTransitionParser(BaseParser):
         elif best_action == 2:
             # reduce-r
             # buffer.push(stack.pop())  # not sure, should replace in buffer actually...
-            self.action.push(self.get_action_embed(constants.reduce_r))
+            act_embed = self.get_action_embed(constants.reduce_l)
+            self.action.push(act_embed)
             self.stack.pop()
-            ret = parser.reduce_r(state1, rel)
+            ret = parser.reduce_r(act_embed, rel,rel_embed)
             self.buffer.pop()
             self.buffer.push(ret.unsqueeze(0).unsqueeze(1))
             # self.buffer.push_first(ret,self.stack.s[-1])
