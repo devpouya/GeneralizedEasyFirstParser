@@ -18,7 +18,7 @@ def get_args():
     parser.add_argument('--data-path', type=str, default='data/')
     parser.add_argument('--glove-file', type=str, required=True)
     parser.add_argument('--min-vocab-count', type=int, default=2)
-    parser.add_argument('--transition', type=str, default='arc-standard')
+    parser.add_argument('--transition', type=str, choices=['arc-standard','arc-eager'],default='arc-eager')
     return parser.parse_args()
 
 
@@ -121,6 +121,7 @@ def process_data(in_fname_base, out_path, mode, vocabs, oracle=None, transition_
 
             else:
                 continue
+
 
 
 def add_sentence_vocab(sentence, words, tags, rels):

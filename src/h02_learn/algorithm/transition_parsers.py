@@ -171,33 +171,33 @@ class ShiftReduceParser():
         self.stack.pop(-1)
         self.buffer[0] = top
         c = self.subtree_rep(left, top,rel_embed,act_embed)
-
         return c
 
-    def reduce(self, act_emb):
+    def reduce(self):
         # stack_top = self.stack.top()
         # if self.arcs.has_incoming(stack_top):
         self.stack.pop(-1)
         self.action_history_names.append(constants.reduce)
 
-    def left_arc_eager(self, act_emb):
-        stack_top = self.stack[-1]
-        buffer_first = self.buffer[0]
+    def left_arc_eager(self, act_embed, rel,rel_embed):
+        top = self.stack[-1]
+        left = self.buffer[0]
         # if not self.arcs.has_incoming(stack_top):
         self.stack.pop(-1)
-        self.arcs.append((buffer_first[1], stack_top[1]))
+        self.arcs.append((left[1], top[1],rel))
         self.action_history_names.append(constants.left_arc_eager)
-        c = self.subtree_rep(buffer_first, stack_top, act_emb)
+        c = self.subtree_rep(left, top, rel_embed,act_embed)
         return c
 
-    def right_arc_eager(self, act_emb):
-        stack_top = self.stack[-1]
-        buffer_first = self.buffer[0]
-        self.stack.append(buffer_first)
-        self.buffer.pop(0)
-        self.arcs.append((stack_top[1], buffer_first[1]))
+    def right_arc_eager(self, act_embed, rel,rel_embed):
+        top = self.stack[-1]
+        left = self.buffer[0]
+        self.stack.append(left)
+        self.arcs.append((top[1], left[1],rel))
         self.action_history_names.append(constants.right_arc_eager)
-        c = self.subtree_rep(stack_top, buffer_first, act_emb)
+        c = self.subtree_rep(top, left, rel_embed,act_embed)
+        self.buffer.pop(0)
+
         return c
 
     def left_arc_hybrid(self, act_emb):

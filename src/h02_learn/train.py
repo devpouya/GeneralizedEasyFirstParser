@@ -73,9 +73,10 @@ def get_model(vocabs, embeddings, args):
             transition_system=constants.arc_standard) \
             .to(device=constants.device)
     elif args.model == 'arc-eager':
-        return ArcEagerStackLSTM(
-            vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size,
-            nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings) \
+        return NeuralTransitionParser(
+            vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size, args.batch_size,
+            nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings,
+            transition_system=constants.arc_eager) \
             .to(device=constants.device)
     elif args.model == 'hybrid':
         return HybridStackLSTM(

@@ -48,6 +48,56 @@ class HiddenOutput():
         self.is_root = False
 
 
+# adapted from stack-lstm-ner (https://github.com/clab/stack-lstm-ner)
+class StackRNN(nn.Module):
+    def __init__(self, cell, initial_state, initial_hidden, dropout, p_empty_embedding=None):
+        super().__init__()
+        self.cell = cell
+        self.dropout = dropout
+        # self.s = [(initial_state, None)]
+        self.s = [(initial_state, initial_hidden)]
+
+        self.empty = None
+        if p_empty_embedding is not None:
+            self.empty = p_empty_embedding
+
+    def push_first(self, expr, stack_rep):
+        expr = expr.unsqueeze(0).unsqueeze(1)
+
+        out, hidden = self.cell(expr, stack_rep[1])
+        self.pop()
+        items = []
+        while self.__len__() > 0:
+            items.append(self.pop(0))
+        self.s.append((out, hidden))
+        # items = (out,hidden) + items
+        for i in items:
+            self.push(i[0].unsqueeze(0))
+        # self.s.append((out, hidden))  # +self.s.pop(0)
+
+    def push(self, expr, extra=None):
+
+        out, hidden = self.cell(expr, self.s[-1][1])
+        self.s.append((out, hidden))
+
+    def pop(self, ind=-1):
+        if ind == 0:
+            ind += 1
+        return self.s.pop(ind)[0]  # [0]
+
+    def embedding(self):
+        return self.s[-1][0] if len(self.s) > 1 else self.empty
+
+    def back_to_init(self):
+        while self.__len__() > 0:
+            self.pop()
+
+    def clear(self):
+        self.s.reverse()
+        self.back_to_init()
+
+    def __len__(self):
+        return len(self.s) - 1
 
 class StackLSTM(nn.Module):
     def __init__(self, input_size, hidden_size, dropout, batch_size, batch_first, bidirectional=False):
