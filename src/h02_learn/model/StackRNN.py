@@ -294,13 +294,11 @@ class NeuralTransitionParser(BaseParser):
         rel_target = torch.tensor([rel], dtype=torch.long).to(device=constants.device)
         rel_embed = self.rel_embeddings(rel_target).to(device=constants.device)
         if mode == 'eval':
-            if best_action != 0 and best_action != -2 and best_action != 3:
-                rel_ev = torch.argmax(rel_probabilities,dim=-1)
-                rel = int(rel_ev.item())
-                rel_embed = self.rel_embeddings(rel_ev).to(device=constants.device)
+            best_action = torch.argmax(rel_probabilities,dim=-1)
+
             if len(parser.stack) < 1 and len(parser.buffer) > 0:
                 # can only shift
-                best_action = torch.argmax(action_probabilities[:, 0], dim=-1).item()
+                best_action = 0 #torch.argmax(action_probabilities[:, 0], dim=-1).item()
             else:
                 top_has_head = has_head(parser.stack[0][1], parser.arcs)
                 is_root = parser.stack[0][1] == 0
@@ -310,11 +308,6 @@ class NeuralTransitionParser(BaseParser):
                     tmp[:, 3] = -float('inf')
                 if is_root or top_has_head:
                     tmp[:, 1] = -float('inf')
-                if len(parser.buffer) < 1:
-                    tmp[:,0] = -float('inf')
-                    tmp[:,1] = -float('inf')
-                    tmp[:,2] = -float('inf')
-
 
                 if len(parser.stack) <= 1 and len(parser.buffer) == 0:
                     # best_action = torch.argmax(action_probabilities[:, 1], dim=-1).item()
