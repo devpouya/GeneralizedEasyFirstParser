@@ -307,9 +307,13 @@ class NeuralTransitionParser(BaseParser):
                     best_action = torch.argmax(tmp, dim=-1).item()
 
         if best_action == 0:
-            self.stack.push(self.buffer.pop())
             self.action.push(self.get_action_embed(constants.shift))
             parser.shift()
+            ting = self.buffer.pop()
+            if len(ting) > 1:
+                ting = ting[0].squeeze(0)
+            self.stack.push(ting)
+
         elif best_action == 1:
             self.stack.pop()
             act_embed = self.get_action_embed(constants.left_arc_eager)
