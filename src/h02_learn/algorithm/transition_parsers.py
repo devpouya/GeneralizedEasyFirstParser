@@ -134,14 +134,14 @@ class ShiftReduceParser():
         self.embedding_size = embedding_size
 
         # used for learning representation for partial parse trees
-        self.linear = nn.Linear(6 * embedding_size+76, 3 * embedding_size).to(device=constants.device)
+        self.linear = nn.Linear(7 * embedding_size+16, 3 * embedding_size).to(device=constants.device)
         torch.nn.init.kaiming_uniform_(self.linear.weight,nonlinearity='relu')
 
         self.tanh = nn.Tanh().to(device=constants.device)
 
     def subtree_rep(self, top, second, rel_embed,act_embed):
 
-        reprs = torch.cat([top[0], second[0], rel_embed.reshape(60),act_embed.reshape(16)],
+        reprs = torch.cat([top[0], second[0], rel_embed.reshape(self.embedding_size),act_embed.reshape(16)],
                           dim=-1)
         c = self.tanh(self.linear(reprs))
 
