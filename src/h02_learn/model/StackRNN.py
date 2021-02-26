@@ -249,7 +249,7 @@ class NeuralTransitionParser(BaseParser):
             self.stack.pop()
             act_embed = self.get_action_embed(constants.reduce_l)
             self.action.push(act_embed)
-            ret = parser.reduce_l(act_embed, r, rel_embed)
+            ret = parser.reduce_l(act_embed, rel, rel_embed)
             self.buffer.pop()
             self.buffer.push(ret.unsqueeze(0).unsqueeze(1))
             # self.stack.push(ret.unsqueeze(0).unsqueeze(1))
@@ -261,7 +261,7 @@ class NeuralTransitionParser(BaseParser):
             act_embed = self.get_action_embed(constants.reduce_l)
             self.action.push(act_embed)
             self.stack.pop()
-            ret = parser.reduce_r(act_embed, r, rel_embed)
+            ret = parser.reduce_r(act_embed, rel, rel_embed)
             self.buffer.pop()
             self.buffer.push(ret.unsqueeze(0).unsqueeze(1))
             # self.buffer.push_first(ret,self.stack.s[-1])
@@ -329,9 +329,8 @@ class NeuralTransitionParser(BaseParser):
             parser.shift()
             ting = self.buffer.pop()
             if len(ting) > 1:
-                ting = ting[0].squeeze(0)
+                ting = ting[-1].squeeze(0)
             self.stack.push(ting)
-
         elif best_action == 1:
             self.stack.pop()
             act_embed = self.get_action_embed(constants.left_arc_eager)
