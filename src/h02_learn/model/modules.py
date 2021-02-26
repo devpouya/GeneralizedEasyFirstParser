@@ -7,45 +7,7 @@ from utils import constants
 import numpy as np
 
 
-class PointerLSTM(nn.Module):
-    def __init__(self, id, prev_lstm, input_size, hidden_size, dropout, batch_first, bidirectional=False):
-        super().__init__()
-        self.is_top = False
-        self.is_root = False
-        self.is_final = True
-        self.prev_lstm = prev_lstm
-        self.next_lstm = None
-        self.hidden_size = hidden_size
-        self.input_size = input_size
-        self.lstm_cell = torch.nn.LSTM(input_size=input_size, hidden_size=hidden_size, num_layers=1,
-                                       dropout=dropout, batch_first=batch_first, bidirectional=False).to(
-            device=constants.device)
 
-        self.id = id
-
-        if self.prev_lstm is None:
-            self.is_root = True
-
-    def forward(self, input):
-        return self.lstm_cell(input)
-
-    def set_previous(self, prev):
-        self.prev_lstm = prev
-        self.is_root = False
-
-    def set_next(self, next):
-        self.next_lstm = next
-        self.is_final = False
-
-
-class HiddenOutput():
-    def __init__(self, weight):
-        self.weight = weight
-        self.hidden_weight = None
-        self.prev = None
-        self.next = []
-        self.is_top = False
-        self.is_root = False
 
 
 # adapted from stack-lstm-ner (https://github.com/clab/stack-lstm-ner)
@@ -160,173 +122,6 @@ class StackLSTM(nn.Module):
         self.top.hidden = hidden
         return out
 
-class GrowingStackLSTM(nn.Module):
-    """Useless lol"""
-    def __init__(self, input_size, hidden_size, dropout, batch_first, bidirectional=False):
-        super().__init__()
-        self.input_size = input_size
-        self.hidden_size = hidden_size
-        self.dropout = dropout
-        self.batch_first = batch_first
-        self.bidirectional = bidirectional
-        self.top_index = 0
-        self.root = None
-        self.top = None  # PointerLSTM(id=0, prev_lstm=None, input_size=self.input_size, hidden_size=self.hidden_size,
-        #            dropout=self.dropout, batch_first=self.batch_first,
-        #            bidirectional=self.bidirectional)  # None
-        self.lstm_list = []  # [self.top]
-        # self.lstm2indx = {}
-
-    def set_top(self, index):
-        self.top = self.lstm_list[index]
-        self.top.is_top = True
-
-    def pop(self):
-        if self.top.prev_lstm is None:
-            # do nothing
-            pass
-        else:
-            # self.top.is_final = False
-            self.top.is_top = False
-            self.top = self.top.prev_lstm
-            self.top.is_final = False
-            self.top.is_top = True
-            # self.top.is_final = True
-
-            # self.top_index = self.lstm2indx[self.top]
-            # self.top_index = self.top.id
-
-    def push(self, lstm=None, initialize=False):
-        # if top = length of list
-        # create and push
-        # else, just push (don't add new lstm)
-        # lstm has to be a PointerLSTM
-        # assert(isinstance(lstm,PointerLSTM))
-
-        # if self.top.is_final: #self.top_index >= len(self.lstm_list):
-        # if initialize:
-        #    self.top = self.root
-
-        self.create_and_push()
-        # else:
-        #    #self.create_and_push()
-        #    # move top_lstm by one
-        #    self.top.is_top = False
-        #    self.top = self.top.next_lstm
-        #    self.top.is_top = True
-        #    #self.top_index =
-        #    #prev = self.top
-        #    #self.top = self.top.next_lstm #self.lstm_list[self.top_index]
-        #    #self.top.prev_lstm = prev
-
-        # lstm.prev_lstm = self.top
-        # self.top = lstm
-
-        # self.top_index = self.lstm2indx[self.top]
-        # self.lstm_list.append(lstm)
-        # self.lstm2indx[lstm] = len(self.lstm_list) - 1
-
-    def create_and_push(self, x=None, lstm=None, make_root=False):
-        if lstm is None:
-            # if len(self.lstm_list) > 0:
-            lstm = PointerLSTM(id=len(self.lstm_list), prev_lstm=self.top, input_size=self.input_size
-                               , hidden_size=self.hidden_size, dropout=self.dropout,
-                               batch_first=self.batch_first, bidirectional=self.bidirectional)
-            # else:
-            #    lstm = PointerLSTM(id=0, prev_lstm=None, input_size=self.input_size, hidden_size=self.hidden_size,
-            #                       dropout=self.dropout, batch_first=self.batch_first,
-            #
-            #                       bidirectional=self.bidirectional)
-        lstm.is_top = True
-        lstm.is_final = True
-        # if make_root:
-        #    lstm.is_root = True
-        #    self.top = lstm
-
-        if lstm.id == 0:
-            lstm.is_root = True
-            if self.top is not None:
-                lstm(self.stack_summary(x))
-            self.top = lstm
-            self.root = lstm
-        else:
-            lstm.prev_lstm = self.top
-            self.top.next_lstm = lstm
-            self.top.is_top = False
-            self.top.is_final = False
-            self.top = lstm
-
-        self.lstm_list.append(lstm)
-
-    def forward(self, x):
-
-        current_branch, _ = self.get_branch(self.top)
-        # fix this
-        if len(x.shape) < 2:
-            x = x.reshape(1, 1, x.shape[0])
-        else:
-            x = x.reshape(x.shape[0], 1, x.shape[1])
-        # print(x.shape)
-        # output = torch.empty()
-        # print("output shape {}".format(output.shape))
-
-        hidden, _ = current_branch[0](x)
-        # print(hidden.shape)
-        for lstm in current_branch[1:]:
-            hidden, _ = lstm(hidden)
-            # print(hidden.shape)
-
-        # print("output shape {}".format(hidden.shape))
-        return hidden
-
-    def stack_summary(self, x):
-        out, hidden = self.top(x)
-        return out, hidden
-
-    def reset(self):
-        self.lstm_list = []
-
-    def get_branch(self, start_node):
-        current_branch = []
-        # current_branch.append(self.lstm_list[self.top_index])
-        curr_lstm = start_node
-        edges = []
-        while not curr_lstm.is_root:
-            current_branch.append(curr_lstm)
-            edges.append((curr_lstm.prev_lstm.id, curr_lstm.id))
-            curr_lstm = curr_lstm.prev_lstm
-
-        # add root
-        current_branch.append(curr_lstm)
-        current_branch = current_branch[::-1]
-        return current_branch, edges
-
-    def plot_structure(self, show=False, save=False, path=None):
-
-        G = nx.DiGraph()
-        G.add_nodes_from(range(len(self.lstm_list)))
-
-        edges = set()
-        color_set = []
-        for node in G:
-            if self.lstm_list[node].is_top:
-                color_set.append("red")
-            elif self.lstm_list[node].is_root:
-                color_set.append("green")
-            else:
-                color_set.append("blue")
-        for node in self.lstm_list:
-            _, edge_list = self.get_branch(node)
-            edges.update(edge for edge in edge_list)
-
-        edges = list(edges)
-        G.add_edges_from(edges)
-        nx.draw(G, node_color=color_set)
-        if save:
-            plt.savefig(path)
-        if show:
-            plt.show()
-
 
 class Biaffine(nn.Module):
     # pylint: disable=arguments-differ
@@ -376,3 +171,42 @@ class Bilinear(nn.Module):
         # x shape [batch, length, dim_out] and [batch, length, dim_out]
         x += self.linear_l(x_l) + self.linear_r(x_r)
         return x
+class PointerLSTM(nn.Module):
+    def __init__(self, id, prev_lstm, input_size, hidden_size, dropout, batch_first, bidirectional=False):
+        super().__init__()
+        self.is_top = False
+        self.is_root = False
+        self.is_final = True
+        self.prev_lstm = prev_lstm
+        self.next_lstm = None
+        self.hidden_size = hidden_size
+        self.input_size = input_size
+        self.lstm_cell = torch.nn.LSTM(input_size=input_size, hidden_size=hidden_size, num_layers=1,
+                                       dropout=dropout, batch_first=batch_first, bidirectional=False).to(
+            device=constants.device)
+
+        self.id = id
+
+        if self.prev_lstm is None:
+            self.is_root = True
+
+    def forward(self, input):
+        return self.lstm_cell(input)
+
+    def set_previous(self, prev):
+        self.prev_lstm = prev
+        self.is_root = False
+
+    def set_next(self, next):
+        self.next_lstm = next
+        self.is_final = False
+
+
+class HiddenOutput():
+    def __init__(self, weight):
+        self.weight = weight
+        self.hidden_weight = None
+        self.prev = None
+        self.next = []
+        self.is_top = False
+        self.is_root = False

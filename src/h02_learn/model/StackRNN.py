@@ -321,8 +321,6 @@ class NeuralTransitionParser(BaseParser):
             self.action.push(self.get_action_embed(constants.shift))
             parser.shift()
             ting = self.buffer.pop()
-            #if len(ting) > 1:
-            #    ting = ting[-1].squeeze(0)
             self.stack.push(ting)
         elif best_action == 1:
             self.stack.pop()
