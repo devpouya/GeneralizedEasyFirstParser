@@ -300,9 +300,11 @@ class NeuralTransitionParser(BaseParser):
                     tmp[:,2] = -float('inf')
 
 
-                if len(parser.stack) == 1 and len(parser.buffer) == 0:
+                if len(parser.stack) <= 1 and len(parser.buffer) == 0:
                     # best_action = torch.argmax(action_probabilities[:, 1], dim=-1).item()
                     best_action = -2
+                elif len(parser.buffer) == 0:
+                    best_action = 3
                 else:
                     best_action = torch.argmax(tmp, dim=-1).item()
 
