@@ -181,7 +181,7 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
 
             steps += 1
             loss = train_batch(text, pos, heads, rels, transitions, relations_in_order, model, optimizer)
-            # print("train loss in step {} is {}".format(steps,loss))
+            #print("train loss in step {} is {}".format(steps,loss))
             train_info.new_batch(loss)
             if train_info.eval:
                 dev_results = evaluate(devloader, model)

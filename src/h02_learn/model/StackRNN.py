@@ -474,27 +474,22 @@ class NeuralTransitionParser(BaseParser):
         return batch_loss, heads_batch, rels_batch
 
     def loss(self, probs, targets, probs_rel, targets_rel):
-        # criterion1 = nn.CrossEntropyLoss(reduction='mean').to(device=constants.device)
         criterion1 = nn.CrossEntropyLoss().to(device=constants.device)
-        # criterion2 = nn.CrossEntropyLoss(reduction='mean').to(device=constants.device)
-        criterion2 = nn.CrossEntropyLoss().to(device=constants.device)
-        loss = 0
-        for i in range(probs.shape[0]):
-            p = probs[i]
-            p = p[p[:, 0] != -1, :]
-
-            p2 = probs_rel[i]
-            p2 = p2[p2[:, 0] != -1, :]
-
-            t = targets[i].squeeze(1)
-            t = t[:p.shape[0]]
-            loss += criterion1(p, t)
-
-            t2 = targets_rel[i].squeeze(1)
-            t2 = t2[:p2.shape[0]]
-            loss += criterion2(p2, t2)
-
-        loss /= (2 * probs.shape[0])
+        orig_size = probs.shape[0]
+        probs = probs.reshape(-1,probs.shape[-1])
+        targets = targets.reshape(-1)
+        targets = targets[probs[:,0]!=-1]
+        probs = probs[probs[:,0]!=-1,:]
+        probs_rel = probs_rel.reshape(-1, probs_rel.shape[-1])
+        targets_rel = targets_rel.reshape(-1)
+        targets_rel = targets_rel[probs_rel[:, 0] != -1]
+        probs_rel = probs_rel[probs_rel[:, 0] != -1, :]
+        loss = criterion1(probs,targets)
+        #loss += criterion1(probs_rel,targets_rel)
+        #loss /= (2*orig_size)
+        #print(loss)
+        #print(l2)
+#
         return loss
 
     def get_args(self):
