@@ -106,20 +106,20 @@ class NeuralTransitionParser(BaseParser):
         # MLP
         self.mlp_lin1 = nn.Linear(self.embedding_size * 6 + 16,
                                   self.embedding_size * 6).to(device=constants.device)
-        self.mlp_lin2 = nn.Linear(self.embedding_size * 6,self.embedding_size * 6).to(device=constants.device)
-        self.mlp_lin3 = nn.Linear(self.embedding_size * 6,self.embedding_size * 5).to(device=constants.device)
-        self.mlp_lin4 = nn.Linear(self.embedding_size * 5,self.embedding_size * 5).to(device=constants.device)
-        self.mlp_lin5 = nn.Linear(self.embedding_size * 5,self.embedding_size * 3).to(device=constants.device)
-        self.mlp_lin6 = nn.Linear(self.embedding_size * 3,
+        self.mlp_lin2 = nn.Linear(self.embedding_size * 6,self.embedding_size * 5).to(device=constants.device)
+        self.mlp_lin3 = nn.Linear(self.embedding_size * 5,self.embedding_size * 4).to(device=constants.device)
+        self.mlp_lin4 = nn.Linear(self.embedding_size * 4,self.embedding_size * 3).to(device=constants.device)
+        self.mlp_lin5 = nn.Linear(self.embedding_size * 3,self.embedding_size * 2).to(device=constants.device)
+        self.mlp_lin6 = nn.Linear(self.embedding_size * 2,
                                   self.embedding_size).to(device=constants.device)
 
         self.mlp_lin1_rel = nn.Linear(self.embedding_size * 6 + 16,
                                   self.embedding_size * 6).to(device=constants.device)
-        self.mlp_lin2_rel = nn.Linear(self.embedding_size * 6, self.embedding_size * 6).to(device=constants.device)
-        self.mlp_lin3_rel = nn.Linear(self.embedding_size * 6, self.embedding_size * 5).to(device=constants.device)
-        self.mlp_lin4_rel = nn.Linear(self.embedding_size * 5, self.embedding_size * 5).to(device=constants.device)
-        self.mlp_lin5_rel = nn.Linear(self.embedding_size * 5, self.embedding_size * 3).to(device=constants.device)
-        self.mlp_lin6_rel = nn.Linear(self.embedding_size * 3,
+        self.mlp_lin2_rel = nn.Linear(self.embedding_size * 6, self.embedding_size * 5).to(device=constants.device)
+        self.mlp_lin3_rel = nn.Linear(self.embedding_size * 5, self.embedding_size * 4).to(device=constants.device)
+        self.mlp_lin4_rel = nn.Linear(self.embedding_size * 4, self.embedding_size * 3).to(device=constants.device)
+        self.mlp_lin5_rel = nn.Linear(self.embedding_size * 3, self.embedding_size * 2).to(device=constants.device)
+        self.mlp_lin6_rel = nn.Linear(self.embedding_size * 2,
                                   self.embedding_size).to(device=constants.device)
         #print(self.num_actions)
         self.mlp_act = nn.Linear(self.embedding_size, self.num_actions).to(device=constants.device)

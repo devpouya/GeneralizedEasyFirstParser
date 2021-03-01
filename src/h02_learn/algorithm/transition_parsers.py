@@ -135,7 +135,7 @@ class ShiftReduceParser():
 
         # used for learning representation for partial parse trees
         self.linear = nn.Linear(7 * embedding_size+16, 3 * embedding_size).to(device=constants.device)
-        torch.nn.init.kaiming_uniform_(self.linear.weight,nonlinearity='relu')
+        torch.nn.init.xavier_uniform_(self.linear.weight)
 
         self.tanh = nn.Tanh().to(device=constants.device)
 
