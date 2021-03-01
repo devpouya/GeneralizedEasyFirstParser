@@ -105,22 +105,22 @@ class NeuralTransitionParser(BaseParser):
 
         # MLP
         self.mlp_lin1 = nn.Linear(self.embedding_size * 6 + 16,
-                                  self.embedding_size * 6).to(device=constants.device)
-        self.mlp_lin2 = nn.Linear(self.embedding_size * 6,self.embedding_size * 5).to(device=constants.device)
-        self.mlp_lin3 = nn.Linear(self.embedding_size * 5,self.embedding_size * 4).to(device=constants.device)
-        self.mlp_lin4 = nn.Linear(self.embedding_size * 4,self.embedding_size * 3).to(device=constants.device)
-        self.mlp_lin5 = nn.Linear(self.embedding_size * 3,self.embedding_size * 2).to(device=constants.device)
-        self.mlp_lin6 = nn.Linear(self.embedding_size * 2,
-                                  self.embedding_size).to(device=constants.device)
+                                  self.embedding_size * 5).to(device=constants.device)
+        self.mlp_lin2 = nn.Linear(self.embedding_size * 5,self.embedding_size * 3).to(device=constants.device)
+        self.mlp_lin3 = nn.Linear(self.embedding_size * 3,self.embedding_size).to(device=constants.device)
+        #self.mlp_lin4 = nn.Linear(self.embedding_size * 4,self.embedding_size * 3).to(device=constants.device)
+        #self.mlp_lin5 = nn.Linear(self.embedding_size * 3,self.embedding_size * 2).to(device=constants.device)
+        #self.mlp_lin6 = nn.Linear(self.embedding_size * 2,
+        #                          self.embedding_size).to(device=constants.device)
 
         self.mlp_lin1_rel = nn.Linear(self.embedding_size * 6 + 16,
-                                  self.embedding_size * 6).to(device=constants.device)
-        self.mlp_lin2_rel = nn.Linear(self.embedding_size * 6, self.embedding_size * 5).to(device=constants.device)
-        self.mlp_lin3_rel = nn.Linear(self.embedding_size * 5, self.embedding_size * 4).to(device=constants.device)
-        self.mlp_lin4_rel = nn.Linear(self.embedding_size * 4, self.embedding_size * 3).to(device=constants.device)
-        self.mlp_lin5_rel = nn.Linear(self.embedding_size * 3, self.embedding_size * 2).to(device=constants.device)
-        self.mlp_lin6_rel = nn.Linear(self.embedding_size * 2,
-                                  self.embedding_size).to(device=constants.device)
+                                  self.embedding_size * 5).to(device=constants.device)
+        self.mlp_lin2_rel = nn.Linear(self.embedding_size * 5, self.embedding_size * 3).to(device=constants.device)
+        self.mlp_lin3_rel = nn.Linear(self.embedding_size * 3, self.embedding_size).to(device=constants.device)
+        #self.mlp_lin4_rel = nn.Linear(self.embedding_size * 4, self.embedding_size * 3).to(device=constants.device)
+        #self.mlp_lin5_rel = nn.Linear(self.embedding_size * 3, self.embedding_size * 2).to(device=constants.device)
+        #self.mlp_lin6_rel = nn.Linear(self.embedding_size * 2,
+        #                          self.embedding_size).to(device=constants.device)
         #print(self.num_actions)
         self.mlp_act = nn.Linear(self.embedding_size, self.num_actions).to(device=constants.device)
         self.mlp_rel = nn.Linear(self.embedding_size, self.num_rels).to(device=constants.device)
@@ -128,17 +128,21 @@ class NeuralTransitionParser(BaseParser):
         torch.nn.init.xavier_uniform_(self.mlp_lin1.weight)
         torch.nn.init.xavier_uniform_(self.mlp_lin2.weight)
         torch.nn.init.xavier_uniform_(self.mlp_lin3.weight)
-        torch.nn.init.xavier_uniform_(self.mlp_lin4.weight)
-        torch.nn.init.xavier_uniform_(self.mlp_lin5.weight)
-        torch.nn.init.xavier_uniform_(self.mlp_lin6.weight)
+        #torch.nn.init.xavier_uniform_(self.mlp_lin4.weight)
+        #torch.nn.init.xavier_uniform_(self.mlp_lin5.weight)
+        #torch.nn.init.xavier_uniform_(self.mlp_lin6.weight)
         torch.nn.init.xavier_uniform_(self.mlp_lin1_rel.weight)
         torch.nn.init.xavier_uniform_(self.mlp_lin2_rel.weight)
         torch.nn.init.xavier_uniform_(self.mlp_lin3_rel.weight)
-        torch.nn.init.xavier_uniform_(self.mlp_lin4_rel.weight)
-        torch.nn.init.xavier_uniform_(self.mlp_lin5_rel.weight)
-        torch.nn.init.xavier_uniform_(self.mlp_lin6_rel.weight)
+        #torch.nn.init.xavier_uniform_(self.mlp_lin4_rel.weight)
+        #torch.nn.init.xavier_uniform_(self.mlp_lin5_rel.weight)
+        #torch.nn.init.xavier_uniform_(self.mlp_lin6_rel.weight)
         torch.nn.init.xavier_uniform_(self.mlp_act.weight)
         torch.nn.init.xavier_uniform_(self.mlp_rel.weight)
+
+        self.linear_tree = nn.Linear(7 * embedding_size+16, 3 * embedding_size).to(device=constants.device)
+        torch.nn.init.xavier_uniform_(self.linear_tree.weight)
+
 
         self.stack = StackRNN(self.stack_lstm, self.lstm_init_state, self.lstm_init_state, self.dropout,
                               self.empty_initial)
@@ -194,18 +198,18 @@ class NeuralTransitionParser(BaseParser):
         state1 = self.dropout(F.relu(self.mlp_lin1(parser_state)))
         state1 = self.dropout(F.relu(self.mlp_lin2(state1)))
         state1 = self.dropout(F.relu(self.mlp_lin3(state1)))
-        state1 = self.dropout(F.relu(self.mlp_lin4(state1)))
-        state1 = self.dropout(F.relu(self.mlp_lin5(state1)))
-        state1 = self.dropout(F.relu(self.mlp_lin6(state1)))
+        #state1 = self.dropout(F.relu(self.mlp_lin4(state1)))
+        #state1 = self.dropout(F.relu(self.mlp_lin5(state1)))
+        #state1 = self.dropout(F.relu(self.mlp_lin6(state1)))
 
         action_probabilities = nn.Softmax(dim=-1)(self.mlp_act(state1)).squeeze(0)
 
         state2 = self.dropout(F.relu(self.mlp_lin1_rel(parser_state)))
         state2 = self.dropout(F.relu(self.mlp_lin2_rel(state2)))
         state2 = self.dropout(F.relu(self.mlp_lin3_rel(state2)))
-        state2 = self.dropout(F.relu(self.mlp_lin4_rel(state2)))
-        state2 = self.dropout(F.relu(self.mlp_lin5_rel(state2)))
-        state2 = self.dropout(F.relu(self.mlp_lin6_rel(state2)))
+        #state2 = self.dropout(F.relu(self.mlp_lin4_rel(state2)))
+        #state2 = self.dropout(F.relu(self.mlp_lin5_rel(state2)))
+        #state2 = self.dropout(F.relu(self.mlp_lin6_rel(state2)))
         rel_probabilities = nn.Softmax(dim=-1)(self.mlp_rel(state2)).squeeze(0)
         #print(rel_probabilities)
         return action_probabilities, rel_probabilities
@@ -266,7 +270,7 @@ class NeuralTransitionParser(BaseParser):
             self.stack.pop()
             act_embed = self.get_action_embed(constants.reduce_l)
             self.action.push(act_embed)
-            ret = parser.reduce_l(act_embed, rel, rel_embed)
+            ret = parser.reduce_l(act_embed, rel, rel_embed,self.linear_tree)
             self.buffer.pop()
             self.buffer.push(ret.unsqueeze(0).unsqueeze(1))
             # self.stack.push(ret.unsqueeze(0).unsqueeze(1))
@@ -278,7 +282,7 @@ class NeuralTransitionParser(BaseParser):
             act_embed = self.get_action_embed(constants.reduce_l)
             self.action.push(act_embed)
             self.stack.pop()
-            ret = parser.reduce_r(act_embed, rel, rel_embed)
+            ret = parser.reduce_r(act_embed, rel, rel_embed,self.linear_tree)
             self.buffer.pop()
             self.buffer.push(ret.unsqueeze(0).unsqueeze(1))
             # self.buffer.push_first(ret,self.stack.s[-1])
