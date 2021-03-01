@@ -109,8 +109,12 @@ def calculate_attachment_score(heads_tgt, l_logits, heads, rels):
 
 def calculate_attachment_score(heads_tgt, heads, predicted_rels, rels):
     acc_h = (heads_tgt == heads)[heads != -1]
+    predicted_rels = predicted_rels[predicted_rels!=-1]
+    rels = rels[rels!=0]
+    #print("predicted {}".format(predicted_rels))
+    #print("REL {}".format(rels))
 
-    acc_l = (predicted_rels == rels)[rels != 0]
+    acc_l = (predicted_rels == rels)#[rels != 0]
 
     uas = acc_h.float().mean().item()
     las = (acc_h & acc_l).float().mean().item()

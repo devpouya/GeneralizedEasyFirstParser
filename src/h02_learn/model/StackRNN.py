@@ -96,9 +96,9 @@ class NeuralTransitionParser(BaseParser):
         hidden_init_act = torch.zeros((1, 1, 16)).to(
             device=constants.device)
 
-        self.lstm_init_state = (nn.init.kaiming_uniform_(input_init), nn.init.kaiming_uniform_(hidden_init))
+        self.lstm_init_state = (nn.init.xavier_uniform_(input_init), nn.init.xavier_uniform_(hidden_init))
         self.lstm_init_state_actions = (
-            nn.init.kaiming_uniform_(input_init_act), nn.init.kaiming_uniform_(hidden_init_act))
+            nn.init.xavier_uniform_(input_init_act), nn.init.xavier_uniform_(hidden_init_act))
 
         self.empty_initial = nn.Parameter(torch.zeros(1, 1, self.embedding_size * 3))
         self.empty_initial_act = nn.Parameter(torch.zeros(1, 1, 16))
@@ -121,14 +121,14 @@ class NeuralTransitionParser(BaseParser):
         self.mlp_act = nn.Linear(self.embedding_size, self.num_actions).to(device=constants.device)
         self.mlp_rel = nn.Linear(self.embedding_size, self.num_rels).to(device=constants.device)
         #self.mlp_both = nn.Linear(self.embedding_size, self.num_rels*2+1).to(device=constants.device)
-        torch.nn.init.kaiming_uniform_(self.mlp_lin1.weight, nonlinearity='relu')
-        torch.nn.init.kaiming_uniform_(self.mlp_lin2.weight, nonlinearity='relu')
-        torch.nn.init.kaiming_uniform_(self.mlp_lin3.weight, nonlinearity='relu')
-        torch.nn.init.kaiming_uniform_(self.mlp_lin3_rel.weight, nonlinearity='relu')
-        torch.nn.init.kaiming_uniform_(self.mlp_lin3_rel.weight, nonlinearity='relu')
-        torch.nn.init.kaiming_uniform_(self.mlp_lin3_rel.weight, nonlinearity='relu')
-        torch.nn.init.kaiming_uniform_(self.mlp_act.weight, nonlinearity='relu')
-        torch.nn.init.kaiming_uniform_(self.mlp_rel.weight, nonlinearity='relu')
+        torch.nn.init.xavier_uniform_(self.mlp_lin1.weight)
+        torch.nn.init.xavier_uniform_(self.mlp_lin2.weight)
+        torch.nn.init.xavier_uniform_(self.mlp_lin3.weight)
+        torch.nn.init.xavier_uniform_(self.mlp_lin3_rel.weight)
+        torch.nn.init.xavier_uniform_(self.mlp_lin3_rel.weight)
+        torch.nn.init.xavier_uniform_(self.mlp_lin3_rel.weight)
+        torch.nn.init.xavier_uniform_(self.mlp_act.weight)
+        torch.nn.init.xavier_uniform_(self.mlp_rel.weight)
 
         self.stack = StackRNN(self.stack_lstm, self.lstm_init_state, self.lstm_init_state, self.dropout,
                               self.empty_initial)
@@ -233,7 +233,9 @@ class NeuralTransitionParser(BaseParser):
             else:
                 best_action = torch.argmax(action_probabilities, dim=-1).item()
 
-            #if best_action != 0 and best_action != -2:
+            rel = torch.argmax(rel_probabilities,dim=-1).item()#+1
+            rel_ind = torch.tensor([rel], dtype=torch.long).to(device=constants.device)
+            rel_embed = self.rel_embeddings(rel_ind).to(device=constants.device)
 
 
         # do the action
@@ -475,18 +477,28 @@ class NeuralTransitionParser(BaseParser):
 
     def loss(self, probs, targets, probs_rel, targets_rel):
         criterion1 = nn.CrossEntropyLoss().to(device=constants.device)
+        criterion2 = nn.CrossEntropyLoss(ignore_index=0).to(device=constants.device)
         orig_size = probs.shape[0]
         probs = probs.reshape(-1,probs.shape[-1])
         targets = targets.reshape(-1)
         targets = targets[probs[:,0]!=-1]
         probs = probs[probs[:,0]!=-1,:]
+
+
+
         probs_rel = probs_rel.reshape(-1, probs_rel.shape[-1])
+
         targets_rel = targets_rel.reshape(-1)
+        #targets_rel = targets_rel[probs_rel[:, 0] != -1]
+        #probs_rel = probs_rel[probs_rel[:, 0] != -1, :]
+        probs_rel = probs_rel[targets_rel!=0,:]
+        targets_rel = targets_rel[targets_rel!=0]
         targets_rel = targets_rel[probs_rel[:, 0] != -1]
         probs_rel = probs_rel[probs_rel[:, 0] != -1, :]
+
         loss = criterion1(probs,targets)
-        #loss += criterion1(probs_rel,targets_rel)
-        #loss /= (2*orig_size)
+        loss += criterion2(probs_rel,targets_rel)
+        #loss /= 2#(2*orig_size)
         #print(loss)
         #print(l2)
 #
