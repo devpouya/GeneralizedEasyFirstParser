@@ -50,7 +50,7 @@ def get_args():
 
 def get_optimizer(paramters, optim_alg, lr_decay):
     if optim_alg == "adamw":
-        optimizer = optim.AdamW(paramters, betas=(.9, .9),lr=0.1)
+        optimizer = optim.AdamW(paramters, betas=(.9, .9))
     elif optim_alg == "adam":
         optimizer = optim.Adam(paramters, betas=(.9, .9))
     else:

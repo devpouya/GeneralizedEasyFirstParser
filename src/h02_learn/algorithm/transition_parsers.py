@@ -143,7 +143,8 @@ class ShiftReduceParser():
 
         reprs = torch.cat([top[0], second[0], rel_embed.reshape(self.embedding_size),act_embed.reshape(16)],
                           dim=-1)
-        c = nn.Tanh()(linear(reprs))
+
+        c = nn.Tanh()(linear[1](F.relu(linear[0](reprs))))
 
         (_, ind) = self.buffer[0]
         self.buffer[0] = (c, ind)
