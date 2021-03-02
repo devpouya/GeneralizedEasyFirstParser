@@ -342,15 +342,21 @@ class NeuralTransitionParser(BaseParser):
                 # reduce if has head
                 # left-arc if does not have head
                 tmp = action_probabilities.clone().detach().to(device=constants.device)
-                if not has_head(parser.stack[-1], parser.arcs):
-                    # can left, can't reduce
-                    tmp[:,3] = -float('inf')
+                if len(parser.buffer) < 1:
+                    if has_head(parser.stack[-1],parser.arcs):
+                        best_action = 3
+                    else:
+                        best_action = -2
                 else:
-                    # can't left, can reduce
-                    tmp[:,1] = -float('inf')
+                    if not has_head(parser.stack[-1], parser.arcs):
+                        # can left, can't reduce
+                        tmp[:,3] = -float('inf')
+                    else:
+                        # can't left, can reduce
+                        tmp[:,1] = -float('inf')
 
 
-                best_action = torch.argmax(tmp, dim=-1).item()
+                    best_action = torch.argmax(tmp, dim=-1).item()
 
 
 
