@@ -6,7 +6,7 @@ import numpy as np
 
 sys.path.append('./src/')
 from h01_data import Vocab, save_vocabs, save_embeddings
-from h01_data.oracle import arc_standard_oracle, arc_eager_oracle
+from h01_data.oracle import arc_standard_oracle, arc_eager_oracle, hybrid_oracle
 from h01_data.oracle import is_projective, is_good
 from utils import utils
 from utils import constants
@@ -18,7 +18,7 @@ def get_args():
     parser.add_argument('--data-path', type=str, default='data/')
     parser.add_argument('--glove-file', type=str, required=True)
     parser.add_argument('--min-vocab-count', type=int, default=2)
-    parser.add_argument('--transition', type=str, choices=['arc-standard','arc-eager'],default='arc-eager')
+    parser.add_argument('--transition', type=str, choices=['arc-standard','arc-eager','hybrid'],default='arc-standard')
     return parser.parse_args()
 
 
@@ -124,6 +124,7 @@ def process_data(in_fname_base, out_path, mode, vocabs, oracle=None, transition_
 
 
 
+
 def add_sentence_vocab(sentence, words, tags, rels):
     for token in sentence:
         words.count_up(token[1])
@@ -208,6 +209,9 @@ def main():
         oracle = arc_standard_oracle
     elif args.transition == 'arc-eager':
         oracle = arc_eager_oracle
+    elif args.transition == 'hybrid':
+        oracle = hybrid_oracle
+
 
     process_data(in_fname, out_path, 'train', vocabs, oracle, args.transition)
     process_data(in_fname, out_path, 'dev', vocabs, oracle, args.transition)

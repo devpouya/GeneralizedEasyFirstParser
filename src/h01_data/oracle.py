@@ -246,9 +246,10 @@ def test_oracle_arc_eager(action_history, sentence, true_arcs):
             sigma.pop(-1)
         else:
             item = sigma.pop(-1)
-            arcs.append((item,item))
-    arcs.append((0,0))
+            arcs.append((item, item))
+    arcs.append((0, 0))
     return set(arcs) == set(true_arcs)
+
 
 def arc_eager_oracle(sentence, word2head, relations):
     stack = []  # BaseStack()
@@ -302,14 +303,102 @@ def arc_eager_oracle(sentence, word2head, relations):
                     # built_labeled_arcs.append((top, top, relations[0]))
                     # relations.pop(0)
                     action_history.append(None)
+    built_arcs.append((0, 0))
+    action_history.append(None)
+
+    # print("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&")
+    # print(built_arcs)
+    # print(true_arcs)
+    # print("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&")
+
+    # cond1 = set(built_arcs) == set(true_arcs)
+    # cond2 = test_oracle_arc_eager(action_history,sentence.copy(),true_arcs)
+    return action_history, relations_in_order
+
+
+def test_oracle_hybrid(action_history, sentence, true_arcs):
+    sigma = []
+    beta = sentence.copy()
+    arcs = []
+
+    for action in action_history:
+        if action == constants.shift:
+            sigma.append(beta.pop(0))
+        elif action == constants.left_arc_eager:
+            arcs.append((beta[0], sigma[-1]))
+            sigma.pop(-1)
+        elif action == constants.reduce_r:
+            arcs.append((sigma[-2], sigma[-1]))
+            sigma.pop(-1)
+        else:
+            item = sigma.pop(-1)
+            arcs.append((item, item))
+    return set(arcs) == set(true_arcs)
+
+
+def hybrid_oracle(sentence, word2head, relations):
+    stack = []  # BaseStack()
+    buffer = sentence.copy()  # BaseBuffer(sentence)
+    # true_arcs_no_label = get_arcs(word2head)
+    # true_arcs_labeled = get_labeled_arcs(word2headrels)
+    true_arcs = get_arcs(word2head)
+    built_arcs = []
+    built_labeled_arcs = []
+    # labeled_arcs = arcs_with_relations(true_arcs, relations)
+    action_history = []
+
+    arcs_sorted = sorted(true_arcs, key=lambda tup: tup[1])[1:]
+    labeled_arcs = []
+    for i, (u, v) in enumerate(arcs_sorted):
+        labeled_arcs.append((u, v, relations[i]))
+
+    relations_in_order = []
+    while len(buffer) > 0 or len(stack) > 1:
+
+
+        if len(stack) > 0:
+
+            top = stack[-1]
+            if len(stack) == 1 and len(buffer)>0:
+                front = buffer[0]
+                if (front,top) in true_arcs and have_completed_expected_children(top,true_arcs,built_arcs):
+                    built_arcs.append((front,top))
+                    relations_in_order.append(find_corresponding_relation(labeled_arcs,(front,top)))
+                    action_history.append(constants.left_arc_eager)
+                    stack.pop(-1)
+                    continue
+                stack.append(buffer.pop(0))
+                action_history.append(constants.shift)
+            else:
+                second = stack[-2]
+                if (second,top) in true_arcs and have_completed_expected_children(top,true_arcs,built_arcs):
+                    built_arcs.append((second, top))
+                    relations_in_order.append(find_corresponding_relation(labeled_arcs, (second, top)))
+                    action_history.append(constants.reduce_r)
+                    stack.pop(-1)
+                    continue
+                if len(buffer) > 0:
+                    front = buffer[0]
+                    if (front, top) in true_arcs and have_completed_expected_children(top,true_arcs,built_arcs):
+                        built_arcs.append((front, top))
+                        relations_in_order.append(find_corresponding_relation(labeled_arcs, (front, top)))
+                        action_history.append(constants.left_arc_eager)
+                        stack.pop(-1)
+                        continue
+
+                stack.append(buffer.pop(0))
+                action_history.append(constants.shift)
+
+        else:
+            stack.append(buffer.pop(0))
+            action_history.append(constants.shift)
+
+
     built_arcs.append((0,0))
     action_history.append(None)
 
-    #print("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&")
-    #print(built_arcs)
-    #print(true_arcs)
-    #print("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&")
 
     #cond1 = set(built_arcs) == set(true_arcs)
-    #cond2 = test_oracle_arc_eager(action_history,sentence.copy(),true_arcs)
-    return action_history, relations_in_order#, cond1 and cond2
+    #cond2 = test_oracle_hybrid(action_history, sentence.copy(), true_arcs)
+
+    return action_history, relations_in_order
