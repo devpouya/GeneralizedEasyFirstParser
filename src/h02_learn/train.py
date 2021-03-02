@@ -5,8 +5,7 @@ import torch.optim as optim
 
 sys.path.append('./src/')
 from h02_learn.dataset import get_data_loaders
-from h02_learn.model import BiaffineParser, MSTParser, ArcStandardStackLSTM, \
-    ArcEagerStackLSTM, HybridStackLSTM, NonProjectiveStackLSTM
+from h02_learn.model import BiaffineParser, MSTParser
 from h02_learn.model import NeuralTransitionParser
 from h02_learn.train_info import TrainInfo
 from h02_learn.algorithm.mst import get_mst_batch
@@ -79,14 +78,10 @@ def get_model(vocabs, embeddings, args):
             transition_system=constants.arc_eager) \
             .to(device=constants.device)
     elif args.model == 'hybrid':
-        return HybridStackLSTM(
-            vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size,
-            nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings) \
-            .to(device=constants.device)
-    elif args.model == 'non-projective':
-        return NonProjectiveStackLSTM(
-            vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size,
-            nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings) \
+        return NeuralTransitionParser(
+            vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size, args.batch_size,
+            nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings,
+            transition_system=constants.hybrid) \
             .to(device=constants.device)
     else:
         return BiaffineParser(

@@ -141,7 +141,7 @@ arc_eager = ([shift, left_arc_eager, right_arc_eager, reduce],
              list(range(4)))  # {shift: 0, left_arc_eager: 1, right_arc_eager: 2, reduce: 3}
 # arc_eager_actions = {0: fshift, 1: fleft_arc_eager, 2: fright_arc_eager, 3: freduce}
 
-hybrid = ([shift, left_arc_hybrid, reduce_r], list(range(3)))  # {shift: 0, left_arc_hybrid: 1, reduce_r: 2}
+hybrid = ([shift, left_arc_eager, reduce_r], list(range(3)))  # {shift: 0, left_arc_hybrid: 1, reduce_r: 2}
 
 non_projective = ([shift, reduce_l, reduce_r, left_arc_2, right_arc_2], list(range(5)))
 # hybrid_actions = {0: fshift, 1: fleft_arc, 2: freduce_r}

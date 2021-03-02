@@ -8,7 +8,6 @@ import numpy as np
 from utils import constants
 from .base import BaseParser
 from .modules import Biaffine, Bilinear, StackLSTM
-from .oracle import arc_standard_oracle
 from .word_embedding import WordEmbedding, ActionEmbedding
 from ..algorithm.transition_parsers import ShiftReduceParser
 
