@@ -141,10 +141,10 @@ class NeuralTransitionParser(BaseParser):
         torch.nn.init.xavier_uniform_(self.mlp_act.weight)
         torch.nn.init.xavier_uniform_(self.mlp_rel.weight)
 
-        self.linear_tree = nn.Linear(7 * embedding_size + 16, 5 * embedding_size).to(device=constants.device)
-        self.linear_tree2 = nn.Linear(5 * embedding_size, 3 * embedding_size).to(device=constants.device)
+        self.linear_tree = nn.Linear(7 * embedding_size + 16, 3 * embedding_size).to(device=constants.device)
+        #self.linear_tree2 = nn.Linear(5 * embedding_size, 3 * embedding_size).to(device=constants.device)
         torch.nn.init.xavier_uniform_(self.linear_tree.weight)
-        torch.nn.init.xavier_uniform_(self.linear_tree2.weight)
+        #torch.nn.init.xavier_uniform_(self.linear_tree2.weight)
 
         self.stack = StackRNN(self.stack_lstm, self.lstm_init_state, self.lstm_init_state, self.dropout,
                               self.empty_initial)
@@ -609,8 +609,8 @@ class NeuralTransitionParser(BaseParser):
         targets_rel = targets_rel[probs_rel[:, 0] != -1]
         probs_rel = probs_rel[probs_rel[:, 0] != -1, :]
 
-        loss = criterion1(probs, targets)
-        loss += criterion2(probs_rel, targets_rel)
+        loss = 2/3 * criterion1(probs, targets)
+        loss += 1/3 * criterion2(probs_rel, targets_rel)
         # loss /= (2*orig_size)
         # print(loss)
         # print(l2)

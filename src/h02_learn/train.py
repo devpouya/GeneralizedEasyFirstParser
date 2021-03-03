@@ -27,6 +27,7 @@ def get_args():
     parser.add_argument('--arc-size', type=int, default=500)
     parser.add_argument('--label-size', type=int, default=100)
     parser.add_argument('--dropout', type=float, default=.33)
+    parser.add_argument('--weight-decay', type=float, default=0.01)
     parser.add_argument('--model', choices=['biaffine', 'mst', 'arc-standard',
                                             'arc-eager', 'hybrid', 'non-projective'],
                         default='arc-standard')
@@ -47,11 +48,11 @@ def get_args():
     return args
 
 
-def get_optimizer(paramters, optim_alg, lr_decay):
+def get_optimizer(paramters, optim_alg, lr_decay, weight_decay):
     if optim_alg == "adamw":
-        optimizer = optim.AdamW(paramters, betas=(.9, .9))
+        optimizer = optim.AdamW(paramters, betas=(.9, .9),weight_decay=weight_decay)
     elif optim_alg == "adam":
-        optimizer = optim.Adam(paramters, betas=(.9, .9))
+        optimizer = optim.Adam(paramters, betas=(.9, .9),weight_decay=weight_decay)
     else:
         optimizer = optim.SGD(paramters, lr=0.01)
 
@@ -106,10 +107,8 @@ def calculate_attachment_score(heads_tgt, heads, predicted_rels, rels):
     acc_h = (heads_tgt == heads)[heads != -1]
     predicted_rels = predicted_rels[predicted_rels!=-1]
     rels = rels[rels!=0]
-    #print("predicted {}".format(predicted_rels))
-    #print("REL {}".format(rels))
 
-    acc_l = (predicted_rels == rels)#[rels != 0]
+    acc_l = (predicted_rels == rels)
 
     uas = acc_h.float().mean().item()
     las = (acc_h & acc_l).float().mean().item()
@@ -168,10 +167,10 @@ def train_batch(text, pos, heads, rels, transitions, relations_in_order, model, 
     return loss.item()
 
 
-def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_alg, lr_decay,
+def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_alg, lr_decay,weight_decay,
           save_path, save_batch=False):
     # pylint: disable=too-many-locals,too-many-arguments
-    optimizer, lr_scheduler = get_optimizer(model.parameters(), optim_alg, lr_decay)
+    optimizer, lr_scheduler = get_optimizer(model.parameters(), optim_alg, lr_decay, weight_decay)
     train_info = TrainInfo(wait_iterations, eval_batches)
     while not train_info.finish:
         steps = 0
@@ -220,7 +219,7 @@ def main():
 
     model = get_model(vocabs, embeddings, args)
     train(trainloader, devloader, model, args.eval_batches, args.wait_iterations,
-          args.optim, args.lr_decay, args.save_path, args.save_periodically)
+          args.optim, args.lr_decay, args.weight_decay, args.save_path, args.save_periodically)
 
     model.save(args.save_path)
 
