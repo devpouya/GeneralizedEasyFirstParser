@@ -170,10 +170,10 @@ class ShiftReduceParser():
         top = self.stack[-1]
         second = self.stack[-2]
         #left = self.buffer[0]
-        self.stack.pop(-1)
+        self.stack.pop(-2)
         self.arcs.append((top[1], second[1], rel))
         self.action_history_names.append(constants.reduce_l)
-        c = self.subtree_rep(second, top,rel_embed,act_embed,linear)
+        c = self.subtree_rep(top, second,rel_embed,act_embed,linear)
         return c
 
     def reduce_r(self, act_embed, rel,rel_embed,linear):
@@ -183,7 +183,7 @@ class ShiftReduceParser():
         self.action_history_names.append(constants.reduce_r)
         self.stack.pop(-1)
         #self.buffer[0] = top
-        c = self.subtree_rep(top, second,rel_embed,act_embed,linear)
+        c = self.subtree_rep(second, top,rel_embed,act_embed,linear)
         return c
 
     def reduce(self):
@@ -261,6 +261,8 @@ class ShiftReduceParser():
     def heads_from_arcs(self):
         heads = [0] * (len(self.sentence)+1)
         rels = [0] * (len(self.sentence)+1)
+        #self.arcs.append((0,0,1))
+        #print(self.arcs)
         tmp = self.arcs.copy()
         tmp.append((0,0,1))
         for i in range(len(self.sentence)):
