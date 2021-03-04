@@ -42,7 +42,7 @@ class WordEmbedding(nn.Module):
             else:
                 embedding = np.random.uniform(-scale, scale, [1, embedding_size]).astype(np.float32)
                 oov += 1
-            pretrained[index, :] = embedding
+            pretrained[index, :] = embedding[:,:embedding_size]
 
         print('# OOV words: %d' % oov)
         return torch.from_numpy(pretrained)
