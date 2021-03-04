@@ -24,6 +24,7 @@ class SyntaxDataset(Dataset):
                 sentence = json.loads(line)
                 tranisiton = json.loads(action)
                 self.words += [self.list2tensor([word['word_id'] for word in sentence])]
+                #self.check_lens([word['word_id'] for word in sentence],tranisiton['transition'])
                 self.pos += [self.list2tensor([word['tag1_id'] for word in sentence])]
                 self.heads += [self.list2tensor([word['head'] for word in sentence])]
                 self.rels += [self.list2tensor([word['rel_id'] for word in sentence])]
@@ -31,8 +32,18 @@ class SyntaxDataset(Dataset):
                 self.relations_in_order += [self.list2tensor(tranisiton['relations'])]
                 #self.labeled_actions += [self.labeled_act2tensor(tranisiton['labeled_actions'])]
 
+    def check_lens(self, words, actions):
+        n = len(words)
+        ids = [self.transition_system[act] for act in actions]
+
+        # should be 2n-1, there's one extra "null" action for implementation purposes
+        print(len(ids) == 2*n)
+
+        return len(ids) == 2*n
+
     def actionsequence2tensor(self, actions):
         ids = [self.transition_system[act] for act in actions]
+
         return torch.LongTensor(ids).to(device=constants.device)
 
     def labeled_act2tensor(self,labeled_actions):

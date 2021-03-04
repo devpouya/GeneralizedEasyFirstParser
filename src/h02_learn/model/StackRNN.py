@@ -158,7 +158,7 @@ class NeuralTransitionParser(BaseParser):
         words, tags, rels = vocabs
         word_embeddings = WordEmbedding(words, self.embedding_size, pretrained=pretrained)
         tag_embeddings = nn.Embedding(tags.size, self.embedding_size)
-        rel_embeddings = nn.Embedding(rels.size, self.embedding_size)
+        rel_embeddings = nn.Embedding(rels.size+1, self.embedding_size)
 
         learned_embeddings = nn.Embedding(words.size, self.embedding_size)
         action_embedding = nn.Embedding(self.num_actions, 16)
@@ -468,16 +468,16 @@ class NeuralTransitionParser(BaseParser):
         transit_lens = (transitions != -1).sum(-1).to(device=constants.device)
         x_emb = self.get_embeddings(x)
 
-        probs_action_batch = torch.ones((x_emb.shape[0], transitions.shape[1], self.num_actions)).to(
+        probs_action_batch = torch.ones((x_emb.shape[0], transitions.shape[1]-1, self.num_actions)).to(
             device=constants.device)
-        probs_rel_batch = torch.ones((x_emb.shape[0], transitions.shape[1], self.num_rels)).to(device=constants.device)
-        targets_action_batch = torch.ones((x_emb.shape[0], transitions.shape[1], 1), dtype=torch.long).to(
+        probs_rel_batch = torch.ones((x_emb.shape[0], transitions.shape[1]-1, self.num_rels)).to(device=constants.device)
+        targets_action_batch = torch.ones((x_emb.shape[0], transitions.shape[1]-1, 1), dtype=torch.long).to(
             device=constants.device)
-        targets_rel_batch = torch.ones((x_emb.shape[0], transitions.shape[1], 1), dtype=torch.long).to(
+        targets_rel_batch = torch.ones((x_emb.shape[0], transitions.shape[1]-1, 1), dtype=torch.long).to(
             device=constants.device)
 
-        heads_batch = torch.ones((x_emb.shape[0], x_emb.shape[1]), requires_grad=False).to(device=constants.device)
-        rels_batch = torch.ones((x_emb.shape[0], x_emb.shape[1]), requires_grad=False).to(device=constants.device)
+        heads_batch = torch.ones((x_emb.shape[0], x_emb.shape[1])).to(device=constants.device)
+        rels_batch = torch.ones((x_emb.shape[0], x_emb.shape[1])).to(device=constants.device)
         heads_batch *= -1
         rels_batch *= -1
         probs_rel_batch *= -1
@@ -517,6 +517,27 @@ class NeuralTransitionParser(BaseParser):
                 for word in reversed(sentence):
                     self.buffer.push(word.unsqueeze(0).unsqueeze(1))
 
+            for step in range(len(labeled_transitions)):
+                parser, probs, target = self.parse_step(parser,
+                                                        labeled_transitions[step],
+                                                        mode)
+
+                if step < len(labeled_transitions)-1:
+                    (action_probs, rel_probs) = probs
+                    (action_target, rel_target) = target
+                    probs_action_batch[i, step, :] = action_probs
+                    probs_rel_batch[i, step, :] = rel_probs
+                    targets_action_batch[i, step, :] = action_target
+                    targets_rel_batch[i, step, :] = rel_target
+
+            heads_batch[i, :sent_lens[i]] = parser.heads_from_arcs()[0]
+            rels_batch[i, :sent_lens[i]] = parser.heads_from_arcs()[1]
+            self.stack.back_to_init()
+            self.buffer.back_to_init()
+            self.action.back_to_init()
+            #del parser
+
+            """
             if mode == 'train':
 
                 for step in range(len(labeled_transitions)):
@@ -536,16 +557,17 @@ class NeuralTransitionParser(BaseParser):
                 probs_rel_this_batch = []
                 targets_action_this_batch = []
                 targets_rel_this_batch = []
-                while not parser.is_parse_complete():
+                for i in range(curr_sentence_length):
+                #while not parser.is_parse_complete():
                     if step < len(labeled_transitions):
                         parser, probs, target = self.parse_step(parser,
-                                                                labeled_transitions[step],
+                                                                labeled_transitions[i],
                                                                 mode)
 
-                    else:
-                        parser, probs, target = self.parse_step(parser,
-                                                                None,
-                                                                mode)
+                    #else:
+                    #    parser, probs, target = self.parse_step(parser,
+                    #                                            None,
+                    #                                            mode)
 
                     (action_probs, rel_probs) = probs
                     (action_target, rel_target) = target
@@ -556,17 +578,14 @@ class NeuralTransitionParser(BaseParser):
                     step += 1
                 if step > max_steps:
                     max_steps = step
+        
                 probs_action_all_batches.append(torch.stack(probs_action_this_batch).permute(1, 0, 2))
                 probs_rel_all_batches.append(torch.stack(probs_rel_this_batch).permute(1, 0, 2))
                 targets_action_all_batches.append(torch.stack(targets_action_this_batch).permute(1, 0))
                 targets_rel_all_batches.append(torch.stack(targets_rel_this_batch).permute(1, 0))
+            """
 
-            heads_batch[i, :sent_lens[i]] = parser.heads_from_arcs()[0]
-            rels_batch[i, :sent_lens[i]] = parser.heads_from_arcs()[1]
-            self.stack.back_to_init()
-            self.buffer.back_to_init()
-            self.action.back_to_init()
-
+        """
         if mode == 'eval':
             probs_action_batch = torch.ones((x_emb.shape[0], max_steps, self.num_actions)).to(device=constants.device)
             probs_rel_batch = torch.ones((x_emb.shape[0], max_steps, self.num_rels)).to(device=constants.device)
@@ -583,11 +602,11 @@ class NeuralTransitionParser(BaseParser):
                 targets_action_batch[i, :targets_action_all_batches[i].shape[1], :] = targets_action_all_batches[
                     i].unsqueeze(2)
                 targets_rel_batch[i, :targets_rel_all_batches[i].shape[1], :] = targets_rel_all_batches[i].unsqueeze(2)
+                
+        """
         batch_loss = self.loss(probs_action_batch, targets_action_batch, probs_rel_batch, targets_rel_batch)
 
-        # for i in range(rels_batch.shape[0]):
-        #    r = rels_batch[i]
-        #    print(r[r[:,0]!= -1,:])
+
         return batch_loss, heads_batch, rels_batch
 
     def loss(self, probs, targets, probs_rel, targets_rel):

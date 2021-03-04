@@ -277,3 +277,4 @@ class ShiftReduceParser():
     def set_action_probs(self, probs):
 
         self.actions_probs = torch.cat([self.actions_probs, probs.transpose(1, 0)], dim=0)
+
