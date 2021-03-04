@@ -25,14 +25,18 @@ class WordEmbedding(nn.Module):
         self.embedding.weight.requires_grad = True
 
     def dict2tensor(self, vocab_size, embedding_size, pretrained_dict):
+
         scale = np.sqrt(3.0 / embedding_size)
 
+        for word, index in self.vocab.items():
+            if word in pretrained_dict:
+                big_size = pretrained_dict[word].shape[1]
+                break
 
 
-        pretrained = np.empty([vocab_size, embedding_size], dtype=np.float32)
+        pretrained = np.empty([vocab_size, big_size], dtype=np.float32)
         pretrained[:3, :] = np.random.uniform(
-            - scale, scale, [3, embedding_size]).astype(np.float32)  # Special symbols
-
+            - scale, scale, [3, big_size]).astype(np.float32)  # Special symbols
         oov = 0
         for word, index in self.vocab.items():
             if word in pretrained_dict:
@@ -40,12 +44,18 @@ class WordEmbedding(nn.Module):
             elif word.lower() in pretrained_dict:
                 embedding = pretrained_dict[word.lower()]
             else:
-                embedding = np.random.uniform(-scale, scale, [1, embedding_size]).astype(np.float32)
+                embedding = np.random.uniform(-scale, scale, [1, big_size]).astype(np.float32)
                 oov += 1
-            pretrained[index, :] = embedding[:,:embedding_size]
+            pretrained[index, :] = embedding
 
+        # do PCA on higher dimensional data
+        pretrained = torch.from_numpy(pretrained)
+        if big_size > embedding_size:
+            U,S,V = torch.pca_lowrank(pretrained,q=embedding_size)
+            pretrained = torch.matmul(pretrained,V[:,:embedding_size])
+            print(pretrained.shape)
         print('# OOV words: %d' % oov)
-        return torch.from_numpy(pretrained)
+        return pretrained#torch.from_numpy(pretrained)
 
     def forward(self, x):
         return self.embedding(x)
