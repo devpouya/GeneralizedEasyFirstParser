@@ -237,11 +237,11 @@ class NeuralTransitionParser(BaseParser):
         rel_embed = self.rel_embeddings(rel_target).to(device=constants.device)
         if mode == 'eval':
 
-            if len(parser.stack) < 1:
+            if len(parser.stack) < 2:
                 # can't left or right
                 best_action = torch.argmax(action_probabilities[:, 0], dim=-1).item()
 
-            elif len(parser.buffer) == 1:
+            elif len(parser.buffer) < 1:
                 # can't shift
                 tmp = action_probabilities.clone().detach().to(device=constants.device)
                 tmp[:, 0] = -float('inf')
@@ -271,8 +271,8 @@ class NeuralTransitionParser(BaseParser):
             act_embed = self.get_action_embed(constants.reduce_l)
             self.action.push(act_embed)
             ret = parser.reduce_l(act_embed, rel, rel_embed, self.linear_tree)
-            self.buffer.pop()
-            self.buffer.push(ret.unsqueeze(0).unsqueeze(1))
+            self.stack.pop()
+            self.stack.push(ret.unsqueeze(0).unsqueeze(1))
             # self.stack.push(ret.unsqueeze(0).unsqueeze(1))
 
         elif best_action == 2:
@@ -283,8 +283,8 @@ class NeuralTransitionParser(BaseParser):
             self.action.push(act_embed)
             self.stack.pop()
             ret = parser.reduce_r(act_embed, rel, rel_embed, self.linear_tree)
-            self.buffer.pop()
-            self.buffer.push(ret.unsqueeze(0).unsqueeze(1))
+            self.stack.pop()
+            self.stack.push(ret.unsqueeze(0).unsqueeze(1))
             # self.buffer.push_first(ret,self.stack.s[-1])
             # self.stack.push(ret.unsqueeze(0).unsqueeze(1))
         else:

@@ -10,7 +10,7 @@ class SyntaxDataset(Dataset):
         self.fname = fname
         self.transition_file = transition_file
         self.transition_system = {act: i for (act, i) in zip(transition_system[0], transition_system[1])}
-        self.transition_system[None] = -2
+        #self.transition_system[None] = -2
         self.load_data(fname, transition_file)
         self.n_instances = len(self.words)
 
@@ -37,9 +37,9 @@ class SyntaxDataset(Dataset):
         ids = [self.transition_system[act] for act in actions]
 
         # should be 2n-1, there's one extra "null" action for implementation purposes
-        print(len(ids) == 2*n)
+        print(len(ids) == 2*n-1)
 
-        return len(ids) == 2*n
+        return len(ids) == 2*n-1
 
     def actionsequence2tensor(self, actions):
         ids = [self.transition_system[act] for act in actions]

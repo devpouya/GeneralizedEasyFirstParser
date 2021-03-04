@@ -13,9 +13,6 @@ class WordEmbedding(nn.Module):
         self.embedding_size = embedding_size
 
         if pretrained is not None:
-            #x = torch.matmul(torch.transpose(pretrained),pretrained)/(pretrained.shape[0]-1)
-            #U,S,V = torch.svd(x)
-            #pretrained = torch.dot(U,S[:embedding_size,:embedding_size])
             pretrained_tensor = self.dict2tensor(self.vocab_size, embedding_size, pretrained)
         else:
             pretrained_tensor = None
@@ -53,7 +50,7 @@ class WordEmbedding(nn.Module):
         if big_size > embedding_size:
             U,S,V = torch.pca_lowrank(pretrained,q=embedding_size)
             pretrained = torch.matmul(pretrained,V[:,:embedding_size])
-            print(pretrained.shape)
+            print("Embedding dimensionality bigger than wanted\n PCA'd data down to {}".format(pretrained.shape))
         print('# OOV words: %d' % oov)
         return pretrained#torch.from_numpy(pretrained)
 

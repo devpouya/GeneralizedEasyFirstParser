@@ -144,10 +144,9 @@ class ShiftReduceParser():
         reprs = torch.cat([top[0], second[0], rel_embed.reshape(self.embedding_size),act_embed.reshape(16)],
                           dim=-1)
 
-        #c = nn.Tanh()(linear[1](F.relu(linear[0](reprs))))
         c = nn.Tanh()(linear(reprs))
-        (_, ind) = self.buffer[0]
-        self.buffer[0] = (c, ind)
+        (_, ind) = self.stack[-1]
+        self.stack[-1] = (c, ind)
         return c
 
     def subtree_rep_hybrid(self, top, second, rel_embed,act_embed,linear):
@@ -168,21 +167,23 @@ class ShiftReduceParser():
         return item[0]
 
     def reduce_l(self, act_embed, rel,rel_embed,linear):
-        top = self.stack.pop(-1)
-        left = self.buffer[0]
-        self.arcs.append((left[1], top[1], rel))
+        top = self.stack[-1]
+        second = self.stack[-2]
+        #left = self.buffer[0]
+        self.stack.pop(-1)
+        self.arcs.append((top[1], second[1], rel))
         self.action_history_names.append(constants.reduce_l)
-        c = self.subtree_rep(top, left,rel_embed,act_embed,linear)
+        c = self.subtree_rep(second, top,rel_embed,act_embed,linear)
         return c
 
     def reduce_r(self, act_embed, rel,rel_embed,linear):
-        left = self.buffer[0]
+        second = self.stack[-2]
         top = self.stack[-1]
-        self.arcs.append((top[1], left[1], rel))
+        self.arcs.append((second[1], top[1], rel))
         self.action_history_names.append(constants.reduce_r)
         self.stack.pop(-1)
-        self.buffer[0] = top
-        c = self.subtree_rep(left, top,rel_embed,act_embed,linear)
+        #self.buffer[0] = top
+        c = self.subtree_rep(top, second,rel_embed,act_embed,linear)
         return c
 
     def reduce(self):
@@ -269,6 +270,7 @@ class ShiftReduceParser():
                     rels[i+1] = r
         heads.pop(0)
         rels.pop(0)
+
         return torch.tensor(heads).to(device=constants.device), torch.tensor(rels).to(device=constants.device)
 
     def set_oracle_action(self, act):

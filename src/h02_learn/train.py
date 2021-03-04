@@ -160,6 +160,13 @@ def train_batch(text, pos, heads, rels, transitions, relations_in_order, model, 
     relations_in_order = relations_in_order.to(device=constants.device)
 
     loss, pred_h, pred_rel = model((text, pos), transitions, relations_in_order, mode='train')
+    #print("çççççççççççççççççççççççççççççççç")
+    #print("predicted heads {}".format(pred_h))
+    #print("real heads {}".format(heads))
+    #print("--------------------------------")
+    #print("predicted rels {}".format(pred_rel))
+    #print("real rels {}".format(rels))
+    #print("çççççççççççççççççççççççççççççççç")
 
     loss.backward(retain_graph=True)
     optimizer.step()
