@@ -489,12 +489,12 @@ class NeuralTransitionParser(BaseParser):
         # labeled_transitions = self.labeled_action_pairs(transitions[0], relations[0])
         # tr = [t.item() for (t,_) in labeled_transitions]
         # self.sanity_parse(tr,heads,sent_lens)
-        if mode == 'eval':
-            probs_action_all_batches = []
-            probs_rel_all_batches = []
-            targets_action_all_batches = []
-            targets_rel_all_batches = []
-            max_steps = 0
+        #if mode == 'eval':
+        #    probs_action_all_batches = []
+        #    probs_rel_all_batches = []
+        #    targets_action_all_batches = []
+        #    targets_rel_all_batches = []
+        #    max_steps = 0
         # parse every sentence in batch
 
         for i, sentence in enumerate(x_emb):
