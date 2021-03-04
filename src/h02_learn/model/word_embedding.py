@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from utils import constants
-
+import torch
 
 class WordEmbedding(nn.Module):
     # pylint: disable=arguments-differ
@@ -13,6 +13,9 @@ class WordEmbedding(nn.Module):
         self.embedding_size = embedding_size
 
         if pretrained is not None:
+            #x = torch.matmul(torch.transpose(pretrained),pretrained)/(pretrained.shape[0]-1)
+            #U,S,V = torch.svd(x)
+            #pretrained = torch.dot(U,S[:embedding_size,:embedding_size])
             pretrained_tensor = self.dict2tensor(self.vocab_size, embedding_size, pretrained)
         else:
             pretrained_tensor = None
@@ -23,9 +26,16 @@ class WordEmbedding(nn.Module):
 
     def dict2tensor(self, vocab_size, embedding_size, pretrained_dict):
         scale = np.sqrt(3.0 / embedding_size)
-        pretrained = np.empty([vocab_size, embedding_size], dtype=np.float32)
+        for word, index in self.vocab.items():
+            if word in pretrained_dict:
+                embedding = pretrained_dict[word]
+                pre_shape = embedding.shape[1]
+                break
+
+
+        pretrained = np.empty([vocab_size, pre_shape], dtype=np.float32)
         pretrained[:3, :] = np.random.uniform(
-            - scale, scale, [3, embedding_size]).astype(np.float32)  # Special symbols
+            - scale, scale, [3, pre_shape]).astype(np.float32)  # Special symbols
 
         oov = 0
         for word, index in self.vocab.items():
@@ -34,12 +44,19 @@ class WordEmbedding(nn.Module):
             elif word.lower() in pretrained_dict:
                 embedding = pretrained_dict[word.lower()]
             else:
-                embedding = np.random.uniform(-scale, scale, [1, embedding_size]).astype(np.float32)
+                embedding = np.random.uniform(-scale, scale, [1, pre_shape]).astype(np.float32)
                 oov += 1
             pretrained[index, :] = embedding
+        pretrained = torch.from_numpy(pretrained)
+        x = torch.matmul(pretrained,pretrained.transpose(1,0))/(pretrained.shape[0]-1)
+        U,S,V = torch.svd(x)
+        print(pretrained.shape)
+        print(U.shape)
+        pretrained = torch.dot(U,torch.diag(S)[:,:embedding_size])
+        print(pretrained.shape)
 
         print('# OOV words: %d' % oov)
-        return torch.from_numpy(pretrained)
+        return pretrained#torch.from_numpy(pretrained)
 
     def forward(self, x):
         return self.embedding(x)
