@@ -498,7 +498,7 @@ class NeuralTransitionParser(BaseParser):
             #else:
             #    for word in reversed(sentence):
             #        self.buffer.push(word.unsqueeze(0).unsqueeze(1))
-            for word in sentence:
+            for word in reversed(sentence):
                 self.buffer.push(word.unsqueeze(0).unsqueeze(1))
 
             for step in range(len(labeled_transitions)):
