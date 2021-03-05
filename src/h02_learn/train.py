@@ -130,6 +130,7 @@ def _evaluate(evalloader, model):
         steps += 1
 
         loss, predicted_heads, predicted_rels = model((text, pos), transitions, relations_in_order, mode='eval')
+        #loss = model.loss_bce(predicted_heads,heads,predicted_rels,rels)
         #print("çççççççççççççççççççççççççççççççç")
         #print("predicted heads {}".format(predicted_heads.shape))
         #print("real heads {}".format(heads.shape))
@@ -178,7 +179,7 @@ def train_batch(text, pos, heads, rels, transitions, relations_in_order, model, 
     #print("real rels {}".format(rels))
     #print(torch.all(torch.eq(pred_rel,rels)))
     #print("çççççççççççççççççççççççççççççççç")
-
+    #loss = model.loss_bce(pred_h,heads,pred_rel,rels)
     loss.backward()
     optimizer.step()
 
