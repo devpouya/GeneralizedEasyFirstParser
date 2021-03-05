@@ -179,7 +179,7 @@ def train_batch(text, pos, heads, rels, transitions, relations_in_order, model, 
     #print(torch.all(torch.eq(pred_rel,rels)))
     #print("çççççççççççççççççççççççççççççççç")
 
-    loss.backward(retain_graph=True)
+    loss.backward()
     optimizer.step()
 
     return loss.item()
