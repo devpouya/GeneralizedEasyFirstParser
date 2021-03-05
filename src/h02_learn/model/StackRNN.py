@@ -179,7 +179,7 @@ class NeuralTransitionParser(BaseParser):
         torch.nn.init.xavier_uniform_(self.mlp_act.weight)
         torch.nn.init.xavier_uniform_(self.mlp_rel.weight)
 
-        self.linear_tree = nn.Linear(2 *(12+32+ embedding_size)+60, 12+32+embedding_size).to(device=constants.device)
+        self.linear_tree = nn.Linear(2 *(12+32+ embedding_size)+60+16, 12+32+embedding_size).to(device=constants.device)
         # self.linear_tree2 = nn.Linear(5 * embedding_size, 3 * embedding_size).to(device=constants.device)
         torch.nn.init.xavier_uniform_(self.linear_tree.weight)
         # torch.nn.init.xavier_uniform_(self.linear_tree2.weight)

@@ -36,14 +36,13 @@ class StackRNN(nn.Module):
         # self.s.append((out, hidden))  # +self.s.pop(0)
 
     def push(self, expr, extra=None):
-
         out, hidden = self.cell(expr, self.s[-1][1])
         self.s.append((out, hidden))
 
     def pop(self, ind=-1):
         if ind == 0:
             ind += 1
-        return self.s.pop(ind)[0]  # [0]
+        return self.s.pop(ind)[0]#[0]
 
     def embedding(self):
         return self.s[-1][1][0] if len(self.s) > 1 else self.empty

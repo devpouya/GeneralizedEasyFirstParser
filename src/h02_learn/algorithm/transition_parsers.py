@@ -117,7 +117,7 @@ class ShiftReduceParser():
         self.buffer = []
         #self.buffer.append((torch.rand_like(sentence[0]),0))
         for i, word in enumerate(sentence):
-            self.buffer.append((word.clone().detach(), i))
+            self.buffer.append((word.clone(), i))
         self.stack = []
         self.arcs = []
         # self.buffer = Buffer(sentence)
@@ -141,7 +141,7 @@ class ShiftReduceParser():
 
     def subtree_rep(self, top, second, rel_embed,act_embed,linear):
 
-        reprs = torch.cat([top[0], second[0], rel_embed.reshape(60)],
+        reprs = torch.cat([top[0], second[0], rel_embed.reshape(60),act_embed.reshape(16)],
                           dim=-1)
 
         c = nn.Tanh()(linear(reprs))
