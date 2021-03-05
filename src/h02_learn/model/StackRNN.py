@@ -60,10 +60,10 @@ class SoftmaxLegal(nn.Module):
             self.dim = None
 
     def forward(self, input):
-        #print(input.shape)
         tmp = F.softmax(input[:,self.indices], self.dim, _stacklevel=5)
+        #print(tmp)
         ret = torch.zeros_like(input)
-        ret[:,self.indices] = tmp.clone().detach()
+        ret[:,self.indices] = tmp#.detach().clone()
         return ret#F.softmax(input, self.dim, _stacklevel=5)
 
     def extra_repr(self):
@@ -139,8 +139,8 @@ class NeuralTransitionParser(BaseParser):
 
         self.empty_initial = nn.Parameter(torch.zeros(1, 1, self.embedding_size * 3))
         self.empty_initial_act = nn.Parameter(torch.zeros(1, 1, self.embedding_size))
-        self.action_bias = nn.Parameter(torch.Tensor(1,self.num_actions)).to(device=constants.device)
-        self.rel_bias = nn.Parameter(torch.Tensor(1,self.num_rels)).to(device=constants.device)
+        self.action_bias = nn.Parameter(torch.Tensor(1,self.num_actions),requires_grad=True).to(device=constants.device)
+        self.rel_bias = nn.Parameter(torch.Tensor(1,self.num_rels),requires_grad=True).to(device=constants.device)
         # MLP
         self.mlp_lin1 = nn.Linear(self.embedding_size * 7,
                                   self.embedding_size).to(device=constants.device)
@@ -240,7 +240,6 @@ class NeuralTransitionParser(BaseParser):
         return labeled_acts
 
     def parser_probabilities(self,parser):
-        legal_ind = self.legal_indices(parser)
         parser_state = torch.cat([self.stack.embedding(), self.buffer.embedding(), self.action.embedding()], dim=-1)
         actions = self.stacked_action_embeddings()
         #print(actions.shape)
@@ -258,12 +257,13 @@ class NeuralTransitionParser(BaseParser):
         #state1 = self.dropout(F.relu(self.mlp_lin6(state1)))
         #print(self.rel_embeddings.weight.shape)
 
-        state_act = torch.matmul(actions,state.transpose(1,0)).transpose(1,0) + self.action_bias
-        state_rel = torch.matmul(self.rel_embeddings.weight,state.transpose(1,0)).transpose(1,0) + self.rel_bias
+        state_act = torch.matmul(actions,state.transpose(1,0)).transpose(1,0) #+ self.action_bias
+        state_rel = torch.matmul(self.rel_embeddings.weight,state.transpose(1,0)).transpose(1,0) #+ self.rel_bias
         #print(state_rel.shape)
 
         #action_probabilities = nn.Softmax(dim=-1)(self.mlp_act(state1)).squeeze(0)
         action_probabilities = SoftmaxLegal(dim=-1,parser=parser,actions=self.actions)(state_act).squeeze(0)
+
         #print(action_probabilities)
         #jj
         #state2 = self.dropout(F.relu(self.mlp_lin1_rel(parser_state)))
@@ -273,9 +273,9 @@ class NeuralTransitionParser(BaseParser):
         #state2 = self.dropout(F.relu(self.mlp_lin5_rel(state2)))
         #state2 = self.dropout(F.relu(self.mlp_lin6_rel(state2)))
         rel_probabilities = nn.Softmax(dim=-1)(state_rel).squeeze(0)
-        #print(rel_probabilities.shape)
         # print(rel_probabilities)
         return action_probabilities, rel_probabilities
+
     def legal_indices(self,parser):
         if len(parser.stack) < 2:
             return [0]
@@ -330,7 +330,7 @@ class NeuralTransitionParser(BaseParser):
             self.stack.pop()
             self.stack.push(ret.unsqueeze(0).unsqueeze(1))
 
-        else:#if best_action == 2:
+        elif best_action == 2:
 
             # reduce-r
             # buffer.push(stack.pop())  # not sure, should replace in buffer actually...
@@ -342,11 +342,11 @@ class NeuralTransitionParser(BaseParser):
             self.stack.push(ret.unsqueeze(0).unsqueeze(1))
             # self.buffer.push_first(ret,self.stack.s[-1])
             # self.stack.push(ret.unsqueeze(0).unsqueeze(1))
-        #else:
-        #    self.stack.pop()
-        #    self.action.push(self.get_action_embed(constants.reduce_l))
-        #    elem = parser.stack.pop()
-        #    parser.arcs.append((elem[1], elem[1], rel))
+        else:
+            self.stack.pop()
+            self.action.push(self.get_action_embed(constants.reduce_l))
+            elem = parser.stack.pop()
+            parser.arcs.append((elem[1], elem[1], rel))
 
         return parser, (action_probabilities, rel_probabilities), (action_target, rel_target)
 
