@@ -202,7 +202,7 @@ class NeuralTransitionParser(BaseParser):
         torch.nn.init.xavier_uniform_(self.mlp_act.weight)
         torch.nn.init.xavier_uniform_(self.mlp_rel.weight)
 
-        self.linear_tree = nn.Linear(2 *(3*embedding_size)+embedding_size+16, 3*embedding_size).to(device=constants.device)
+        self.linear_tree = nn.Linear(2 *(3*embedding_size)+embedding_size, 3*embedding_size).to(device=constants.device)
         # self.linear_tree2 = nn.Linear(5 * embedding_size, 3 * embedding_size).to(device=constants.device)
         torch.nn.init.xavier_uniform_(self.linear_tree.weight)
         # torch.nn.init.xavier_uniform_(self.linear_tree2.weight)
@@ -267,8 +267,9 @@ class NeuralTransitionParser(BaseParser):
         #print(action_state.shape)
         #print(self.buffer.embedding().shape)
         #print(self.stack.embedding().shape)
+
         parser_state = torch.cat([self.stack.embedding(), self.buffer.embedding(), action_state.mean(0).unsqueeze(0)], dim=-1)
-        actions = self.stacked_action_embeddings()
+        #actions = self.stacked_action_embeddings()
         # print(actions.shape)
 
         state1 = self.dropout(F.relu(self.mlp_lin1(parser_state)))#.squeeze(0)
@@ -349,6 +350,8 @@ class NeuralTransitionParser(BaseParser):
         if best_action == 0:
             # shift
             self.stack(self.buffer.pop())
+            #print(parser.buffer[0][0].shape)
+            #self.stack(parser.buffer[0][0].unsqueeze(0).unsqueeze(1))
             #self.stack.push(self.buffer.pop())
             #self.action.push(self.get_action_embed(constants.shift))
             action_state = self.action_lstm(self.get_action_embed(constants.shift))
@@ -439,7 +442,8 @@ class NeuralTransitionParser(BaseParser):
             #    for word in reversed(sentence):
             #        self.buffer.push(word.unsqueeze(0).unsqueeze(1))
             for word in reversed(sentence):
-                self.buffer.push(word.unsqueeze(0).unsqueeze(1))
+                #self.buffer.push(word.unsqueeze(0).unsqueeze(1))
+                self.buffer(word.unsqueeze(0).unsqueeze(1))
 
             for step in range(len(labeled_transitions)):
                 parser, probs, target,action_state = self.parse_step(parser,

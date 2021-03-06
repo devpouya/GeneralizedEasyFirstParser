@@ -141,7 +141,7 @@ class ShiftReduceParser():
 
     def subtree_rep(self, top, second, rel_embed,act_embed,linear):
 
-        reprs = torch.cat([top[0], second[0], rel_embed.reshape(self.embedding_size),act_embed.reshape(16)],
+        reprs = torch.cat([top[0], second[0], rel_embed.reshape(self.embedding_size)],
                           dim=-1)
 
         c = nn.Tanh()(linear(reprs))
