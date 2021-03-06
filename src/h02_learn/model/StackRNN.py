@@ -36,13 +36,15 @@ def has_head(node, arcs):
 class SoftmaxLegal(nn.Module):
     # __constants__ = ['dim']
     # dim: Optional[int]
-    def __init__(self, dim, parser, actions):
+    def __init__(self, dim, parser, actions,is_relation=False):
         super(SoftmaxLegal, self).__init__()
         self.dim = dim
         # self.parser = parser
         self.actions = actions
         self.num_actions = len(actions)
         self.indices = self.legal_indices(parser)
+        #elf.relate = self.rel_or_not()
+        self.is_relation = is_relation
         # self.inds_zero = list(set(range(self.num_actions)).difference(set(self.indices)))
 
     def legal_indices(self, parser):
@@ -54,20 +56,42 @@ class SoftmaxLegal(nn.Module):
 
             return [0, 1, 2]
 
+    def rel_or_not(self):
+        if self.indices == [0]:
+            return False
+        else:
+            return True
+
     def __setstate__(self, state):
         self.__dict__.update(state)
         if not hasattr(self, 'dim'):
             self.dim = None
 
     def forward(self, input):
-        tmp = F.softmax(input[:, self.indices], self.dim, _stacklevel=5)
-        # print(tmp)
-        ret = torch.zeros_like(input)
-        ret[:, self.indices] = tmp  # .detach().clone()
-        return ret  # F.softmax(input, self.dim, _stacklevel=5)
+        if self.is_relation:
+            if self.rel_or_not():
+                print(input.shape)
+                tmp = F.softmax(input[:, 1:], self.dim, _stacklevel=5)
+                ret = torch.zeros_like(input)
+                ret[:, 1:] = tmp  #.detach().clone()
+                return ret
+            else:
+                tmp = F.softmax(input[:, 0], self.dim, _stacklevel=5)
+                ret = torch.zeros_like(input)
+                ret[:, 0] = tmp  # .detach().clone()
+                return ret
+        else:
+            tmp = F.softmax(input[:, self.indices], self.dim, _stacklevel=5)
+            # print(tmp)
+            ret = torch.zeros_like(input)
+            ret[:, self.indices] = tmp  # .detach().clone()
+            return ret  # F.softmax(input, self.dim, _stacklevel=5)
 
     def extra_repr(self):
         return 'dim={dim}'.format(dim=self.dim)
+
+
+
 
 
 class NeuralTransitionParser(BaseParser):
@@ -115,17 +139,17 @@ class NeuralTransitionParser(BaseParser):
         # neural model parameters
         self.dropout = nn.Dropout(self.dropout_prob)
         # lstms
-        self.stack_lstm = nn.LSTM(self.embedding_size +12+32, self.embedding_size +12+32).to(device=constants.device)
-        self.buffer_lstm = nn.LSTM(self.embedding_size +12+32, self.embedding_size +12+32).to(device=constants.device)
+        self.stack_lstm = nn.LSTM(self.embedding_size*3, self.embedding_size*3).to(device=constants.device)
+        self.buffer_lstm = nn.LSTM(self.embedding_size*3, self.embedding_size*3).to(device=constants.device)
         self.action_lstm = nn.LSTM(16, 16).to(device=constants.device)
 
         # parser state
         # self.parser_state = nn.Parameter(torch.zeros((self.batch_size, self.hidden_size * 3 * 2))).to(
         #    device=constants.device)
         # init params
-        input_init = torch.zeros((1, 1, self.embedding_size*2+32)).to(
+        input_init = torch.zeros((1, 1, self.embedding_size*3)).to(
             device=constants.device)
-        hidden_init = torch.zeros((1, 1, self.embedding_size*2+32)).to(
+        hidden_init = torch.zeros((1, 1, self.embedding_size*3)).to(
             device=constants.device)
 
         input_init_act = torch.zeros((1, 1, 16)).to(
@@ -137,25 +161,25 @@ class NeuralTransitionParser(BaseParser):
         self.lstm_init_state_actions = (
             nn.init.xavier_uniform_(input_init_act), nn.init.xavier_uniform_(hidden_init_act))
 
-        self.empty_initial = nn.Parameter(torch.zeros(1, 1, self.embedding_size*2+32))
+        self.empty_initial = nn.Parameter(torch.zeros(1, 1, self.embedding_size*3))
         self.empty_initial_act = nn.Parameter(torch.zeros(1, 1, 16))
         self.action_bias = nn.Parameter(torch.Tensor(1, self.num_actions), requires_grad=True).to(
             device=constants.device)
         self.rel_bias = nn.Parameter(torch.Tensor(1, self.num_rels), requires_grad=True).to(device=constants.device)
         # MLP
-        self.mlp_lin1 = nn.Linear((self.embedding_size*2+32)*2+16,
-                                  self.embedding_size).to(device=constants.device)
-        #self.mlp_lin2 = nn.Linear(self.embedding_size * 5, self.embedding_size * 3).to(device=constants.device)
-        #self.mlp_lin3 = nn.Linear(self.embedding_size * 3, self.embedding_size).to(device=constants.device)
+        self.mlp_lin1 = nn.Linear((self.embedding_size*3)*2+16,
+                                  5*self.embedding_size).to(device=constants.device)
+        self.mlp_lin2 = nn.Linear(self.embedding_size * 5, self.embedding_size * 3).to(device=constants.device)
+        self.mlp_lin3 = nn.Linear(self.embedding_size * 3, self.embedding_size).to(device=constants.device)
         # self.mlp_lin4 = nn.Linear(self.embedding_size * 3,self.embedding_size * 2).to(device=constants.device)
         # self.mlp_lin5 = nn.Linear(self.embedding_size * 2,self.embedding_size).to(device=constants.device)
         # self.mlp_lin6 = nn.Linear(self.embedding_size * 2,
         #                          self.embedding_size).to(device=constants.device)
 
-        self.mlp_lin1_rel = nn.Linear((self.embedding_size*2+32)*2+16,
-                                      self.embedding_size).to(device=constants.device)
-        #self.mlp_lin2_rel = nn.Linear(self.embedding_size * 5, self.embedding_size * 3).to(device=constants.device)
-        #self.mlp_lin3_rel = nn.Linear(self.embedding_size * 3, self.embedding_size).to(device=constants.device)
+        self.mlp_lin1_rel = nn.Linear((self.embedding_size*3)*2+16,
+                                      5*self.embedding_size).to(device=constants.device)
+        self.mlp_lin2_rel = nn.Linear(self.embedding_size * 5, self.embedding_size * 3).to(device=constants.device)
+        self.mlp_lin3_rel = nn.Linear(self.embedding_size * 3, self.embedding_size).to(device=constants.device)
         # self.mlp_lin4_rel = nn.Linear(self.embedding_size * 3, self.embedding_size * 2).to(device=constants.device)
         # self.mlp_lin5_rel = nn.Linear(self.embedding_size * 2, self.embedding_size).to(device=constants.device)
         # self.mlp_lin6_rel = nn.Linear(self.embedding_size * 2,
@@ -179,7 +203,7 @@ class NeuralTransitionParser(BaseParser):
         torch.nn.init.xavier_uniform_(self.mlp_act.weight)
         torch.nn.init.xavier_uniform_(self.mlp_rel.weight)
 
-        self.linear_tree = nn.Linear(2 *(32+ 2*embedding_size)+embedding_size+16, 32+2*embedding_size).to(device=constants.device)
+        self.linear_tree = nn.Linear(2 *(3*embedding_size)+embedding_size+16, 3*embedding_size).to(device=constants.device)
         # self.linear_tree2 = nn.Linear(5 * embedding_size, 3 * embedding_size).to(device=constants.device)
         torch.nn.init.xavier_uniform_(self.linear_tree.weight)
         # torch.nn.init.xavier_uniform_(self.linear_tree2.weight)
@@ -198,7 +222,7 @@ class NeuralTransitionParser(BaseParser):
         tag_embeddings = nn.Embedding(tags.size, self.embedding_size)
         rel_embeddings = nn.Embedding(self.num_rels, self.embedding_size)
 
-        learned_embeddings = nn.Embedding(words.size, 32)
+        learned_embeddings = nn.Embedding(words.size, self.embedding_size)
         action_embedding = nn.Embedding(self.num_actions, 16)
         return word_embeddings, tag_embeddings, learned_embeddings, action_embedding, rel_embeddings
 
@@ -245,12 +269,12 @@ class NeuralTransitionParser(BaseParser):
         actions = self.stacked_action_embeddings()
         # print(actions.shape)
 
-        state1 = self.dropout(F.relu(self.mlp_lin1(parser_state))).squeeze(0)
+        state1 = self.dropout(F.relu(self.mlp_lin1(parser_state)))#.squeeze(0)
         # print(state.shape)
         # print(actions.shape)
         # print(self.action_bias.shape)
-        #state1 = self.dropout(F.relu(self.mlp_lin2(state1)))
-        #state1 = self.dropout(F.relu(self.mlp_lin3(state1))).squeeze(0)
+        state1 = self.dropout(F.relu(self.mlp_lin2(state1)))
+        state1 = self.dropout(F.relu(self.mlp_lin3(state1))).squeeze(0)
         # print(state1.shape)
 
         # state1 = self.dropout(F.relu(self.mlp_lin4(state1)))
@@ -265,16 +289,19 @@ class NeuralTransitionParser(BaseParser):
         # action_probabilities = nn.Softmax(dim=-1)(self.mlp_act(state1)).squeeze(0)
         action_probabilities = SoftmaxLegal(dim=-1, parser=parser, actions=self.actions)(self.mlp_act(state1)).squeeze(
             0)
-
         # print(action_probabilities)
         # jj
-        state2 = self.dropout(F.relu(self.mlp_lin1_rel(parser_state))).squeeze(0)
-        #state2 = self.dropout(F.relu(self.mlp_lin2_rel(state2)))
-        #state2 = self.dropout(F.relu(self.mlp_lin3_rel(state2)))
+        state2 = self.dropout(F.relu(self.mlp_lin1_rel(parser_state)))#.squeeze(0)
+        state2 = self.dropout(F.relu(self.mlp_lin2_rel(state2)))
+        state2 = self.dropout(F.relu(self.mlp_lin3_rel(state2))).squeeze(0)
         # state2 = self.dropout(F.relu(self.mlp_lin4_rel(state2)))
         # state2 = self.dropout(F.relu(self.mlp_lin5_rel(state2)))
         # state2 = self.dropout(F.relu(self.mlp_lin6_rel(state2)))
-        rel_probabilities = nn.Softmax(dim=-1)(self.mlp_rel(state2)).squeeze(0)
+        rel_probabilities = SoftmaxLegal(dim=-1, parser=parser, actions=self.actions,is_relation=True)\
+            (self.mlp_rel(state2)).squeeze(0)
+        #print(rel_probabilities)
+
+        #nn.Softmax(dim=-1)(self.mlp_rel(state2)).squeeze(0)
         # print(rel_probabilities)
         return action_probabilities, rel_probabilities
 
