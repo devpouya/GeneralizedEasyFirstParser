@@ -16,6 +16,7 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--language', type=str, required=True)
     parser.add_argument('--data-path', type=str, default='data/')
+    parser.add_argument('--save-path', type=str, default='data/')
     parser.add_argument('--glove-file', type=str, required=True)
     parser.add_argument('--min-vocab-count', type=int, default=2)
     parser.add_argument('--transition', type=str, choices=['arc-standard','arc-eager','hybrid'],default='arc-standard')
@@ -93,7 +94,8 @@ def process_data(in_fname_base, out_path, mode, vocabs, oracle=None, transition_
 
     utils.remove_if_exists(out_fname)
     print('Processing: %s' % in_fname)
-
+    right = 0
+    wrong = 0
     with open(in_fname, 'r') as file:
         for sentence in get_sentence(file):
             sent_processed, heads, relations,rel2id = process_sentence(sentence, vocabs)
@@ -110,9 +112,12 @@ def process_data(in_fname_base, out_path, mode, vocabs, oracle=None, transition_
             # print(word2headrels)
             word2head = {w: h for (w, h) in zip(sentence_proper, heads_proper)}
             if is_projective(word2head):
-                actions,relations_order = oracle(sentence_proper, word2head,relations)
+                actions,relations_order,good = oracle(sentence_proper, word2head,relations)
                 relation_ids = [rel2id[rel] for rel in relations_order]
-
+                if good:
+                    right += 1
+                else:
+                    wrong += 1
                 #labeled_actions = labeled_action_pairs(actions,relation_ids.copy())
                 #actions_processed = {'transition': actions, 'relations':relation_ids,'labeled_actions':labeled_actions}
                 actions_processed = {'transition': actions, 'relations':relation_ids,}
@@ -123,7 +128,8 @@ def process_data(in_fname_base, out_path, mode, vocabs, oracle=None, transition_
                 continue
 
 
-
+    print("GOOD {}".format(right))
+    print("baD {}".format(wrong))
 
 def add_sentence_vocab(sentence, words, tags, rels):
     for token in sentence:
@@ -198,7 +204,7 @@ def main():
     args = get_args()
 
     in_fname = path.join(args.data_path, constants.UD_LANG_FNAMES[args.language])
-    out_path = path.join(args.data_path, constants.UD_PATH_PROCESSED, args.language)
+    out_path = path.join(args.save_path, constants.UD_PATH_PROCESSED, args.language)
     utils.mkdir(out_path)
 
     embeddings = process_embeddings(args.glove_file, out_path)

@@ -128,19 +128,29 @@ def test_oracle_arc_standard(action_history, sentence, true_arcs):
     sigma = []
     beta = sentence.copy()
     arcs = []
-
     for action in action_history:
         if action == constants.shift:
             sigma.append(beta.pop(0))
         elif action == constants.reduce_l:
-            arcs.append((beta[0], sigma[-1]))
-            sigma.pop(-1)
-        elif action is None:
-            arcs.append((sigma[-1], sigma[-1]))
+            arcs.append((sigma[-1], sigma[-2]))
+            sigma.pop(-2)
         else:
-            arcs.append((sigma[-1], beta[0]))
-            item = sigma.pop()
-            beta[0] = item
+            arcs.append((sigma[-2], sigma[-1]))
+            sigma.pop(-1)
+            #beta[0] = item
+    arcs.append((0,0))
+    #for action in action_history:
+    #    if action == constants.shift:
+    #        sigma.append(beta.pop(0))
+    #    elif action == constants.reduce_l:
+    #        arcs.append((beta[0], sigma[-1]))
+    #        sigma.pop(-1)
+    #    elif action is None:
+    #        arcs.append((sigma[-1], sigma[-1]))
+    #    else:
+    #        arcs.append((sigma[-1], beta[0]))
+    #        item = sigma.pop()
+    #        beta[0] = item
 
     return set(arcs) == set(true_arcs)
 
@@ -150,8 +160,87 @@ def find_corresponding_relation(labeled_arcs, arc):
         if arc == (u, v):
             return r
 
-
 def arc_standard_oracle(sentence, word2head, relations):
+    # (head,tail)
+    # heads[a] == b --> (b,a)
+
+    stack = []  # BaseStack()
+    buffer = sentence.copy()  # BaseBuffer(sentence)
+    # true_arcs_no_label = get_arcs(word2head)
+    # true_arcs_labeled = get_labeled_arcs(word2headrels)
+    true_arcs = get_arcs(word2head)
+    built_arcs = []
+    built_labeled_arcs = []
+    # labeled_arcs = arcs_with_relations(true_arcs, relations)
+    action_history = []
+
+    arcs_sorted = sorted(true_arcs, key=lambda tup: tup[1])[1:]
+    labeled_arcs = []
+    for i, (u, v) in enumerate(arcs_sorted):
+        labeled_arcs.append((u, v, relations[i]))
+
+    relations_in_order = []
+    while len(buffer) > 0 or len(stack) > 1:
+        #front = buffer[0]
+        if len(stack) > 1:
+            top = stack[-1]
+            second = stack[-2]
+            #if (top, top) in true_arcs and have_completed_expected_children(top, true_arcs, built_arcs):
+            #    action_history.append(constants.reduce_r)
+            #    built_arcs.append((top, top))
+            #    relations_in_order.append(find_corresponding_relation(labeled_arcs, (top, top)))
+            #    # built_labeled_arcs.append((top, top, relations[0]))
+            #    # relations.pop(0)
+            #    stack.pop(-1)
+            #    continue
+
+            if (top, second) in true_arcs:
+                action_history.append(constants.reduce_l)
+                built_arcs.append((top, second))
+                relations_in_order.append(find_corresponding_relation(labeled_arcs, (top, second)))
+                # built_labeled_arcs.append((front, top, relations[0]))
+                # relations.pop(0)
+                # stack.pop()
+                if have_completed_expected_children(second, true_arcs, built_arcs):
+                    stack.pop(-2)
+                else:
+                    action_history.append(constants.shift)
+                    stack.append(buffer.pop(0))
+                continue
+            if (second, top) in true_arcs:
+                precondition = have_completed_expected_children(top, true_arcs, built_arcs)
+                if precondition:
+                    action_history.append(constants.reduce_r)
+                    built_arcs.append((second, top))
+                    relations_in_order.append(find_corresponding_relation(labeled_arcs, (second, top)))
+
+                    # built_labeled_arcs.append((top, front, relations[0]))
+                    item = stack.pop(-1)
+                    #buffer[0] = item
+                    # relations.pop(0)
+                    continue
+            action_history.append(constants.shift)
+            stack.append(buffer.pop(0))
+
+        else:
+            stack.append(buffer.pop(0))
+            action_history.append(constants.shift)
+            #if len(buffer) == 0:
+            #    top = stack.pop(-1)
+            #    if (top, top) in true_arcs:
+            #        built_arcs.append((top, top))
+            #        # built_labeled_arcs.append((top, top, relations[0]))
+            #        # relations.pop(0)
+            #        action_history.append(None)
+            #        # relations_in_order.append(find_corresponding_relation(labeled_arcs, (top, top)))
+
+    built_arcs.append((0,0))
+
+    cond = test_oracle_arc_standard(action_history,sentence.copy(),true_arcs)
+    return action_history, relations_in_order, set(built_arcs) == set(true_arcs) and cond
+
+
+def arc_standard_oracle2(sentence, word2head, relations):
     # (head,tail)
     # heads[a] == b --> (b,a)
 
