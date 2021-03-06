@@ -138,22 +138,22 @@ class NeuralTransitionParser(BaseParser):
         # neural model parameters
         self.dropout = nn.Dropout(self.dropout_prob)
         # lstms
-        self.stack_lstm = nn.LSTM(self.embedding_size*3, self.embedding_size*3,num_layers=2).to(device=constants.device)
-        self.buffer_lstm = nn.LSTM(self.embedding_size*3, self.embedding_size*3,num_layers=2).to(device=constants.device)
-        self.action_lstm = nn.LSTM(16, 16,num_layers=2).to(device=constants.device)
+        self.stack_lstm = nn.LSTM(self.embedding_size*3, self.embedding_size*3,num_layers=self.nlayers).to(device=constants.device)
+        self.buffer_lstm = nn.LSTM(self.embedding_size*3, self.embedding_size*3,num_layers=self.nlayers).to(device=constants.device)
+        self.action_lstm = nn.LSTM(16, 16,num_layers=self.nlayers).to(device=constants.device)
 
         # parser state
         # self.parser_state = nn.Parameter(torch.zeros((self.batch_size, self.hidden_size * 3 * 2))).to(
         #    device=constants.device)
         # init params
-        input_init = torch.zeros((2, 1, self.embedding_size*3)).to(
+        input_init = torch.zeros((self.nlayers, 1, self.embedding_size*3)).to(
             device=constants.device)
-        hidden_init = torch.zeros((2, 1, self.embedding_size*3)).to(
+        hidden_init = torch.zeros((self.nlayers, 1, self.embedding_size*3)).to(
             device=constants.device)
 
-        input_init_act = torch.zeros((2, 1, 16)).to(
+        input_init_act = torch.zeros((self.nlayers, 1, 16)).to(
             device=constants.device)
-        hidden_init_act = torch.zeros((2, 1, 16)).to(
+        hidden_init_act = torch.zeros((self.nlayers, 1, 16)).to(
             device=constants.device)
 
         self.lstm_init_state = (nn.init.xavier_uniform_(input_init), nn.init.xavier_uniform_(hidden_init))
