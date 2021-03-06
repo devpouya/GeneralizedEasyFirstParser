@@ -264,7 +264,10 @@ class NeuralTransitionParser(BaseParser):
         return labeled_acts
 
     def parser_probabilities(self, parser,action_state):
-        parser_state = torch.cat([self.stack.embedding(), self.buffer.embedding(), action_state], dim=-1)
+        #print(action_state.shape)
+        #print(self.buffer.embedding().shape)
+        #print(self.stack.embedding().shape)
+        parser_state = torch.cat([self.stack.embedding(), self.buffer.embedding(), action_state.mean(0).unsqueeze(0)], dim=-1)
         actions = self.stacked_action_embeddings()
         # print(actions.shape)
 
