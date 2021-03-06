@@ -37,14 +37,16 @@ def get_args():
     parser.add_argument('--wait-epochs', type=int, default=10)
     parser.add_argument('--lr-decay', type=float, default=.5)
     # Save
+    parser.add_argument('--name',type=str,default='generic-experiment')
     parser.add_argument('--checkpoints-path', type=str, default='checkpoints/')
     parser.add_argument('--seed', type=int, default=7)
     parser.add_argument('--save-periodically', action='store_true')
 
     args = parser.parse_args()
     args.wait_iterations = args.wait_epochs * args.eval_batches
-    args.save_path = '%s/%s/%s/%s/' % (args.checkpoints_path, args.language, args.model, args.batch_size)
+    args.save_path = '%s/%s/%s/%s/' % (args.checkpoints_path, args.language, args.model, args.name)
     utils.config(args.seed)
+    print("RUNNING {}".format(args.name))
     return args
 
 
