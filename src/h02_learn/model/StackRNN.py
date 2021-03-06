@@ -285,9 +285,9 @@ class NeuralTransitionParser(BaseParser):
         # state_rel = torch.matmul(self.rel_embeddings.weight,state.transpose(1,0)).transpose(1,0) #+ self.rel_bias
         # print(state_rel.shape)
 
-        # action_probabilities = nn.Softmax(dim=-1)(self.mlp_act(state1)).squeeze(0)
-        action_probabilities = SoftmaxLegal(dim=-1, parser=parser, actions=self.actions)(self.mlp_act(state1)).squeeze(
-            0)
+        action_probabilities = nn.Softmax(dim=-1)(self.mlp_act(state1)).squeeze(0)
+        #action_probabilities = SoftmaxLegal(dim=-1, parser=parser, actions=self.actions)(self.mlp_act(state1)).squeeze(
+        #    0)
         # print(action_probabilities)
         # jj
         state2 = self.dropout(F.relu(self.mlp_lin1_rel(parser_state)))#.squeeze(0)
@@ -296,11 +296,11 @@ class NeuralTransitionParser(BaseParser):
         # state2 = self.dropout(F.relu(self.mlp_lin4_rel(state2)))
         # state2 = self.dropout(F.relu(self.mlp_lin5_rel(state2)))
         # state2 = self.dropout(F.relu(self.mlp_lin6_rel(state2)))
-        rel_probabilities = SoftmaxLegal(dim=-1, parser=parser, actions=self.actions,is_relation=True)\
-            (self.mlp_rel(state2)).squeeze(0)
+        #rel_probabilities = SoftmaxLegal(dim=-1, parser=parser, actions=self.actions,is_relation=True)\
+        #    (self.mlp_rel(state2)).squeeze(0)
         #print(rel_probabilities)
 
-        #nn.Softmax(dim=-1)(self.mlp_rel(state2)).squeeze(0)
+        rel_probabilities = nn.Softmax(dim=-1)(self.mlp_rel(state2)).squeeze(0)
         # print(rel_probabilities)
         return action_probabilities, rel_probabilities
 
