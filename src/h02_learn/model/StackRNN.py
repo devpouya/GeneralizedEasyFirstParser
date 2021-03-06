@@ -70,7 +70,6 @@ class SoftmaxLegal(nn.Module):
     def forward(self, input):
         if self.is_relation:
             if self.rel_or_not():
-                print(input.shape)
                 tmp = F.softmax(input[:, 1:], self.dim, _stacklevel=5)
                 ret = torch.zeros_like(input)
                 ret[:, 1:] = tmp  #.detach().clone()
