@@ -35,6 +35,10 @@ class StackRNN(nn.Module):
             self.push(i[0].unsqueeze(0))
         # self.s.append((out, hidden))  # +self.s.pop(0)
 
+    def replace(self, expr):
+        out, hidden = self.cell(expr, self.s[-1][1])
+        self.s[-1] = (out,hidden)
+
     def push(self, expr, extra=None):
         out, hidden = self.cell(expr, self.s[-1][1])
         self.s.append((out, hidden))
