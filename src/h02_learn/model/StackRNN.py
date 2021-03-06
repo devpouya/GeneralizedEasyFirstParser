@@ -138,9 +138,9 @@ class NeuralTransitionParser(BaseParser):
         # neural model parameters
         self.dropout = nn.Dropout(self.dropout_prob)
         # lstms
-        self.stack_lstm = nn.LSTM(self.embedding_size*3, self.embedding_size*3).to(device=constants.device)
-        self.buffer_lstm = nn.LSTM(self.embedding_size*3, self.embedding_size*3).to(device=constants.device)
-        self.action_lstm = nn.LSTM(16, 16).to(device=constants.device)
+        self.stack_lstm = nn.LSTM(self.embedding_size*3, self.embedding_size*3,num_layers=2).to(device=constants.device)
+        self.buffer_lstm = nn.LSTM(self.embedding_size*3, self.embedding_size*3,num_layers=2).to(device=constants.device)
+        self.action_lstm = nn.LSTM(16, 16,num_layers=2).to(device=constants.device)
 
         # parser state
         # self.parser_state = nn.Parameter(torch.zeros((self.batch_size, self.hidden_size * 3 * 2))).to(
@@ -653,7 +653,8 @@ class NeuralTransitionParser(BaseParser):
         targets_rel = targets_rel[targets_rel != 0]
         targets_rel = targets_rel[probs_rel[:, 0] != -1]
         probs_rel = probs_rel[probs_rel[:, 0] != -1, :]
-
+        print(probs)
+        print(probs_rel)
         loss = 2 / 3 * criterion1(probs, targets)
         loss += 1 / 3 * criterion2(probs_rel, targets_rel)
         # print(loss)
