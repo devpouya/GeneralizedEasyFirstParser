@@ -45,7 +45,7 @@ class StackRNN(nn.Module):
         return self.s.pop(ind)[0]  # [0]
 
     def embedding(self):
-        return self.s[-1][1][0] if len(self.s) > 1 else self.empty
+        return self.s[-1][0] if len(self.s) > 1 else self.empty
 
     def back_to_init(self):
         while self.__len__() > 0:

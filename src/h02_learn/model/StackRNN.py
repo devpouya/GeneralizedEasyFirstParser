@@ -146,14 +146,14 @@ class NeuralTransitionParser(BaseParser):
         # self.parser_state = nn.Parameter(torch.zeros((self.batch_size, self.hidden_size * 3 * 2))).to(
         #    device=constants.device)
         # init params
-        input_init = torch.zeros((1, 1, self.embedding_size*3)).to(
+        input_init = torch.zeros((2, 1, self.embedding_size*3)).to(
             device=constants.device)
-        hidden_init = torch.zeros((1, 1, self.embedding_size*3)).to(
+        hidden_init = torch.zeros((2, 1, self.embedding_size*3)).to(
             device=constants.device)
 
-        input_init_act = torch.zeros((1, 1, 16)).to(
+        input_init_act = torch.zeros((2, 1, 16)).to(
             device=constants.device)
-        hidden_init_act = torch.zeros((1, 1, 16)).to(
+        hidden_init_act = torch.zeros((2, 1, 16)).to(
             device=constants.device)
 
         self.lstm_init_state = (nn.init.xavier_uniform_(input_init), nn.init.xavier_uniform_(hidden_init))
@@ -188,14 +188,14 @@ class NeuralTransitionParser(BaseParser):
         self.mlp_rel = nn.Linear(self.embedding_size, self.num_rels).to(device=constants.device)
         # self.mlp_both = nn.Linear(self.embedding_size, self.num_rels*2+1).to(device=constants.device)
         torch.nn.init.xavier_uniform_(self.mlp_lin1.weight)
-        #torch.nn.init.xavier_uniform_(self.mlp_lin2.weight)
-        #torch.nn.init.xavier_uniform_(self.mlp_lin3.weight)
+        torch.nn.init.xavier_uniform_(self.mlp_lin2.weight)
+        torch.nn.init.xavier_uniform_(self.mlp_lin3.weight)
         # torch.nn.init.xavier_uniform_(self.mlp_lin4.weight)
         # torch.nn.init.xavier_uniform_(self.mlp_lin5.weight)
         # torch.nn.init.xavier_uniform_(self.mlp_lin6.weight)
         torch.nn.init.xavier_uniform_(self.mlp_lin1_rel.weight)
-        #torch.nn.init.xavier_uniform_(self.mlp_lin2_rel.weight)
-        #torch.nn.init.xavier_uniform_(self.mlp_lin3_rel.weight)
+        torch.nn.init.xavier_uniform_(self.mlp_lin2_rel.weight)
+        torch.nn.init.xavier_uniform_(self.mlp_lin3_rel.weight)
         ##torch.nn.init.xavier_uniform_(self.mlp_lin4_rel.weight)
         # torch.nn.init.xavier_uniform_(self.mlp_lin5_rel.weight)
         # torch.nn.init.xavier_uniform_(self.mlp_lin6_rel.weight)
@@ -653,8 +653,6 @@ class NeuralTransitionParser(BaseParser):
         targets_rel = targets_rel[targets_rel != 0]
         targets_rel = targets_rel[probs_rel[:, 0] != -1]
         probs_rel = probs_rel[probs_rel[:, 0] != -1, :]
-        print(probs)
-        print(probs_rel)
         loss = 2 / 3 * criterion1(probs, targets)
         loss += 1 / 3 * criterion2(probs_rel, targets_rel)
         # print(loss)

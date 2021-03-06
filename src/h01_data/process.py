@@ -179,13 +179,20 @@ def read_embeddings(fname):
                 continue
 
             tokens = line.split()
+            #print("88888888888")
+            #print(embedd_dim)
+            #print(len(tokens))
+            #print("88888888888")
+
+
             if embedd_dim < 0:
                 embedd_dim = len(tokens) - 1
             elif embedd_dim == len(tokens):
                 # Skip empty word
                 continue
             else:
-                assert embedd_dim + 1 == len(tokens), 'Dimension of embeddings should be consistent'
+                continue
+                #assert embedd_dim + 1 == len(tokens), 'Dimension of embeddings should be consistent'
 
             embedd = np.empty([1, embedd_dim], dtype=np.float32)
             embedd[:] = tokens[1:]
