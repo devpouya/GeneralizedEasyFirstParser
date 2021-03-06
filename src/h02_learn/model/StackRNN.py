@@ -345,18 +345,22 @@ class NeuralTransitionParser(BaseParser):
         # do the action
         if best_action == 0:
             # shift
-            self.stack.push(self.buffer.pop())
-            self.action.push(self.get_action_embed(constants.shift))
+            self.stack(self.buffer.pop())
+            #self.stack.push(self.buffer.pop())
+            #self.action.push(self.get_action_embed(constants.shift))
+            self.action(self.get_action_embed(constants.shift))
             parser.shift()
         elif best_action == 1:
 
             # reduce-l
             #self.stack.pop()
             act_embed = self.get_action_embed(constants.reduce_l)
-            self.action.push(act_embed)
+            #self.action.push(act_embed)
+            self.action(act_embed)
             ret = parser.reduce_l(act_embed, rel, rel_embed, self.linear_tree)
             self.stack.pop(-2)
-            self.stack.replace(ret.unsqueeze(0).unsqueeze(1))
+            #self.stack.replace(ret.unsqueeze(0).unsqueeze(1))
+            self.stack(ret.unsqueeze(0).unsqueeze(1),replace=True)
             #self.stack.pop()
             #self.stack.push(ret.unsqueeze(0).unsqueeze(1))
 
@@ -365,18 +369,21 @@ class NeuralTransitionParser(BaseParser):
             # reduce-r
             # buffer.push(stack.pop())  # not sure, should replace in buffer actually...
             act_embed = self.get_action_embed(constants.reduce_l)
-            self.action.push(act_embed)
+            #self.action.push(act_embed)
+            self.action(act_embed)
             #self.stack.pop()
             ret = parser.reduce_r(act_embed, rel, rel_embed, self.linear_tree)
             self.stack.pop()
-            self.stack.replace(ret.unsqueeze(0).unsqueeze(1))
+            #self.stack.replace(ret.unsqueeze(0).unsqueeze(1))
+            self.stack(ret.unsqueeze(0).unsqueeze(1),replace=True)
 
             #self.stack.push(ret.unsqueeze(0).unsqueeze(1))
             # self.buffer.push_first(ret,self.stack.s[-1])
             # self.stack.push(ret.unsqueeze(0).unsqueeze(1))
         else:
             self.stack.pop()
-            self.action.push(self.get_action_embed(constants.reduce_l))
+            #self.action.push(self.get_action_embed(constants.reduce_l))
+            self.action(self.get_action_embed(constants.reduce_l))
             elem = parser.stack.pop()
             parser.arcs.append((elem[1], elem[1], rel))
 

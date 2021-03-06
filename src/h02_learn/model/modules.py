@@ -4,10 +4,6 @@ import torch.nn as nn
 from utils import constants
 
 
-
-
-
-
 # adapted from stack-lstm-ner (https://github.com/clab/stack-lstm-ner)
 class StackRNN(nn.Module):
     def __init__(self, cell, initial_state, initial_hidden, dropout, p_empty_embedding=None):
@@ -37,7 +33,7 @@ class StackRNN(nn.Module):
 
     def replace(self, expr):
         out, hidden = self.cell(expr, self.s[-1][1])
-        self.s[-1] = (out,hidden)
+        self.s[-1] = (out, hidden)
 
     def push(self, expr, extra=None):
         out, hidden = self.cell(expr, self.s[-1][1])
@@ -46,7 +42,7 @@ class StackRNN(nn.Module):
     def pop(self, ind=-1):
         if ind == 0:
             ind += 1
-        return self.s.pop(ind)[0]#[0]
+        return self.s.pop(ind)[0]  # [0]
 
     def embedding(self):
         return self.s[-1][1][0] if len(self.s) > 1 else self.empty
@@ -59,8 +55,15 @@ class StackRNN(nn.Module):
         self.s.reverse()
         self.back_to_init()
 
+    def forward(self, x,replace=False):
+        if replace:
+            self.replace(x)
+        else:
+            self.push(x)
+
     def __len__(self):
         return len(self.s) - 1
+
 
 class StackLSTM(nn.Module):
     def __init__(self, input_size, hidden_size, dropout, batch_size, batch_first, bidirectional=False):
@@ -75,7 +78,6 @@ class StackLSTM(nn.Module):
 
         self.root = None
         self.top = None
-
 
         self.curr_len = 0
 
@@ -107,19 +109,21 @@ class StackLSTM(nn.Module):
             # self.curr_len -= 1
 
     def forward(self, input, first=False):
-        self.push(input,first)
+        self.push(input, first)
 
         if self.top.prev is None:
-            #print("INIT")
-            h_0 = torch.zeros((self.num_layers, self.top.weight.shape[1], self.top.weight.shape[2])).to(device=constants.device)
-            c_0 = torch.zeros((self.num_layers, self.top.weight.shape[1], self.top.weight.shape[2])).to(device=constants.device)
+            # print("INIT")
+            h_0 = torch.zeros((self.num_layers, self.top.weight.shape[1], self.top.weight.shape[2])).to(
+                device=constants.device)
+            c_0 = torch.zeros((self.num_layers, self.top.weight.shape[1], self.top.weight.shape[2])).to(
+                device=constants.device)
             h_0 = nn.init.xavier_normal_(h_0)
             c_0 = nn.init.xavier_normal_(c_0)
-            h = (h_0,c_0)
+            h = (h_0, c_0)
         else:
             h = self.top.prev.hidden
 
-        out, hidden = self.lstm(self.top.weight,h)
+        out, hidden = self.lstm(self.top.weight, h)
         self.top.hidden = hidden
         return out
 
@@ -172,6 +176,8 @@ class Bilinear(nn.Module):
         # x shape [batch, length, dim_out] and [batch, length, dim_out]
         x += self.linear_l(x_l) + self.linear_r(x_r)
         return x
+
+
 class PointerLSTM(nn.Module):
     def __init__(self, id, prev_lstm, input_size, hidden_size, dropout, batch_first, bidirectional=False):
         super().__init__()
