@@ -8,7 +8,8 @@ class TrainInfo:
     best_uas = 0
     best_batch = 0
     lr_reductions = 0
-    MAX_REDUCTIONS = 10
+    MAX_REDUCTIONS = 20
+    num_epochs = 10
 
     def __init__(self, wait_iterations, eval_batches):
         self.wait_iterations = wait_iterations

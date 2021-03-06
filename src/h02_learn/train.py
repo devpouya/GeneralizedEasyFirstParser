@@ -181,7 +181,7 @@ def train_batch(text, pos, heads, rels, transitions, relations_in_order, model, 
     #print(torch.all(torch.eq(pred_rel,rels)))
     #print("çççççççççççççççççççççççççççççççç")
 
-    loss.backward()
+    loss.backward(retain_graph=True)
     optimizer.step()
 
     return loss.item()
@@ -194,28 +194,28 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
     train_info = TrainInfo(wait_iterations, eval_batches)
     while not train_info.finish:
         steps = 0
+        for _ in range(10):
+            for (text, pos), (heads, rels), (transitions, relations_in_order) in trainloader:
 
-        for (text, pos), (heads, rels), (transitions, relations_in_order) in trainloader:
+                steps += 1
+                loss = train_batch(text, pos, heads, rels, transitions, relations_in_order, model, optimizer)
+                train_info.new_batch(loss)
+                if train_info.eval:
+                    dev_results = evaluate(devloader, model)
 
-            steps += 1
-            loss = train_batch(text, pos, heads, rels, transitions, relations_in_order, model, optimizer)
-            train_info.new_batch(loss)
-            if train_info.eval:
-                dev_results = evaluate(devloader, model)
-
-                if train_info.is_best(dev_results):
-                    model.set_best()
-                    if save_batch:
-                        model.save(save_path)
-                elif train_info.reduce_lr:
-                    lr_scheduler.step()
-                    optimizer.state.clear()
-                    model.recover_best()
-                    print('\tReduced lr')
-                elif train_info.finish:
+                    if train_info.is_best(dev_results):
+                        model.set_best()
+                        if save_batch:
+                            model.save(save_path)
+                    elif train_info.reduce_lr:
+                        lr_scheduler.step()
+                        optimizer.state.clear()
+                        model.recover_best()
+                        print('\tReduced lr')
+                    elif train_info.finish:
+                        train_info.print_progress(dev_results)
+                        break
                     train_info.print_progress(dev_results)
-                    break
-                train_info.print_progress(dev_results)
 
     model.recover_best()
 
