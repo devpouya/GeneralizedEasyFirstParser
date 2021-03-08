@@ -58,7 +58,8 @@ def get_optimizer(paramters, optim_alg, lr_decay, weight_decay):
     else:
         optimizer = optim.SGD(paramters, lr=0.01)
 
-    lr_scheduler = optim.lr_scheduler.ExponentialLR(optimizer, lr_decay)
+    #lr_scheduler = optim.lr_scheduler.ExponentialLR(optimizer, lr_decay)
+    lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, "max")
     return optimizer, lr_scheduler
 
 
