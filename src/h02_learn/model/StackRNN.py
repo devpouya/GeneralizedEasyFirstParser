@@ -251,18 +251,18 @@ class NeuralTransitionParser(BaseParser):
 
 
 
-        action_probabilities = nn.Softmax(dim=-1)(self.mlp_act(state1)).squeeze(0)
-        #action_probabilities = SoftmaxLegal(dim=-1, parser=parser, actions=self.actions)(self.mlp_act(state1)).squeeze(
-        #    0)
+        #action_probabilities = nn.Softmax(dim=-1)(self.mlp_act(state1)).squeeze(0)
+        action_probabilities = SoftmaxLegal(dim=-1, parser=parser, actions=self.actions)(self.mlp_act(state1)).squeeze(
+            0)
 
         state2 = self.dropout(F.relu(self.mlp_lin1_rel(parser_state)))#.squeeze(0)
         state2 = self.dropout(F.relu(self.mlp_lin2_rel(state2)))
         state2 = self.dropout(F.relu(self.mlp_lin3_rel(state2))).squeeze(0)
 
-        #rel_probabilities = SoftmaxLegal(dim=-1, parser=parser, actions=self.actions,is_relation=True)\
-        #    (self.mlp_rel(state2)).squeeze(0)
+        rel_probabilities = SoftmaxLegal(dim=-1, parser=parser, actions=self.actions,is_relation=True)\
+            (self.mlp_rel(state2)).squeeze(0)
 
-        rel_probabilities = nn.Softmax(dim=-1)(self.mlp_rel(state2)).squeeze(0)
+        #rel_probabilities = nn.Softmax(dim=-1)(self.mlp_rel(state2)).squeeze(0)
         return action_probabilities, rel_probabilities
 
     def legal_indices(self, parser):
