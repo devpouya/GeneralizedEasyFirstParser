@@ -182,7 +182,7 @@ def train_batch(text, pos, heads, rels, transitions, relations_in_order, model, 
     # print(torch.all(torch.eq(pred_rel,rels)))
     # print("çççççççççççççççççççççççççççççççç")
 
-    loss.backward(retain_graph=True)
+    loss.backward()
     optimizer.step()
 
     return loss.item()
@@ -191,6 +191,7 @@ def train_batch(text, pos, heads, rels, transitions, relations_in_order, model, 
 def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_alg, lr_decay, weight_decay,
           save_path, save_batch=False):
     # pylint: disable=too-many-locals,too-many-arguments
+    torch.autograd.set_detect_anomaly(True)
     optimizer, lr_scheduler = get_optimizer(model.parameters(), optim_alg, lr_decay, weight_decay)
     num_epochs = 10
     train_info = TrainInfo(wait_iterations, eval_batches, num_epochs)
