@@ -34,7 +34,7 @@ class TrainInfo:
     @property
     def finish(self):
         #print("is stuck {}".format(self.stuck))
-        return self.stuck and (self.lr_reductions >= self.MAX_REDUCTIONS) and self.epoch < self.num_epochs
+        return (self.stuck and (self.lr_reductions >= self.MAX_REDUCTIONS)) or self.epoch < self.num_epochs
 
     @property
     def eval(self):
