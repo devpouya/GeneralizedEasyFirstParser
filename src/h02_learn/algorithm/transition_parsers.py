@@ -139,6 +139,20 @@ class ShiftReduceParser():
 
         #self.tanh = nn.Tanh().to(device=constants.device)
 
+    def rec_subtree(self, top, second, rel_embed, rnn,linear):
+        reprs = torch.cat([top[0], second[0], rel_embed.reshape(self.embedding_size)],
+                          dim=-1)
+        seq = torch.stack([top[0],second[0]])
+        #print(seq.shape)
+        #print(reprs.shape)
+        c,_ = rnn(seq.unsqueeze(1))
+        c = c.squeeze(1)
+        c = torch.cat([c[0,:],c[1,:],rel_embed.reshape(self.embedding_size)],dim=-1)
+        c = nn.Tanh()(linear(c))
+        (_, ind) = self.stack[-1]
+        self.stack[-1] = (c, ind)
+        return c
+
     def subtree_rep(self, top, second, rel_embed,linear):
 
         reprs = torch.cat([top[0], second[0], rel_embed.reshape(self.embedding_size)],
@@ -166,24 +180,24 @@ class ShiftReduceParser():
         self.action_history_names.append(constants.shift)
         return item[0]
 
-    def reduce_l(self, rel,rel_embed,linear):
+    def reduce_l(self, rel,rel_embed,rnn,linear):
         top = self.stack[-1]
         second = self.stack[-2]
         #left = self.buffer[0]
         self.stack.pop(-2)
         self.arcs.append((top[1], second[1], rel))
         self.action_history_names.append(constants.reduce_l)
-        c = self.subtree_rep(top, second,rel_embed,linear)
+        c = self.rec_subtree(top, second,rel_embed,rnn,linear)
         return c
 
-    def reduce_r(self, rel,rel_embed,linear):
+    def reduce_r(self, rel,rel_embed,rnn,linear):
         second = self.stack[-2]
         top = self.stack[-1]
         self.arcs.append((second[1], top[1], rel))
         self.action_history_names.append(constants.reduce_r)
         self.stack.pop(-1)
         #self.buffer[0] = top
-        c = self.subtree_rep(second, top,rel_embed,linear)
+        c = self.rec_subtree(second, top,rel_embed,rnn,linear)
         return c
 
     def reduce(self):

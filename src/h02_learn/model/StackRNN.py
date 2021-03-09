@@ -185,9 +185,11 @@ class NeuralTransitionParser(BaseParser):
         torch.nn.init.xavier_uniform_(self.mlp_act.weight)
         torch.nn.init.xavier_uniform_(self.mlp_rel.weight)
 
-        self.linear_tree = nn.Linear(2 *(3*embedding_size)+embedding_size, 3*embedding_size).to(device=constants.device)
+        self.linear_tree = nn.Linear(7*embedding_size, 3*embedding_size).to(device=constants.device)
         # self.linear_tree2 = nn.Linear(5 * embedding_size, 3 * embedding_size).to(device=constants.device)
         torch.nn.init.xavier_uniform_(self.linear_tree.weight)
+        #self.rnn_tree = nn.LSTM(2 *(3*embedding_size)+embedding_size,3*embedding_size).to(device=constants.device)
+        self.rnn_tree = nn.LSTM(3*embedding_size,3*embedding_size).to(device=constants.device)
         # torch.nn.init.xavier_uniform_(self.linear_tree2.weight)
 
         self.stack = StackCell(self.stack_lstm, self.lstm_init_state, self.lstm_init_state, self.dropout,
@@ -316,7 +318,7 @@ class NeuralTransitionParser(BaseParser):
             # reduce-l
 
             self.action.push(self.get_action_embed(constants.shift).squeeze(0))
-            ret = parser.reduce_l(rel, rel_embed, self.linear_tree)
+            ret = parser.reduce_l(rel, rel_embed, self.rnn_tree,self.linear_tree)
             self.stack.pop(-2)
             self.stack.replace(ret.unsqueeze(0))
 
@@ -326,7 +328,7 @@ class NeuralTransitionParser(BaseParser):
             # reduce-r
 
             self.action.push(self.get_action_embed(constants.reduce_l).squeeze(0))
-            ret = parser.reduce_r(rel, rel_embed, self.linear_tree)
+            ret = parser.reduce_r(rel, rel_embed, self.rnn_tree,self.linear_tree)
             self.stack.pop()
             self.stack.replace(ret.unsqueeze(0))
 
