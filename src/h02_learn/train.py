@@ -58,8 +58,8 @@ def get_optimizer(paramters, optim_alg, lr_decay, weight_decay):
     else:
         optimizer = optim.SGD(paramters, lr=0.01)
 
-    #lr_scheduler = optim.lr_scheduler.ExponentialLR(optimizer, lr_decay)
-    lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, "max")
+    lr_scheduler = optim.lr_scheduler.ExponentialLR(optimizer, lr_decay)
+    #lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, "max")
     return optimizer, lr_scheduler
 
 
@@ -193,8 +193,7 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
     # pylint: disable=too-many-locals,too-many-arguments
     torch.autograd.set_detect_anomaly(True)
     optimizer, lr_scheduler = get_optimizer(model.parameters(), optim_alg, lr_decay, weight_decay)
-    num_epochs = 10
-    train_info = TrainInfo(wait_iterations, eval_batches, num_epochs)
+    train_info = TrainInfo(wait_iterations, eval_batches)
     while not train_info.finish:
         steps = 0
         for (text, pos), (heads, rels), (transitions, relations_in_order) in trainloader:
@@ -216,7 +215,6 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
                     train_info.print_progress(dev_results)
                     break
                 train_info.print_progress(dev_results)
-        train_info.epoch += 1
 
     model.recover_best()
 
