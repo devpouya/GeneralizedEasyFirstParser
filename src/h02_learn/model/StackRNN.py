@@ -204,10 +204,10 @@ class NeuralTransitionParser(BaseParser):
         words, tags, rels = vocabs
         word_embeddings = WordEmbedding(words, self.embedding_size, pretrained=pretrained)
         tag_embeddings = nn.Embedding(tags.size, self.embedding_size)
-        rel_embeddings = nn.Embedding(self.num_rels, self.embedding_size)
+        rel_embeddings = nn.Embedding(self.num_rels, self.embedding_size,scale_grad_by_freq=True)
 
         learned_embeddings = nn.Embedding(words.size, self.embedding_size)
-        action_embedding = nn.Embedding(self.num_actions, 16)
+        action_embedding = nn.Embedding(self.num_actions, 16,scale_grad_by_freq=True)
         return word_embeddings, tag_embeddings, learned_embeddings, action_embedding, rel_embeddings
 
     def get_embeddings(self, x):
