@@ -11,13 +11,13 @@ from h01_data.oracle import is_projective, is_good
 from utils import utils
 from utils import constants
 
-
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--language', type=str, required=True)
     parser.add_argument('--data-path', type=str, default='data/')
     parser.add_argument('--save-path', type=str, default='data/')
-    parser.add_argument('--glove-file', type=str, required=True)
+    parser.add_argument('--glove-file', type=str, required=False)
+    parser.add_argument('--bert-model', type=str, default='bert-base-cased')
     parser.add_argument('--min-vocab-count', type=int, default=2)
     parser.add_argument('--transition', type=str, choices=['arc-standard','arc-eager','hybrid'],default='arc-standard')
     return parser.parse_args()
@@ -149,8 +149,12 @@ def add_embedding_vocab(embeddings, words):
     for word in embeddings.keys():
         words.add_pretrained(word)
 
+def add_tokenizer_vocab(tokenizer,words):
 
-def get_vocabs(in_fname_base, out_path, min_count, embeddings=None):
+    pass
+
+
+def get_vocabs(in_fname_base, out_path, min_count, embeddings=None,tokenizer=None):
     in_fname = in_fname_base % 'train'
     words, tags, rels = Vocab(min_count), Vocab(min_count), Vocab(min_count)
     print('Getting vocabs: %s' % in_fname)
@@ -161,6 +165,9 @@ def get_vocabs(in_fname_base, out_path, min_count, embeddings=None):
 
     if embeddings is not None:
         add_embedding_vocab(embeddings, words)
+    elif tokenizer is not None:
+        add_tokenizer_vocab(tokenizer,words)
+
 
     process_vocabs(words, tags, rels)
     save_vocabs(out_path, words, tags, rels)
@@ -214,9 +221,9 @@ def main():
     out_path = path.join(args.save_path, constants.UD_PATH_PROCESSED, args.language)
     utils.mkdir(out_path)
 
-    embeddings = process_embeddings(args.glove_file, out_path)
-
-    vocabs = get_vocabs(in_fname, out_path, min_count=args.min_vocab_count, embeddings=embeddings)
+    #embeddings = process_embeddings(args.glove_file, out_path)
+    tokenizer = None#BertTokenizer.from_pretrained(args.bert_model)
+    vocabs = get_vocabs(in_fname, out_path, min_count=args.min_vocab_count, tokenizer=tokenizer)
     oracle = None
     if args.transition == 'arc-standard':
         oracle = arc_standard_oracle

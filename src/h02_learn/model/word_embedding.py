@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 from utils import constants
 import torch
+from transformers import BertModel
 
 class WordEmbedding(nn.Module):
     # pylint: disable=arguments-differ
@@ -58,6 +59,19 @@ class WordEmbedding(nn.Module):
         return self.embedding(x)
 
 
+class BertEmbedding(nn.Module):
+    # can probably throw away the stupid 32 dimensional "learned" embeddings lol
+    def __init__(self,bert_model):
+        super().__init__()
+        self.model = BertModel.from_pretrained(bert_model)
+
+    def token2tensor(self):
+
+        pass
+    def forward(self, x):
+        pass
+
+
 class ActionEmbedding(nn.Module):
     # pylint: disable=arguments-differ
     def __init__(self, actions, embedding_size):
@@ -65,13 +79,11 @@ class ActionEmbedding(nn.Module):
         self.actions = actions
         self.action_size = len(actions)
         self.embedding_size = embedding_size
-
-        #pretrained_tensor = torch.zeros(size=(self.action_size, self.embedding_size)).to(device=constants.device)
-        #for i in range(self.action_size):
-        #    pretrained_tensor[i, i] = 1
-
         self.embedding = nn.Embedding(self.action_size, self.embedding_size, padding_idx=0)
         self.embedding.weight.requires_grad = True
 
     def forward(self, x):
         return self.embedding(x)
+
+
+

@@ -31,6 +31,7 @@ def get_args():
     parser.add_argument('--model', choices=['biaffine', 'mst', 'arc-standard',
                                             'arc-eager', 'hybrid', 'non-projective'],
                         default='arc-standard')
+    parser.add_argument('--bert-model',type=str,default='bert-base-cased')
     # Optimization
     parser.add_argument('--optim', choices=['adam', 'adamw', 'sgd'], default='adam')
     parser.add_argument('--eval-batches', type=int, default=20)
@@ -63,7 +64,7 @@ def get_optimizer(paramters, optim_alg, lr_decay, weight_decay):
     return optimizer, lr_scheduler
 
 
-def get_model(vocabs, embeddings, args):
+def get_model(vocabs,embeddings,args):
     if args.model == 'mst':
         return MSTParser(
             vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size,
@@ -71,8 +72,8 @@ def get_model(vocabs, embeddings, args):
             .to(device=constants.device)
     if args.model == 'arc-standard':
         return NeuralTransitionParser(
-            vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size, args.batch_size,
-            nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings,
+            vocabs=vocabs, embedding_size=args.embedding_size, hidden_size=args.hidden_size, batch_size=args.batch_size,
+            nlayers=args.nlayers, dropout=args.dropout,
             transition_system=constants.arc_standard) \
             .to(device=constants.device)
     elif args.model == 'arc-eager':
@@ -129,10 +130,10 @@ def _evaluate(evalloader, model):
     # pylint: disable=too-many-locals
     dev_loss, dev_las, dev_uas, n_instances = 0, 0, 0, 0
     steps = 0
-    for (text, pos), (heads, rels), (transitions, relations_in_order) in evalloader:
+    for (text, pos), (heads, rels), (transitions, relations_in_order),maps in evalloader:
         steps += 1
 
-        loss, predicted_heads, predicted_rels = model((text, pos), transitions, relations_in_order, mode='eval')
+        loss, predicted_heads, predicted_rels = model((text, pos), transitions, relations_in_order,maps, mode='eval')
         # print("çççççççççççççççççççççççççççççççç")
         # print("predicted heads {}".format(predicted_heads.shape))
         # print("real heads {}".format(heads.shape))
@@ -163,7 +164,7 @@ def evaluate(evalloader, model):
     return result
 
 
-def train_batch(text, pos, heads, rels, transitions, relations_in_order, model, optimizer):
+def train_batch(text, pos, heads, rels, transitions, relations_in_order, maps,model, optimizer):
     optimizer.zero_grad()
 
     text, pos = text.to(device=constants.device), pos.to(device=constants.device)
@@ -171,7 +172,7 @@ def train_batch(text, pos, heads, rels, transitions, relations_in_order, model, 
     transitions = transitions.to(device=constants.device)
     relations_in_order = relations_in_order.to(device=constants.device)
 
-    loss, pred_h, pred_rel = model((text, pos), transitions, relations_in_order, mode='train')
+    loss, pred_h, pred_rel = model((text, pos), transitions, relations_in_order,maps, mode='train')
     # print("çççççççççççççççççççççççççççççççç")
     # print("predicted heads {}".format(pred_h.shape))
     # print("real heads {}".format(heads.shape))
@@ -196,9 +197,10 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
     train_info = TrainInfo(wait_iterations, eval_batches)
     while not train_info.finish:
         steps = 0
-        for (text, pos), (heads, rels), (transitions, relations_in_order) in trainloader:
+        for (text, pos), (heads, rels), (transitions, relations_in_order),maps in trainloader:
             steps += 1
-            loss = train_batch(text, pos, heads, rels, transitions, relations_in_order, model, optimizer)
+            # maps are used to average the split embeddings from BERT
+            loss = train_batch(text, pos, heads, rels, transitions, relations_in_order, maps,model, optimizer)
             train_info.new_batch(loss)
             if train_info.eval:
                 dev_results = evaluate(devloader, model)
@@ -229,13 +231,13 @@ def main():
     elif args.model == "hybrid":
         transition_system = constants.hybrid
 
-    trainloader, devloader, testloader, vocabs, embeddings = \
+    trainloader, devloader, testloader,vocabs,embeddings = \
         get_data_loaders(args.data_path, args.language, args.batch_size, args.batch_size_eval, args.model,
-                         transition_system)
+                         transition_system=transition_system,bert_model=args.bert_model)
     print('Train size: %d Dev size: %d Test size: %d' %
           (len(trainloader.dataset), len(devloader.dataset), len(testloader.dataset)))
 
-    model = get_model(vocabs, embeddings, args)
+    model = get_model(vocabs,embeddings,args)
     train(trainloader, devloader, model, args.eval_batches, args.wait_iterations,
           args.optim, args.lr_decay, args.weight_decay, args.save_path, args.save_periodically)
 
