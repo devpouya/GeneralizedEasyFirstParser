@@ -132,7 +132,11 @@ def _evaluate(evalloader, model):
     steps = 0
     for (text, pos), (heads, rels), (transitions, relations_in_order),maps in evalloader:
         steps += 1
-
+        maps = maps.to(device=constants.device)
+        text, pos = text.to(device=constants.device), pos.to(device=constants.device)
+        heads, rels = heads.to(device=constants.device), rels.to(device=constants.device)
+        transitions = transitions.to(device=constants.device)
+        relations_in_order = relations_in_order.to(device=constants.device)
         loss, predicted_heads, predicted_rels = model((text, pos), transitions, relations_in_order,maps, mode='eval')
 
         # print("çççççççççççççççççççççççççççççççç")
@@ -167,7 +171,7 @@ def evaluate(evalloader, model):
 
 def train_batch(text, pos, heads, rels, transitions, relations_in_order, maps,model, optimizer):
     optimizer.zero_grad()
-
+    maps = maps.to(device=constants.device)
     text, pos = text.to(device=constants.device), pos.to(device=constants.device)
     heads, rels = heads.to(device=constants.device), rels.to(device=constants.device)
     transitions = transitions.to(device=constants.device)

@@ -104,7 +104,7 @@ class NeuralTransitionParser(BaseParser):
         self.batch_size = batch_size
         self.nlayers = nlayers
         self.dropout_prob = dropout
-        self.bert = BertModel.from_pretrained('bert-base-cased',output_hidden_states=True)
+        self.bert = BertModel.from_pretrained('bert-base-cased',output_hidden_states=True).to(device=constants.device)
 
         # transition system
         self.transition_system = transition_system
@@ -345,7 +345,7 @@ class NeuralTransitionParser(BaseParser):
         sent_lens = (x[0] != 0).sum(-1).to(device=constants.device)
         transit_lens = (transitions != -1).sum(-1).to(device=constants.device)
 
-        out = self.bert(x[0])[2]
+        out = self.bert(x[0].to(device=constants.device))[2]
         # average of last 4 hidden layers
         x_emb = torch.stack(out[-4:]).mean(0)#.squeeze(1).mean(0)
 
