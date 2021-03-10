@@ -252,18 +252,18 @@ class NeuralTransitionParser(BaseParser):
 
 
 
-        #action_probabilities = nn.Softmax(dim=-1)(self.mlp_act(state1)).squeeze(0)
-        action_probabilities = SoftmaxLegal(dim=-1, parser=parser, actions=self.actions)(self.mlp_act(state1)).squeeze(
-            0)
+        action_probabilities = nn.Softmax(dim=-1)(self.mlp_act(state1)).squeeze(0)
+        #action_probabilities = SoftmaxLegal(dim=-1, parser=parser, actions=self.actions)(self.mlp_act(state1)).squeeze(
+        #    0)
 
         state2 = self.dropout(F.relu(self.mlp_lin1_rel(parser_state)))#.squeeze(0)
         state2 = self.dropout(F.relu(self.mlp_lin2_rel(state2)))
         state2 = self.dropout(F.relu(self.mlp_lin3_rel(state2))).squeeze(0)
 
-        rel_probabilities = SoftmaxLegal(dim=-1, parser=parser, actions=self.actions,is_relation=True)\
-            (self.mlp_rel(state2)).squeeze(0)
+        #rel_probabilities = SoftmaxLegal(dim=-1, parser=parser, actions=self.actions,is_relation=True)\
+        #    (self.mlp_rel(state2)).squeeze(0)
 
-        #rel_probabilities = nn.Softmax(dim=-1)(self.mlp_rel(state2)).squeeze(0)
+        rel_probabilities = nn.Softmax(dim=-1)(self.mlp_rel(state2)).squeeze(0)
         return action_probabilities, rel_probabilities
 
     def legal_indices(self, parser):
@@ -368,7 +368,6 @@ class NeuralTransitionParser(BaseParser):
         probs_action_batch *= -1
         targets_rel_batch *= -1
         targets_action_batch *= -1
-
         # for testing
         # labeled_transitions = self.labeled_action_pairs(transitions[0], relations[0])
         # tr = [t.item() for (t,_) in labeled_transitions]
@@ -376,16 +375,16 @@ class NeuralTransitionParser(BaseParser):
         action_state = self.lstm_init_state_actions
         for i, sentence in enumerate(x_emb):
             # initialize a parser
-            mapping = map[i]
+            mapping = map[i,map[i]!=-1]
             last_index = 0
             s = torch.zeros((mapping.shape[0],sentence.shape[1])).to(device=constants.device)
 
             for k, index in enumerate(mapping):
-                select = torch.tensor(list(range(last_index,index))).to(device=constants.device)
+                select = torch.tensor(list(range(last_index,index)),dtype=torch.long).to(device=constants.device)
                 s[k,:] = torch.mean(sentence[select,:])
                 last_index = index
 
-            curr_sentence_length = sent_lens[i]
+            curr_sentence_length = mapping.shape[0]#sent_lens[i]
             curr_transition_length = transit_lens[i]
             s = s[:curr_sentence_length, :]
 
@@ -411,8 +410,8 @@ class NeuralTransitionParser(BaseParser):
                 targets_action_batch[i, step, :] = action_target
                 targets_rel_batch[i, step, :] = rel_target
 
-            heads_batch[i, :sent_lens[i]] = parser.heads_from_arcs()[0]
-            rels_batch[i, :sent_lens[i]] = parser.heads_from_arcs()[1]
+            heads_batch[i, :curr_sentence_length] = parser.heads_from_arcs()[0]
+            rels_batch[i, :curr_sentence_length] = parser.heads_from_arcs()[1]
             self.stack.back_to_init()
             self.buffer.back_to_init()
             self.action.back_to_init()
@@ -447,7 +446,6 @@ class NeuralTransitionParser(BaseParser):
         probs_rel = probs_rel[probs_rel[:, 0] != -1, :]
         loss = 2 / 3 * criterion1(probs, targets)
         loss += 1 / 3 * criterion2(probs_rel, targets_rel)
-        # print(loss)
         return loss
 
     def get_args(self):

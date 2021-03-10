@@ -134,6 +134,7 @@ def _evaluate(evalloader, model):
         steps += 1
 
         loss, predicted_heads, predicted_rels = model((text, pos), transitions, relations_in_order,maps, mode='eval')
+
         # print("çççççççççççççççççççççççççççççççç")
         # print("predicted heads {}".format(predicted_heads.shape))
         # print("real heads {}".format(heads.shape))

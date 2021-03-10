@@ -51,7 +51,8 @@ class SyntaxDataset(Dataset):
 
         encoded = self.tokenizer(wordlist, is_split_into_words=True, return_tensors="pt",
                                  return_attention_mask=False,
-                                 return_token_type_ids=False)
+                                 return_token_type_ids=False,
+                                 add_special_tokens=False)
 
         enc = [self.tokenizer.encode(x, add_special_tokens=False) for x in wordlist]
         idx = 0
