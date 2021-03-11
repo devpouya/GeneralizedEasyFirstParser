@@ -354,6 +354,7 @@ class NeuralTransitionParser(BaseParser):
 
         #sent_lens = (x[0] != 0).sum(-1).to(device=constants.device)
         transit_lens = (transitions != -1).sum(-1).to(device=constants.device)
+        #print(x[1])
         tags = self.tag_embeddings(x[1].to(device=constants.device))
         out = self.bert(x[0].to(device=constants.device))[2]
         # average of last 4 hidden layers
@@ -386,7 +387,10 @@ class NeuralTransitionParser(BaseParser):
         for i, sentence in enumerate(x_emb):
             # initialize a parser
             mapping = map[i,map[i]!=-1]
-            s = self.get_bert_embeddings(mapping,sentence,tags[i])
+            tag = self.tag_embeddings(x[1][i][x[1][i]!=0].to(device=constants.device))
+
+
+            s = self.get_bert_embeddings(mapping,sentence,tag)
             curr_sentence_length = s.shape[0]
             curr_transition_length = transit_lens[i]
             s = s[:curr_sentence_length, :]
