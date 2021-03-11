@@ -62,6 +62,8 @@ class SyntaxDataset(Dataset):
             for ids in token:
                 tokenout.append(idx)
                 idx+=1
+
+            token_mapping.append(tokenout[0])
             token_mapping.append(tokenout[-1])
 
 
