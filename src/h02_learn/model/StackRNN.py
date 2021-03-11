@@ -108,7 +108,7 @@ class NeuralTransitionParser(BaseParser):
         self.nlayers = nlayers
         self.dropout_prob = dropout
         self.bert = BertModel.from_pretrained('bert-base-cased',output_hidden_states=True).to(device=constants.device)
-
+        self.bert.eval()
         # transition system
         self.transition_system = transition_system
         # print(self.transition_system)
@@ -356,9 +356,11 @@ class NeuralTransitionParser(BaseParser):
         transit_lens = (transitions != -1).sum(-1).to(device=constants.device)
         #print(x[1])
         tags = self.tag_embeddings(x[1].to(device=constants.device))
-        out = self.bert(x[0].to(device=constants.device))[2]
         # average of last 4 hidden layers
-        x_emb = torch.stack(out[-4:]).mean(0)#.squeeze(1).mean(0)
+        with torch.no_grad():
+            out = self.bert(x[0].to(device=constants.device))[2]
+            #x_emb = out[-1]
+            x_emb = torch.stack(out[-4:]).mean(0)#.squeeze(1).mean(0)
 
         # now need to combine the subtokens somehow
         # option one: just cut at transitions.shape[1]

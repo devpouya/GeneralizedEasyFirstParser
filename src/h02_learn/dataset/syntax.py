@@ -48,15 +48,16 @@ class SyntaxDataset(Dataset):
         return len(ids) == 2 * n - 1
 
     def tokenize(self, wordlist):
-
         encoded = self.tokenizer(wordlist, is_split_into_words=True, return_tensors="pt",
                                  return_attention_mask=False,
                                  return_token_type_ids=False,
                                  add_special_tokens=False)
 
         enc = [self.tokenizer.encode(x, add_special_tokens=False) for x in wordlist]
+
         idx = 0
         token_mapping = []
+        token_mapping2 = []
         for token in enc:
             tokenout = []
             for ids in token:
@@ -65,6 +66,8 @@ class SyntaxDataset(Dataset):
 
             token_mapping.append(tokenout[0])
             token_mapping.append(tokenout[-1])
+            token_mapping2.append(tokenout)
+
 
 
         return encoded['input_ids'].squeeze(0), torch.LongTensor(token_mapping).to(device=constants.device)
