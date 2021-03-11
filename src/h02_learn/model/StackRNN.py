@@ -167,25 +167,31 @@ class NeuralTransitionParser(BaseParser):
             device=constants.device)
         self.rel_bias = nn.Parameter(torch.Tensor(1, self.num_rels), requires_grad=True).to(device=constants.device)
         # MLP
+        print(stack_lstm_size*2+self.action_embeddings_size)
+
         self.mlp_lin1 = nn.Linear(stack_lstm_size*2+self.action_embeddings_size,
-                                  self.embedding_size).to(device=constants.device)
-        #self.mlp_lin2 = nn.Linear(1352, 1052).to(device=constants.device)
-        #self.mlp_lin3 = nn.Linear(1052, self.embedding_size).to(device=constants.device)
+                                  1500).to(device=constants.device)
+        self.mlp_lin2 = nn.Linear(1500, 1250).to(device=constants.device)
+        self.mlp_lin3 = nn.Linear(1250, 1000).to(device=constants.device)
+        self.mlp_lin4 = nn.Linear(1000, self.embedding_size).to(device=constants.device)
 
         self.mlp_lin1_rel = nn.Linear(stack_lstm_size*2+self.action_embeddings_size,
-                                      self.embedding_size).to(device=constants.device)
-        #self.mlp_lin2_rel = nn.Linear(1352, 1052).to(device=constants.device)
-        #self.mlp_lin3_rel = nn.Linear(1052, self.embedding_size).to(device=constants.device)
+                                      1500).to(device=constants.device)
+        self.mlp_lin2_rel = nn.Linear(1500, 1250).to(device=constants.device)
+        self.mlp_lin3_rel = nn.Linear(1250, 1000).to(device=constants.device)
+        self.mlp_lin4_rel = nn.Linear(1000, self.embedding_size).to(device=constants.device)
 
         self.mlp_act = nn.Linear(self.embedding_size, self.num_actions).to(device=constants.device)
         self.mlp_rel = nn.Linear(self.embedding_size, self.num_rels).to(device=constants.device)
         torch.nn.init.xavier_uniform_(self.mlp_lin1.weight)
-        #torch.nn.init.xavier_uniform_(self.mlp_lin2.weight)
-        #torch.nn.init.xavier_uniform_(self.mlp_lin3.weight)
+        torch.nn.init.xavier_uniform_(self.mlp_lin2.weight)
+        torch.nn.init.xavier_uniform_(self.mlp_lin3.weight)
+        torch.nn.init.xavier_uniform_(self.mlp_lin4.weight)
 
         torch.nn.init.xavier_uniform_(self.mlp_lin1_rel.weight)
-        #torch.nn.init.xavier_uniform_(self.mlp_lin2_rel.weight)
-        #torch.nn.init.xavier_uniform_(self.mlp_lin3_rel.weight)
+        torch.nn.init.xavier_uniform_(self.mlp_lin2_rel.weight)
+        torch.nn.init.xavier_uniform_(self.mlp_lin3_rel.weight)
+        torch.nn.init.xavier_uniform_(self.mlp_lin4_rel.weight)
 
         torch.nn.init.xavier_uniform_(self.mlp_act.weight)
         torch.nn.init.xavier_uniform_(self.mlp_rel.weight)
@@ -263,25 +269,27 @@ class NeuralTransitionParser(BaseParser):
         #parser_state = torch.cat([self.stack.embedding(), self.buffer.embedding(), action_state.mean(0).unsqueeze(0)], dim=-1)
         #actions = self.stacked_action_embeddings()
 
-        state1 = self.dropout(F.relu(self.mlp_lin1(parser_state))).squeeze(0)
+        state1 = self.dropout(F.relu(self.mlp_lin1(parser_state)))#.squeeze(0)
 
-        #state1 = self.dropout(F.relu(self.mlp_lin2(state1)))
-        #state1 = self.dropout(F.relu(self.mlp_lin3(state1))).squeeze(0)
+        state1 = self.dropout(F.relu(self.mlp_lin2(state1)))
+        state1 = self.dropout(F.relu(self.mlp_lin3(state1)))#.squeeze(0)
+        state1 = self.dropout(F.relu(self.mlp_lin4(state1))).squeeze(0)
 
 
 
-        action_probabilities = nn.Softmax(dim=-1)(self.mlp_act(state1)).squeeze(0)
-        #action_probabilities = SoftmaxLegal(dim=-1, parser=parser, actions=self.actions)(self.mlp_act(state1)).squeeze(
-        #    0)
+        #action_probabilities = nn.Softmax(dim=-1)(self.mlp_act(state1)).squeeze(0)
+        action_probabilities = SoftmaxLegal(dim=-1, parser=parser, actions=self.actions)(self.mlp_act(state1)).squeeze(
+            0)
 
-        state2 = self.dropout(F.relu(self.mlp_lin1_rel(parser_state))).squeeze(0)
-        #state2 = self.dropout(F.relu(self.mlp_lin2_rel(state2)))
-        #state2 = self.dropout(F.relu(self.mlp_lin3_rel(state2))).squeeze(0)
+        state2 = self.dropout(F.relu(self.mlp_lin1_rel(parser_state)))#.squeeze(0)
+        state2 = self.dropout(F.relu(self.mlp_lin2_rel(state2)))
+        state2 = self.dropout(F.relu(self.mlp_lin3_rel(state2)))#.squeeze(0)
+        state2 = self.dropout(F.relu(self.mlp_lin4_rel(state2)))#.squeeze(0)
 
-        #rel_probabilities = SoftmaxLegal(dim=-1, parser=parser, actions=self.actions,is_relation=True)\
-        #    (self.mlp_rel(state2)).squeeze(0)
+        rel_probabilities = SoftmaxLegal(dim=-1, parser=parser, actions=self.actions,is_relation=True)\
+            (self.mlp_rel(state2)).squeeze(0)
 
-        rel_probabilities = nn.Softmax(dim=-1)(self.mlp_rel(state2)).squeeze(0)
+        #rel_probabilities = nn.Softmax(dim=-1)(self.mlp_rel(state2)).squeeze(0)
         return action_probabilities, rel_probabilities
 
     def parse_step_arc_standard(self, parser, labeled_transitions, mode):
@@ -357,7 +365,7 @@ class NeuralTransitionParser(BaseParser):
         #print(x[1])
         tags = self.tag_embeddings(x[1].to(device=constants.device))
         # average of last 4 hidden layers
-        if mode == "eval":
+        if mode == "eval" or mode == 'train':
             self.bert.eval()
             with torch.no_grad():
                 out = self.bert(x[0].to(device=constants.device))[2]
