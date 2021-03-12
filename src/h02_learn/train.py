@@ -198,6 +198,7 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
           save_path, save_batch=False):
     # pylint: disable=too-many-locals,too-many-arguments
     torch.autograd.set_detect_anomaly(True)
+
     optimizer, lr_scheduler = get_optimizer(model.parameters(), optim_alg, lr_decay, weight_decay)
     train_info = TrainInfo(wait_iterations, eval_batches)
     while not train_info.finish:

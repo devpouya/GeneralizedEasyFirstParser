@@ -110,8 +110,8 @@ class NeuralTransitionParser(BaseParser):
         self.bert = BertModel.from_pretrained('bert-base-cased',output_hidden_states=True).to(device=constants.device)
         #self.bert.eval()
 
-        for param in self.bert.base_model.parameters():
-            param.requires_grad = False
+        for param in self.bert.parameters():
+            param.requires_grad = True
 
         # transition system
         self.transition_system = transition_system
@@ -344,11 +344,15 @@ class NeuralTransitionParser(BaseParser):
         #print(x[1])
         tags = self.tag_embeddings(x[1].to(device=constants.device))
         # average of last 4 hidden layers
-        with torch.no_grad():
-            self.bert.eval()
+        if mode == "eval":
+            with torch.no_grad():
+                self.bert.eval()
+                out = self.bert(x[0].to(device=constants.device))[2]
+        else:
+            self.bert.train()
             out = self.bert(x[0].to(device=constants.device))[2]
-            x_emb = torch.stack(out).mean(0)
 
+        x_emb = torch.stack(out[-4:]).mean(0)
 
         probs_action_batch = torch.ones((x_emb.shape[0], transitions.shape[1], self.num_actions), dtype=torch.float).to(
             device=constants.device)
@@ -421,14 +425,10 @@ class NeuralTransitionParser(BaseParser):
 
         return c1
     def loss(self, probs, targets, probs_rel, targets_rel):
-        criterion1 = nn.CrossEntropyLoss(ignore_index=0,reduction='sum').to(device=constants.device)
+        criterion1 = nn.CrossEntropyLoss().to(device=constants.device)
 
-        criterion2 = nn.CrossEntropyLoss(reduction='sum').to(device=constants.device)
-        #print("ZZZZZZZZZZZZZZ")
-        #print(probs.shape)
-        #print(probs_rel.shape)
-        #print(targets.shape)
-        #print(targets_rel.shape)
+        criterion2 = nn.CrossEntropyLoss().to(device=constants.device)
+
         probs = probs.reshape(-1, probs.shape[-1])
         targets = targets.reshape(-1)
         targets = targets[probs[:, 0] != -1]
@@ -442,14 +442,9 @@ class NeuralTransitionParser(BaseParser):
         targets_rel = targets_rel[targets_rel != 0]
         targets_rel = targets_rel[probs_rel[:, 0] != -1]
         probs_rel = probs_rel[probs_rel[:, 0] != -1, :]
-        #print(probs.shape)
-        #print(probs_rel.shape)
-        #print(targets.shape)
-        #print(targets_rel)
-        #print("ZZZZZZZZZZZZZZ")
-        loss = (criterion1(probs, targets) / probs.shape[0])
-        loss += (criterion2(probs_rel, targets_rel) / probs.shape[0])
-        print(loss)
+
+        loss = 0.5*criterion1(probs, targets)
+        loss += 0.5*criterion2(probs_rel, targets_rel)
         return loss
 
     def get_args(self):
