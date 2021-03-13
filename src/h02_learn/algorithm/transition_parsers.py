@@ -198,15 +198,14 @@ class ShiftReduceParser():
         c = self.subtree_rep_hybrid(left, top, rel_embed,linear)
         return c
 
-    def right_arc_eager(self, act_embed, rel,rel_embed,linear):
+    def right_arc_eager(self,rel,rel_embed,linear):
         top = self.stack[-1]
         left = self.buffer[0]
         self.stack.append(left)
         self.arcs.append((top[1], left[1],rel))
         self.action_history_names.append(constants.right_arc_eager)
-        c = self.subtree_rep(top, left, rel_embed,act_embed,linear)
+        c = self.subtree_rep(top, left, rel_embed,linear)
         self.buffer.pop(0)
-
         return c
 
     def left_arc_hybrid(self, act_emb,rel,rel_embed,linear):

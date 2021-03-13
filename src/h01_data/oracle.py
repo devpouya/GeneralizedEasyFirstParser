@@ -385,20 +385,8 @@ def arc_eager_oracle(sentence, word2head, relations):
         else:
             stack.append(buffer.pop(0))
             action_history.append(constants.shift)
-            if len(buffer) == 0:
-                top = stack.pop(-1)
-                if (top, top) in true_arcs:
-                    built_arcs.append((top, top))
-                    # built_labeled_arcs.append((top, top, relations[0]))
-                    # relations.pop(0)
-                    action_history.append(None)
-    built_arcs.append((0, 0))
-    #action_history.append(None)
 
-    # print("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&")
-    # print(built_arcs)
-    # print(true_arcs)
-    # print("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&")
+    built_arcs.append((0, 0))
 
     cond1 = set(built_arcs) == set(true_arcs)
     cond2 = test_oracle_arc_eager(action_history,sentence.copy(),true_arcs)
