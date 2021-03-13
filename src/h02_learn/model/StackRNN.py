@@ -187,8 +187,7 @@ class NeuralTransitionParser(BaseParser):
         self.linear_tree = nn.Linear(self.tag_rel_embeddings_size+2*stack_lstm_size, stack_lstm_size).to(device=constants.device)
         # self.linear_tree2 = nn.Linear(5 * embedding_size, 3 * embedding_size).to(device=constants.device)
         torch.nn.init.xavier_uniform_(self.linear_tree.weight)
-        #self.rnn_tree = nn.LSTM(2 *(3*embedding_size)+embedding_size,3*embedding_size).to(device=constants.device)
-        self.rnn_tree = nn.LSTM(3*embedding_size,3*embedding_size).to(device=constants.device)
+
         # torch.nn.init.xavier_uniform_(self.linear_tree2.weight)
 
         self.stack = StackCell(self.stack_lstm, self.lstm_init_state, self.lstm_init_state, self.dropout,
@@ -314,7 +313,7 @@ class NeuralTransitionParser(BaseParser):
             # reduce-l
 
             self.action.push(self.get_action_embed(constants.shift).squeeze(0))
-            ret = parser.reduce_l(rel, rel_embed, self.rnn_tree,self.linear_tree)
+            ret = parser.reduce_l(rel, rel_embed,self.linear_tree)
             self.stack.pop(-2)
             self.stack.replace(ret.unsqueeze(0))
 
@@ -324,7 +323,7 @@ class NeuralTransitionParser(BaseParser):
             # reduce-r
 
             self.action.push(self.get_action_embed(constants.reduce_l).squeeze(0))
-            ret = parser.reduce_r(rel, rel_embed, self.rnn_tree,self.linear_tree)
+            ret = parser.reduce_r(rel, rel_embed,self.linear_tree)
             self.stack.pop()
             self.stack.replace(ret.unsqueeze(0))
 
@@ -599,21 +598,10 @@ class NeuralTransitionParser(BaseParser):
         return parser, (action_probabilities, rel_probabilities), (action_target, rel_target)
 
     def parse_step_hybrid(self, parser, labeled_transitions, mode):
-        action_probabilities, rel_probabilities = self.parser_probabilities(action_state[0])
-        if labeled_transitions is not None:
-            best_action = labeled_transitions[0].item()
-            rel = labeled_transitions[1]
-        else:
-            best_action = -2
-            rel = 0
-
-        if best_action != -2:
-            action_target = torch.tensor([best_action], dtype=torch.long).to(device=constants.device)
-        else:
-            action_target = torch.tensor([1], dtype=torch.long).to(device=constants.device)
-
-        if best_action == 0 or best_action == -2:
-            rel = 0
+        action_probabilities, rel_probabilities = self.parser_probabilities(parser)
+        best_action = labeled_transitions[0].item()
+        rel = labeled_transitions[1]
+        action_target = torch.tensor([best_action], dtype=torch.long).to(device=constants.device)
         rel_target = torch.tensor([rel], dtype=torch.long).to(device=constants.device)
         rel_embed = self.rel_embeddings(rel_target).to(device=constants.device)
 
@@ -623,25 +611,17 @@ class NeuralTransitionParser(BaseParser):
                 # can only shift
                 best_action = 0  # torch.argmax(action_probabilities[:, 0], dim=-1).item()
 
-
-            elif len(parser.buffer) < 1:
-                if len(parser.stack) >= 2:
-                    # can't shift or left
-                    # tmp = action_probabilities.clone().detach().to(device=constants.device)
-                    # tmp[:, 0] = -float('inf')
-                    best_action = 2  # torch.argmax(tmp, dim=-1).item()
-                else:
-                    best_action = -2
-
-            elif len(parser.stack) < 2:
+            elif len(parser.stack) == 1 and len(parser.buffer) > 0:
+                # can't right reduce
                 tmp = action_probabilities.clone().detach().to(device=constants.device)
                 tmp[:, 2] = -float('inf')
                 best_action = torch.argmax(tmp, dim=-1).item()
 
-            else:
-
+            elif len(parser.buffer) > 0:
                 tmp = action_probabilities.clone().detach().to(device=constants.device)
                 best_action = torch.argmax(tmp, dim=-1).item()
+            else:
+                best_action = 2
 
             rel = torch.argmax(rel_probabilities, dim=-1).item()  # +1
             rel_ind = torch.tensor([rel], dtype=torch.long).to(device=constants.device)
@@ -650,18 +630,15 @@ class NeuralTransitionParser(BaseParser):
         if best_action == 0:
             self.action.push(self.get_action_embed(constants.shift))
             parser.shift()
-            ting = self.buffer.pop()
-            self.stack.push(ting)
+            self.stack.push(self.buffer.pop())
         elif best_action == 1:
+            self.action.push(self.get_action_embed(constants.left_arc_eager))
+            parser.left_arc_eager(rel, rel_embed, self.linear_tree)
             self.stack.pop()
-            act_embed = self.get_action_embed(constants.left_arc_eager)
-            self.action.push(act_embed)
-            parser.left_arc_hybrid(act_embed, rel, rel_embed, self.linear_tree)
 
         elif best_action == 2:
-            act_embed = self.get_action_embed(constants.reduce_r)
-            self.action.push(act_embed)
-            ret = parser.reduce_r_hybrid(act_embed, rel, rel_embed, self.linear_tree)
+            self.action.push(self.get_action_embed(constants.reduce_r))
+            ret = parser.reduce_r(rel, rel_embed, self.linear_tree)
             self.stack.pop()
             self.stack.pop()
             self.stack.push(ret.unsqueeze(0).unsqueeze(1))

@@ -393,16 +393,17 @@ def arc_eager_oracle(sentence, word2head, relations):
                     # relations.pop(0)
                     action_history.append(None)
     built_arcs.append((0, 0))
-    action_history.append(None)
+    #action_history.append(None)
 
     # print("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&")
     # print(built_arcs)
     # print(true_arcs)
     # print("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&")
 
-    # cond1 = set(built_arcs) == set(true_arcs)
-    # cond2 = test_oracle_arc_eager(action_history,sentence.copy(),true_arcs)
-    return action_history, relations_in_order
+    cond1 = set(built_arcs) == set(true_arcs)
+    cond2 = test_oracle_arc_eager(action_history,sentence.copy(),true_arcs)
+    #print("cond1 {} cond2 {}".format(cond1,cond2))
+    return action_history, relations_in_order, cond1 and cond2
 
 
 def test_oracle_hybrid(action_history, sentence, true_arcs):
@@ -419,9 +420,7 @@ def test_oracle_hybrid(action_history, sentence, true_arcs):
         elif action == constants.reduce_r:
             arcs.append((sigma[-2], sigma[-1]))
             sigma.pop(-1)
-        else:
-            item = sigma.pop(-1)
-            arcs.append((item, item))
+    arcs.append((0,0))
     return set(arcs) == set(true_arcs)
 
 
@@ -435,20 +434,15 @@ def hybrid_oracle(sentence, word2head, relations):
     built_labeled_arcs = []
     # labeled_arcs = arcs_with_relations(true_arcs, relations)
     action_history = []
-
     arcs_sorted = sorted(true_arcs, key=lambda tup: tup[1])[1:]
     labeled_arcs = []
     for i, (u, v) in enumerate(arcs_sorted):
         labeled_arcs.append((u, v, relations[i]))
-
     relations_in_order = []
     while len(buffer) > 0 or len(stack) > 1:
-
-
         if len(stack) > 0:
-
             top = stack[-1]
-            if len(stack) == 1 and len(buffer)>0:
+            if len(stack) == 1 and len(buffer) > 0:
                 front = buffer[0]
                 if (front,top) in true_arcs and have_completed_expected_children(top,true_arcs,built_arcs):
                     built_arcs.append((front,top))
@@ -458,6 +452,7 @@ def hybrid_oracle(sentence, word2head, relations):
                     continue
                 stack.append(buffer.pop(0))
                 action_history.append(constants.shift)
+
             else:
                 second = stack[-2]
                 if (second,top) in true_arcs and have_completed_expected_children(top,true_arcs,built_arcs):
@@ -477,17 +472,15 @@ def hybrid_oracle(sentence, word2head, relations):
 
                 stack.append(buffer.pop(0))
                 action_history.append(constants.shift)
-
         else:
             stack.append(buffer.pop(0))
             action_history.append(constants.shift)
 
 
     built_arcs.append((0,0))
-    action_history.append(None)
+    #action_history.append(None)
 
 
-    #cond1 = set(built_arcs) == set(true_arcs)
-    #cond2 = test_oracle_hybrid(action_history, sentence.copy(), true_arcs)
-
-    return action_history, relations_in_order
+    cond1 = set(built_arcs) == set(true_arcs)
+    cond2 = test_oracle_hybrid(action_history, sentence.copy(), true_arcs)
+    return action_history, relations_in_order, cond1 and cond2
