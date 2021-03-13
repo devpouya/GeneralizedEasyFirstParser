@@ -84,6 +84,9 @@ class StackCell():
         #self.s[-1][0].detach()
         #self.s[-1][1].detach()
         self.s[-1] = (h,c)
+    def put_first(self,expr):
+        h, c = self.cell(expr, self.s[0])
+        self.s[0] = (h,c)
 
     def push(self, expr):
         h,c = self.cell(expr, self.s[-1])

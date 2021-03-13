@@ -133,25 +133,6 @@ class ShiftReduceParser():
         self.learned_repr = sentence
         self.embedding_size = embedding_size
 
-        # used for learning representation for partial parse trees
-        #self.linear = nn.Linear(7 * embedding_size+16, 3 * embedding_size).to(device=constants.device)
-        #torch.nn.init.xavier_uniform_(self.linear.weight)
-
-        #self.tanh = nn.Tanh().to(device=constants.device)
-
-    def rec_subtree(self, top, second, rel_embed, rnn,linear):
-        reprs = torch.cat([top[0], second[0], rel_embed.reshape(100)],
-                          dim=-1)
-        seq = torch.stack([top[0],second[0]])
-        #print(seq.shape)
-        #print(reprs.shape)
-        c,_ = rnn(seq.unsqueeze(1))
-        c = c.squeeze(1)
-        c = torch.cat([c[0,:],c[1,:],rel_embed.reshape(self.embedding_size)],dim=-1)
-        c = nn.Tanh()(linear(c))
-        (_, ind) = self.stack[-1]
-        self.stack[-1] = (c, ind)
-        return c
 
     def subtree_rep(self, top, second, rel_embed,linear):
 
@@ -162,6 +143,17 @@ class ShiftReduceParser():
         (_, ind) = self.stack[-1]
         self.stack[-1] = (c, ind)
         return c
+
+    def subtree_rep_hybrid(self, top, second, rel_embed,linear):
+
+        reprs = torch.cat([top[0], second[0], rel_embed.reshape(100)],
+                          dim=-1)
+
+        c = nn.Tanh()(linear(reprs))
+        (_, ind) = self.buffer[0]
+        self.buffer[0] = (c, ind)
+        return c
+
 
 
     def shift(self):
@@ -203,7 +195,7 @@ class ShiftReduceParser():
         self.stack.pop(-1)
         self.arcs.append((left[1], top[1],rel))
         self.action_history_names.append(constants.left_arc_eager)
-        c = self.subtree_rep(left, top, rel_embed,linear)
+        c = self.subtree_rep_hybrid(left, top, rel_embed,linear)
         return c
 
     def right_arc_eager(self, act_embed, rel,rel_embed,linear):

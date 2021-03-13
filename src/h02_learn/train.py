@@ -78,14 +78,14 @@ def get_model(vocabs,embeddings,args):
             .to(device=constants.device)
     elif args.model == 'arc-eager':
         return NeuralTransitionParser(
-            vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size, args.batch_size,
-            nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings,
+            vocabs=vocabs, embedding_size=args.embedding_size, hidden_size=args.hidden_size, batch_size=args.batch_size,
+            nlayers=args.nlayers, dropout=args.dropout,
             transition_system=constants.arc_eager) \
             .to(device=constants.device)
     elif args.model == 'hybrid':
         return NeuralTransitionParser(
-            vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size, args.batch_size,
-            nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings,
+            vocabs=vocabs, embedding_size=args.embedding_size, hidden_size=args.hidden_size, batch_size=args.batch_size,
+            nlayers=args.nlayers, dropout=args.dropout,
             transition_system=constants.hybrid) \
             .to(device=constants.device)
     else:
