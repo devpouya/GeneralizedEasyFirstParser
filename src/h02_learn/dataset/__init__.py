@@ -80,7 +80,7 @@ def get_data_loaders(data_path, language, batch_size, batch_size_eval, transitio
         (transitions_train, transitions_dev, transitions_test) = get_oracle_actions(src_path, transitions)
     vocabs = load_vocabs(src_path)
     embeddings = load_embeddings(src_path)
-    tokenizer = BertTokenizer.from_pretrained(bert_model)
+    tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
     trainloader = get_data_loader(fname_train, transitions_train, transition_system, tokenizer, batch_size,
                                   shuffle=True)
     devloader = get_data_loader(fname_dev, transitions_dev, transition_system, tokenizer, batch_size_eval,

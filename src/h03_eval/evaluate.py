@@ -3,7 +3,7 @@ import argparse
 
 sys.path.append('./src/')
 from h02_learn.dataset import get_data_loaders
-from h02_learn.model import BiaffineParser
+from h02_learn.model import NeuralTransitionParser
 from h02_learn.train import evaluate
 from utils import constants
 
@@ -26,7 +26,7 @@ def get_args():
 
 def load_model(checkpoints_path, language,model,name):
     load_path = '%s/%s/%s/%s/' % (checkpoints_path, language,model,name)
-    return BiaffineParser.load(load_path).to(device=constants.device)
+    return NeuralTransitionParser.load(load_path).to(device=constants.device)
 
 
 def main():

@@ -97,15 +97,13 @@ class SoftmaxLegal(nn.Module):
 
 
 class NeuralTransitionParser(BaseParser):
-    def __init__(self, vocabs, embedding_size, hidden_size, batch_size,
-                 nlayers=3, dropout=0.33, transition_system=None):
+    def __init__(self, vocabs, embedding_size, batch_size,
+                 dropout=0.33, transition_system=None):
         super().__init__()
         # basic parameters
         self.vocabs = vocabs
-        self.embedding_size = 768#embedding_size
-        self.hidden_size = hidden_size
+        self.embedding_size = embedding_size
         self.batch_size = batch_size
-        self.nlayers = nlayers
         self.dropout_prob = dropout
         self.bert = BertModel.from_pretrained('bert-base-cased',output_hidden_states=True).to(device=constants.device)
         self.bert.eval()
@@ -456,9 +454,9 @@ class NeuralTransitionParser(BaseParser):
         return {
             'vocabs': self.vocabs,
             'embedding_size': self.embedding_size,
-            'hidden_size': self.hidden_size,
-            'nlayers': self.nlayers,
             'dropout': self.dropout_prob,
+            'batch_size':self.batch_size,
+            'transition_system': self.transition_system
         }
 
     def check_if_good(self, built, heads, sent_lens):

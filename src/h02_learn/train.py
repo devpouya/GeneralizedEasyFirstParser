@@ -21,11 +21,7 @@ def get_args():
     parser.add_argument('--batch-size', type=int, default=32)
     parser.add_argument('--batch-size-eval', type=int, default=128)
     # Model
-    parser.add_argument('--nlayers', type=int, default=3)
-    parser.add_argument('--embedding-size', type=int, default=100)
-    parser.add_argument('--hidden-size', type=int, default=400)
-    parser.add_argument('--arc-size', type=int, default=500)
-    parser.add_argument('--label-size', type=int, default=100)
+    parser.add_argument('--embedding-size', type=int, default=768)
     parser.add_argument('--dropout', type=float, default=.33)
     parser.add_argument('--weight-decay', type=float, default=0.01)
     parser.add_argument('--model', choices=['biaffine', 'mst', 'arc-standard',
@@ -72,19 +68,19 @@ def get_model(vocabs,embeddings,args):
             .to(device=constants.device)
     if args.model == 'arc-standard':
         return NeuralTransitionParser(
-            vocabs=vocabs, embedding_size=args.embedding_size, hidden_size=args.hidden_size, batch_size=args.batch_size,
+            vocabs=vocabs, embedding_size=args.embedding_size, batch_size=args.batch_size,
             nlayers=args.nlayers, dropout=args.dropout,
             transition_system=constants.arc_standard) \
             .to(device=constants.device)
     elif args.model == 'arc-eager':
         return NeuralTransitionParser(
-            vocabs=vocabs, embedding_size=args.embedding_size, hidden_size=args.hidden_size, batch_size=args.batch_size,
+            vocabs=vocabs, embedding_size=args.embedding_size, batch_size=args.batch_size,
             nlayers=args.nlayers, dropout=args.dropout,
             transition_system=constants.arc_eager) \
             .to(device=constants.device)
     elif args.model == 'hybrid':
         return NeuralTransitionParser(
-            vocabs=vocabs, embedding_size=args.embedding_size, hidden_size=args.hidden_size, batch_size=args.batch_size,
+            vocabs=vocabs, embedding_size=args.embedding_size, batch_size=args.batch_size,
             nlayers=args.nlayers, dropout=args.dropout,
             transition_system=constants.hybrid) \
             .to(device=constants.device)
