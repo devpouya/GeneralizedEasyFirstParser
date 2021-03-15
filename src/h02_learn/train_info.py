@@ -9,7 +9,6 @@ class TrainInfo:
     best_batch = 0
     lr_reductions = 0
     MAX_REDUCTIONS = 20
-    saved_one = False
 
     def __init__(self, wait_iterations, eval_batches):
         self.wait_iterations = wait_iterations
@@ -32,7 +31,7 @@ class TrainInfo:
     @property
     def finish(self):
         #print("is stuck {}".format(self.stuck))
-        return self.saved_one#self.stuck and (self.lr_reductions >= self.MAX_REDUCTIONS)
+        return self.stuck and (self.lr_reductions >= self.MAX_REDUCTIONS)
 
     @property
     def eval(self):
@@ -58,7 +57,6 @@ class TrainInfo:
             self.best_las = dev_las
             self.best_uas = dev_uas
             self.best_batch = self.batch_id
-            self.saved_one = True
             return True
 
 
