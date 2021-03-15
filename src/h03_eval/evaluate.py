@@ -14,14 +14,18 @@ def get_args():
     parser.add_argument('--language', type=str, required=True)
     parser.add_argument('--data-path', type=str, default='data/')
     parser.add_argument('--batch-size', type=int, default=128)
+    parser.add_argument('--name', type=str)
+    parser.add_argument('--model', choices=['biaffine', 'mst', 'arc-standard',
+                                            'arc-eager', 'hybrid', 'non-projective'],
+                        default='arc-standard')
     # Model
     parser.add_argument('--checkpoints-path', type=str, default='checkpoints/')
 
     return parser.parse_args()
 
 
-def load_model(checkpoints_path, language):
-    load_path = '%s/%s/' % (checkpoints_path, language)
+def load_model(checkpoints_path, language,model,name):
+    load_path = '%s/%s/%s/%s/' % (checkpoints_path, language,model,name)
     return BiaffineParser.load(load_path).to(device=constants.device)
 
 
@@ -34,7 +38,7 @@ def main():
     print('Train size: %d Dev size: %d Test size: %d' %
           (len(trainloader.dataset), len(devloader.dataset), len(testloader.dataset)))
 
-    model = load_model(args.checkpoints_path, args.language)
+    model = load_model(args.checkpoints_path, args.language,args.model,args.name)
 
     train_loss, train_las, train_uas = evaluate(trainloader, model)
     dev_loss, dev_las, dev_uas = evaluate(devloader, model)
