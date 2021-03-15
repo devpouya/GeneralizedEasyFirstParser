@@ -22,6 +22,7 @@ def get_args():
     parser.add_argument('--batch-size-eval', type=int, default=128)
     # Model
     parser.add_argument('--embedding-size', type=int, default=768)
+    parser.add_argument('--rel-embedding-size', type=int, default=100)
     parser.add_argument('--dropout', type=float, default=.33)
     parser.add_argument('--weight-decay', type=float, default=0.01)
     parser.add_argument('--model', choices=['biaffine', 'mst', 'arc-standard',
@@ -63,24 +64,24 @@ def get_optimizer(paramters, optim_alg, lr_decay, weight_decay):
 def get_model(vocabs,embeddings,args):
     if args.model == 'mst':
         return MSTParser(
-            vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size,
+            vocabs, args.embedding_size,args.rel_embedding_size, args.hidden_size, args.arc_size, args.label_size,
             nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings) \
             .to(device=constants.device)
     if args.model == 'arc-standard':
         return NeuralTransitionParser(
-            vocabs=vocabs, embedding_size=args.embedding_size, batch_size=args.batch_size,
+            vocabs=vocabs, embedding_size=args.embedding_size,rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
             dropout=args.dropout,
             transition_system=constants.arc_standard) \
             .to(device=constants.device)
     elif args.model == 'arc-eager':
         return NeuralTransitionParser(
-            vocabs=vocabs, embedding_size=args.embedding_size, batch_size=args.batch_size,
+            vocabs=vocabs, embedding_size=args.embedding_size,rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
             dropout=args.dropout,
             transition_system=constants.arc_eager) \
             .to(device=constants.device)
     elif args.model == 'hybrid':
         return NeuralTransitionParser(
-            vocabs=vocabs, embedding_size=args.embedding_size, batch_size=args.batch_size,
+            vocabs=vocabs, embedding_size=args.embedding_size,rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
             dropout=args.dropout,
             transition_system=constants.hybrid) \
             .to(device=constants.device)
