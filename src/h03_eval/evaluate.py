@@ -32,9 +32,18 @@ def load_model(checkpoints_path, language,model,name):
 def main():
     # pylint: disable=too-many-locals
     args = get_args()
-
+    if args.model == "arc-standard":
+        transition_system = constants.arc_standard
+    elif args.model == "arc-eager":
+        transition_system = constants.arc_eager
+    elif args.model == "hybrid":
+        transition_system = constants.hybrid
     trainloader, devloader, testloader, _, _ = \
         get_data_loaders(args.data_path, args.language, args.batch_size, args.batch_size)
+
+    trainloader, devloader, testloader, _, _ = \
+        get_data_loaders(args.data_path, args.language, args.batch_size,args.batch_size, args.model,
+                         transition_system=transition_system, bert_model=args.bert_model)
     print('Train size: %d Dev size: %d Test size: %d' %
           (len(trainloader.dataset), len(devloader.dataset), len(testloader.dataset)))
 
