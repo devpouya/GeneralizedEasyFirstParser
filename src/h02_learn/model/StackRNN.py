@@ -13,7 +13,7 @@ from .base import BaseParser
 from .modules import Biaffine, Bilinear, StackLSTM
 from .word_embedding import WordEmbedding, ActionEmbedding
 from ..algorithm.transition_parsers import ShiftReduceParser
-from .modules import StackRNN, StackCell
+from .modules import StackRNN, StackCell, SoftmaxLegal
 from transformers import BertModel
 
 def get_arcs(word2head):
@@ -34,67 +34,6 @@ def pairwise(iterable):
     a = iter(iterable)
     return zip(a,a)
 
-# root = (torch.tensor(1).to(device=constants.device), torch.tensor(1).to(device=constants.device))
-
-class SoftmaxLegal(nn.Module):
-    # __constants__ = ['dim']
-    # dim: Optional[int]
-    def __init__(self, dim, parser, actions,is_relation=False):
-        super(SoftmaxLegal, self).__init__()
-        self.dim = dim
-        # self.parser = parser
-        self.actions = actions
-        self.num_actions = len(actions)
-        self.indices = self.legal_indices(parser)
-        #elf.relate = self.rel_or_not()
-        self.is_relation = is_relation
-        # self.inds_zero = list(set(range(self.num_actions)).difference(set(self.indices)))
-
-    def legal_indices(self, parser):
-        if len(parser.stack) < 2:
-            return [0]
-        elif len(parser.buffer) < 1:
-            return [1, 2]
-        else:
-
-            return [0, 1, 2]
-
-    def rel_or_not(self):
-        if self.indices == [0]:
-            return False
-        else:
-            return True
-
-    def __setstate__(self, state):
-        self.__dict__.update(state)
-        if not hasattr(self, 'dim'):
-            self.dim = None
-
-    def forward(self, input):
-        if self.is_relation:
-            if self.rel_or_not():
-                tmp = F.softmax(input[1:], self.dim, _stacklevel=5)
-                ret = torch.zeros_like(input)
-                ret[1:] = tmp  #.detach().clone()
-                return ret
-            else:
-                tmp = F.softmax(input[0], self.dim, _stacklevel=5)
-                ret = torch.zeros_like(input)
-                ret[0] = tmp  # .detach().clone()
-                return ret
-        else:
-            tmp = F.softmax(input[self.indices], self.dim, _stacklevel=5)
-            # print(tmp)
-            ret = torch.zeros_like(input)
-            ret[self.indices] = tmp  # .detach().clone()
-            return ret  # F.softmax(input, self.dim, _stacklevel=5)
-
-    def extra_repr(self):
-        return 'dim={dim}'.format(dim=self.dim)
-
-
-
-
 
 class NeuralTransitionParser(BaseParser):
     def __init__(self, vocabs, embedding_size,rel_embedding_size, batch_size,
@@ -108,8 +47,6 @@ class NeuralTransitionParser(BaseParser):
         self.bert = BertModel.from_pretrained('bert-base-cased',output_hidden_states=True).to(device=constants.device)
         self.bert.eval()
 
-        for param in self.bert.parameters():
-            param.requires_grad = True
 
         # transition system
         self.transition_system = transition_system
@@ -163,9 +100,7 @@ class NeuralTransitionParser(BaseParser):
 
         self.empty_initial = nn.Parameter(torch.zeros(1, stack_lstm_size)).to(device=constants.device)
         self.empty_initial_act = nn.Parameter(torch.zeros(1,  self.action_embeddings_size)).to(device=constants.device)
-        self.action_bias = nn.Parameter(torch.Tensor(1, self.num_actions), requires_grad=True).to(
-            device=constants.device)
-        self.rel_bias = nn.Parameter(torch.Tensor(1, self.num_rels), requires_grad=True).to(device=constants.device)
+
         # MLP
         if self.transition_system == constants.arc_eager:
             self.mlp_lin1 = nn.Linear(stack_lstm_size*2,
@@ -182,10 +117,9 @@ class NeuralTransitionParser(BaseParser):
 
         self.mlp_act = nn.Linear(self.embedding_size, self.num_actions).to(device=constants.device)
         self.mlp_rel = nn.Linear(self.embedding_size, self.num_rels).to(device=constants.device)
+
         torch.nn.init.xavier_uniform_(self.mlp_lin1.weight)
-
         torch.nn.init.xavier_uniform_(self.mlp_lin1_rel.weight)
-
         torch.nn.init.xavier_uniform_(self.mlp_act.weight)
         torch.nn.init.xavier_uniform_(self.mlp_rel.weight)
 
@@ -207,7 +141,7 @@ class NeuralTransitionParser(BaseParser):
         tag_embeddings = nn.Embedding(tags.size, self.rel_embedding_size)
         rel_embeddings = nn.Embedding(self.num_rels, self.rel_embedding_size,scale_grad_by_freq=True)
 
-        #learned_embeddings = nn.Embedding(words.size, self.embedding_size)
+        #learned_embeddings = nn.Embedding(words.size, self.rel_embedding_size)
         action_embedding = nn.Embedding(self.num_actions, self.action_embeddings_size,scale_grad_by_freq=True)
         return tag_embeddings, action_embedding, rel_embeddings
 
