@@ -46,7 +46,8 @@ class NeuralTransitionParser(BaseParser):
         self.dropout_prob = dropout
         self.bert = BertModel.from_pretrained('bert-base-cased',output_hidden_states=True).to(device=constants.device)
         self.bert.eval()
-
+        for param in self.bert.parameters():
+            param.requires_grad = True
 
         # transition system
         self.transition_system = transition_system

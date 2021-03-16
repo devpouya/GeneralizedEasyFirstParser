@@ -30,7 +30,7 @@ def get_args():
                         default='arc-standard')
     parser.add_argument('--bert-model',type=str,default='bert-base-cased')
     # Optimization
-    parser.add_argument('--optim', choices=['adam', 'adamw', 'sgd'], default='adam')
+    parser.add_argument('--optim', choices=['adam', 'adamw', 'sgd'], default='adamw')
     parser.add_argument('--eval-batches', type=int, default=20)
     parser.add_argument('--wait-epochs', type=int, default=10)
     parser.add_argument('--lr-decay', type=float, default=.5)
