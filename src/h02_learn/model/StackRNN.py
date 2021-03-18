@@ -103,18 +103,16 @@ class NeuralTransitionParser(BaseParser):
         self.empty_initial_act = nn.Parameter(torch.zeros(1,  self.action_embeddings_size)).to(device=constants.device)
 
         # MLP
-        if self.transition_system == constants.arc_eager:
-            self.mlp_lin1 = nn.Linear(stack_lstm_size*2,
+        #if self.transition_system == constants.arc_eager:
+        #    self.mlp_lin1 = nn.Linear(stack_lstm_size*2,
+        #                              self.embedding_size).to(device=constants.device)
+        #    self.mlp_lin1_rel = nn.Linear(stack_lstm_size*2,
+        #                              self.embedding_size).to(device=constants.device)
+        #else:
+        self.mlp_lin1 = nn.Linear(stack_lstm_size * 2 + self.action_embeddings_size,
+                                  self.embedding_size).to(device=constants.device)
+        self.mlp_lin1_rel = nn.Linear(stack_lstm_size * 2 + self.action_embeddings_size,
                                       self.embedding_size).to(device=constants.device)
-
-            self.mlp_lin1_rel = nn.Linear(stack_lstm_size*2,
-                                      self.embedding_size).to(device=constants.device)
-        else:
-            self.mlp_lin1 = nn.Linear(stack_lstm_size * 2 + self.action_embeddings_size,
-                                      self.embedding_size).to(device=constants.device)
-
-            self.mlp_lin1_rel = nn.Linear(stack_lstm_size * 2 + self.action_embeddings_size,
-                                          self.embedding_size).to(device=constants.device)
 
         self.mlp_act = nn.Linear(self.embedding_size, self.num_actions).to(device=constants.device)
         self.mlp_rel = nn.Linear(self.embedding_size, self.num_rels).to(device=constants.device)
@@ -188,16 +186,15 @@ class NeuralTransitionParser(BaseParser):
         return labeled_acts
 
     def parser_probabilities(self, parser):
-        if self.transition_system == constants.arc_eager:
-
-            parser_state = torch.cat([self.stack.embedding().reshape(1,self.embedding_size+self.rel_embedding_size),
-                                      self.buffer.embedding().reshape(1,self.embedding_size+self.rel_embedding_size)],
-                                     dim=-1)
-        else:
-            parser_state = torch.cat(
-                [self.stack.embedding().reshape(1, self.embedding_size + self.rel_embedding_size),
-                 self.buffer.embedding().reshape(1, self.embedding_size + self.rel_embedding_size),
-                 self.action.embedding().reshape(1, self.action_embeddings_size)], dim=-1)
+        #if self.transition_system == constants.arc_eager:
+        #    parser_state = torch.cat([self.stack.embedding().reshape(1,self.embedding_size+self.rel_embedding_size),
+        #                              self.buffer.embedding().reshape(1,self.embedding_size+self.rel_embedding_size)],
+        #                             dim=-1)
+        #else:
+        parser_state = torch.cat(
+            [self.stack.embedding().reshape(1, self.embedding_size + self.rel_embedding_size),
+             self.buffer.embedding().reshape(1, self.embedding_size + self.rel_embedding_size),
+             self.action.embedding().reshape(1, self.action_embeddings_size)], dim=-1)
 
         state1 = self.dropout(F.relu(self.mlp_lin1(parser_state))).squeeze(0)
 
