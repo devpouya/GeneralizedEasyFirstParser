@@ -290,7 +290,7 @@ class NeuralTransitionParser(BaseParser):
         # average of last 4 hidden layers
         with torch.no_grad():
             out = self.bert(x[0].to(device=constants.device))[2]
-            x_emb = torch.stack(out[-4:]).mean(0)
+            x_emb = torch.stack(out[-8:]).mean(0)
 
         probs_action_batch = torch.ones((x_emb.shape[0], transitions.shape[1], self.num_actions), dtype=torch.float).to(
             device=constants.device)
