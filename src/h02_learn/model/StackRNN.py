@@ -109,6 +109,7 @@ class NeuralTransitionParser(BaseParser):
         #    self.mlp_lin1_rel = nn.Linear(stack_lstm_size*2,
         #                              self.embedding_size).to(device=constants.device)
         #else:
+        self.rel_vec = nn.Parameter(torch.zeros(self.num_rels))
         self.mlp_lin1 = nn.Linear(stack_lstm_size * 2 + self.action_embeddings_size,
                                   self.embedding_size).to(device=constants.device)
         self.mlp_lin1_rel = nn.Linear(stack_lstm_size * 2 + self.action_embeddings_size,
@@ -186,30 +187,32 @@ class NeuralTransitionParser(BaseParser):
         return labeled_acts
 
     def parser_probabilities(self, parser):
-        #if self.transition_system == constants.arc_eager:
-        #    parser_state = torch.cat([self.stack.embedding().reshape(1,self.embedding_size+self.rel_embedding_size),
-        #                              self.buffer.embedding().reshape(1,self.embedding_size+self.rel_embedding_size)],
-        #                             dim=-1)
-        #else:
-        parser_state = torch.cat(
-            [self.stack.embedding().reshape(1, self.embedding_size + self.rel_embedding_size),
-             self.buffer.embedding().reshape(1, self.embedding_size + self.rel_embedding_size),
-             self.action.embedding().reshape(1, self.action_embeddings_size)], dim=-1)
+        if self.transition_system == constants.arc_eager:
+            parser_state = torch.cat([self.stack.embedding().reshape(1,self.embedding_size+self.rel_embedding_size),
+                                      self.buffer.embedding().reshape(1,self.embedding_size+self.rel_embedding_size)],
+                                     dim=-1)
+        else:
+            parser_state = torch.cat(
+                [self.stack.embedding().reshape(1, self.embedding_size + self.rel_embedding_size),
+                 self.buffer.embedding().reshape(1, self.embedding_size + self.rel_embedding_size),
+                 self.action.embedding().reshape(1, self.action_embeddings_size)], dim=-1)
 
         state1 = self.dropout(F.relu(self.mlp_lin1(parser_state))).squeeze(0)
 
 
 
         action_probabilities = nn.Softmax(dim=-1)(self.mlp_act(state1)).squeeze(0)
+
         #action_probabilities = SoftmaxLegal(dim=-1, parser=parser, actions=self.actions)(self.mlp_act(state1)).squeeze(
         #    0)
 
-        state2 = self.dropout(F.relu(self.mlp_lin1_rel(parser_state))).squeeze(0)
+        #state2 = self.dropout(F.relu(self.mlp_lin1_rel(parser_state))).squeeze(0)
 
         #rel_probabilities = SoftmaxLegal(dim=-1, parser=parser, actions=self.actions,is_relation=True)\
         #    (self.mlp_rel(state2)).squeeze(0)
 
-        rel_probabilities = nn.Softmax(dim=-1)(self.mlp_rel(state2)).squeeze(0)
+        #rel_probabilities = nn.Softmax(dim=-1)(self.mlp_rel(state2)).squeeze(0)
+        rel_probabilities = nn.Softmax(dim=-1)(self.rel_vec*torch.argmax(action_probabilities,dim=-1)).squeeze(0)
         return action_probabilities, rel_probabilities
 
     def parse_step_arc_standard(self, parser, labeled_transitions, mode):
