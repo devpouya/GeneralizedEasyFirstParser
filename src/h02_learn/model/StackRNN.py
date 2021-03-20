@@ -130,7 +130,7 @@ class NeuralTransitionParser(BaseParser):
         torch.nn.init.xavier_uniform_(self.mlp_act.weight)
         torch.nn.init.xavier_uniform_(self.mlp_rel.weight)
 
-        self.linear_tree = nn.Linear(self.rel_embedding_size+2*stack_lstm_size, stack_lstm_size).to(device=constants.device)
+        self.linear_tree = nn.Linear(self.out_dim+2*stack_lstm_size, stack_lstm_size).to(device=constants.device)
         torch.nn.init.xavier_uniform_(self.linear_tree.weight)
 
 
@@ -149,7 +149,7 @@ class NeuralTransitionParser(BaseParser):
         rel_embeddings = nn.Embedding(self.num_rels, self.rel_embedding_size,scale_grad_by_freq=True)
 
         #learned_embeddings = nn.Embedding(words.size, self.rel_embedding_size)
-        action_embedding = nn.Embedding(self.num_actions, self.action_embeddings_size,scale_grad_by_freq=True)
+        action_embedding = nn.Embedding(self.num_rels*2+1, self.action_embeddings_size,scale_grad_by_freq=True)
         return tag_embeddings, action_embedding, rel_embeddings
 
     def get_embeddings(self, x):
@@ -167,7 +167,7 @@ class NeuralTransitionParser(BaseParser):
         return torch.cat([s,tags],dim=-1).to(device=constants.device)
 
     def get_action_embed(self, act):
-        idx = self.action2id[act]
+        idx = act#self.action2id[act]
         t = torch.tensor(idx, dtype=torch.long).to(device=constants.device)
         return self.action_embeddings(t).unsqueeze(0).unsqueeze(1).to(device=constants.device)
 
@@ -247,8 +247,8 @@ class NeuralTransitionParser(BaseParser):
         #print("ta{}".format(target))
         #print("pr{}".format(torch.argmax(probabilities,dim=-1).item()))
         action_target = torch.tensor([best_action], dtype=torch.long).to(device=constants.device)
-        rel_target = torch.tensor([rel], dtype=torch.long).to(device=constants.device)
-        rel_embed = self.rel_embeddings(rel_target).to(device=constants.device)
+        rel_target = torch.tensor([t], dtype=torch.long).to(device=constants.device)
+        rel_embed = self.action_embeddings(rel_target).to(device=constants.device)
 
         if mode == 'eval':
 
@@ -270,8 +270,9 @@ class NeuralTransitionParser(BaseParser):
                 rel_embed = self.rel_embeddings(rel_ind).to(device=constants.device)
             elif best_action > self.num_rels:
                 rel = best_action - self.num_rels
-                rel_ind = torch.tensor([rel-1], dtype=torch.long).to(device=constants.device)
-                rel_embed = self.rel_embeddings(rel_ind).to(device=constants.device)
+
+            rel_ind = torch.tensor(best_action, dtype=torch.long).to(device=constants.device)
+            rel_embed = self.action_embeddings(rel_ind).to(device=constants.device)
             #rel = torch.argmax(rel_probabilities, dim=-1).item()  # +1
 
 
@@ -280,14 +281,14 @@ class NeuralTransitionParser(BaseParser):
             # shift
             self.stack.push(self.buffer.pop())
 
-            self.action.push(self.get_action_embed(constants.shift).squeeze(0))
+            self.action.push(self.get_action_embed(t).squeeze(0))
             #action_state = self.action_lstm(self.get_action_embed(constants.shift))
             parser.shift()
         elif best_action == 1:
 
             # reduce-l
 
-            self.action.push(self.get_action_embed(constants.shift).squeeze(0))
+            self.action.push(self.get_action_embed(t).squeeze(0))
             ret = parser.reduce_l(rel, rel_embed,self.linear_tree)
             self.stack.pop(-2)
             self.stack.replace(ret.unsqueeze(0))
@@ -297,14 +298,14 @@ class NeuralTransitionParser(BaseParser):
 
             # reduce-r
 
-            self.action.push(self.get_action_embed(constants.reduce_l).squeeze(0))
+            self.action.push(self.get_action_embed(t).squeeze(0))
             ret = parser.reduce_r(rel, rel_embed,self.linear_tree)
             self.stack.pop()
             self.stack.replace(ret.unsqueeze(0))
 
         else:
             self.stack.pop()
-            self.action.push(self.get_action_embed(constants.reduce_l).squeeze(0))
+            self.action.push(self.get_action_embed(t).squeeze(0))
             elem = parser.stack.pop()
             parser.arcs.append((elem[1], elem[1], rel))
 
@@ -364,7 +365,7 @@ class NeuralTransitionParser(BaseParser):
             labeled_transitions = self.labeled_action_pairs(transitions[i, :curr_transition_length],
                                                             relations[i, :curr_sentence_length])
 
-            parser = ShiftReduceParser(s, self.rel_embedding_size, self.transition_system)
+            parser = ShiftReduceParser(s, self.out_dim, self.transition_system)
 
 
             for word in reversed(s):
