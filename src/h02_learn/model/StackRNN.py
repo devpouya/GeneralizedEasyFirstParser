@@ -223,8 +223,8 @@ class NeuralTransitionParser(BaseParser):
         picked_act = torch.argmax(action_probabilities,dim=-1).item()
         #print(acts[picked_act]*self.rel_vec)
 
-        rel_probabilities = nn.Softmax(dim=-1)(acts[picked_act]*self.rel_vec).squeeze(0)
-        #rel_probabilities = F.gumbel_softmax(action_probabilities[picked_act]*self.rel_vec).squeeze(0)
+        #rel_probabilities = nn.Softmax(dim=-1)(acts[picked_act]*self.rel_vec).squeeze(0)
+        rel_probabilities = F.gumbel_softmax(action_probabilities[picked_act]*self.rel_vec).squeeze(0)
         #print(rel_probabilities)
         return action_probabilities, rel_probabilities
 
