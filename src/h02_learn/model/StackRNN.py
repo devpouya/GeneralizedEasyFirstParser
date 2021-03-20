@@ -207,8 +207,8 @@ class NeuralTransitionParser(BaseParser):
         state1 = self.dropout(F.relu(self.mlp_lin1(parser_state))).squeeze(0)
 
 
-
-        action_probabilities = nn.Softmax(dim=-1)(self.mlp_act(state1)).squeeze(0)
+        acts = self.mlp_act(state1)
+        action_probabilities = nn.Softmax(dim=-1)(acts).squeeze(0)
         #probabilities = nn.Softmax(dim=-1)(self.mlp(state1)).squeeze(0)
 
         #action_probabilities = SoftmaxLegal(dim=-1, parser=parser, actions=self.actions)(self.mlp_act(state1)).squeeze(
@@ -221,8 +221,11 @@ class NeuralTransitionParser(BaseParser):
 
         #rel_probabilities = nn.Softmax(dim=-1)(self.mlp_rel(state2)).squeeze(0)
         picked_act = torch.argmax(action_probabilities,dim=-1).item()
-        rel_probabilities = nn.Softmax(dim=-1)(self.rel_vec*action_probabilities[picked_act]).squeeze(0)
+        #print(acts[picked_act]*self.rel_vec)
 
+        rel_probabilities = nn.Softmax(dim=-1)(acts[picked_act]*self.rel_vec).squeeze(0)
+        #rel_probabilities = F.gumbel_softmax(action_probabilities[picked_act]*self.rel_vec).squeeze(0)
+        #print(rel_probabilities)
         return action_probabilities, rel_probabilities
 
 
