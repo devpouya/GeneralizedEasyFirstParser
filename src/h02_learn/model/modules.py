@@ -3,6 +3,7 @@ import torch.nn as nn
 
 from utils import constants
 
+import torch.nn.functional as F
 
 # adapted from stack-lstm-ner (https://github.com/clab/stack-lstm-ner)
 class StackRNN(nn.Module):
@@ -270,7 +271,7 @@ class SoftmaxLegal(nn.Module):
         self.dim = dim
         # self.parser = parser
         self.actions = actions
-        self.num_actions = len(actions)
+        self.num_actions = actions#len(actions)
         self.indices = self.legal_indices(parser)
         #elf.relate = self.rel_or_not()
         self.is_relation = is_relation
@@ -280,10 +281,10 @@ class SoftmaxLegal(nn.Module):
         if len(parser.stack) < 2:
             return [0]
         elif len(parser.buffer) < 1:
-            return [1, 2]
+            return list(range(self.actions))[1:]
         else:
 
-            return [0, 1, 2]
+            return list(range(self.actions))
 
     def rel_or_not(self):
         if self.indices == [0]:
