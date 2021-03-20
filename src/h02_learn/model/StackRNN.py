@@ -263,17 +263,17 @@ class NeuralTransitionParser(BaseParser):
                 best_action = torch.argmax(tmp, dim=-1).item()
 
             else:
-                best_action = torch.argmax(print(), dim=-1).item()
+                best_action = torch.argmax(probabilities, dim=-1).item()
             if best_action > 0 and best_action <= self.num_rels:
                 rel = best_action
-                rel_ind = torch.tensor([rel], dtype=torch.long).to(device=constants.device)
+                rel_ind = torch.tensor([rel-1], dtype=torch.long).to(device=constants.device)
                 rel_embed = self.rel_embeddings(rel_ind).to(device=constants.device)
             elif best_action > self.num_rels:
                 rel = best_action - self.num_rels
-
+                rel_ind = torch.tensor([rel-1], dtype=torch.long).to(device=constants.device)
+                rel_embed = self.rel_embeddings(rel_ind).to(device=constants.device)
             #rel = torch.argmax(rel_probabilities, dim=-1).item()  # +1
-            #rel_ind = torch.tensor([rel], dtype=torch.long).to(device=constants.device)
-            #rel_embed = self.rel_embeddings(rel_ind).to(device=constants.device)
+
 
         # do the action
         if best_action == 0:
