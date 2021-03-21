@@ -244,11 +244,6 @@ class NeuralTransitionParser(BaseParser):
         else:
             t = rel + self.num_rels
         target = torch.tensor([t], dtype=torch.long).to(device=constants.device)
-        # print("ta{}".format(target))
-        # print("pr{}".format(torch.argmax(probabilities,dim=-1).item()))
-        # action_target = torch.tensor([best_action], dtype=torch.long).to(device=constants.device)
-        # rel_target = torch.tensor([t], dtype=torch.long).to(device=constants.device)
-        # rel_embed = self.action_embeddings(rel_target).to(device=constants.device)
 
         if mode == 'eval':
 
@@ -474,56 +469,73 @@ class NeuralTransitionParser(BaseParser):
         print(set(true_arcs) == set(arcs))
 
     def parse_step_hybrid(self, parser, labeled_transitions, mode):
-        action_probabilities, rel_probabilities = self.parser_probabilities(parser)
+        # action_probabilities, rel_probabilities = self.parser_probabilities(parser)
+        probabilities = self.parser_probabilities(parser)
+        # if labeled_transitions is not None:
         best_action = labeled_transitions[0].item()
         rel = labeled_transitions[1]
-        action_target = torch.tensor([best_action], dtype=torch.long).to(device=constants.device)
-        rel_target = torch.tensor([rel], dtype=torch.long).to(device=constants.device)
-        rel_embed = self.rel_embeddings(rel_target).to(device=constants.device)
+        if best_action == 0:
+            t = 0
+        elif best_action == 1:
+            t = rel
+        else:
+            t = rel + self.num_rels
+        target = torch.tensor([t], dtype=torch.long).to(device=constants.device)
+
+        # best_action = labeled_transitions[0].item()
+        # rel = labeled_transitions[1]
+        # action_target = torch.tensor([best_action], dtype=torch.long).to(device=constants.device)
+        # rel_target = torch.tensor([rel], dtype=torch.long).to(device=constants.device)
+        # rel_embed = self.rel_embeddings(rel_target).to(device=constants.device)
 
         if mode == 'eval':
 
             if len(parser.stack) < 1:
                 # can only shift
-                best_action = 0
+                t = 0
             elif len(parser.stack) == 1 and len(parser.buffer) > 0:
                 # can't right reduce
-                tmp = action_probabilities.clone().detach().to(device=constants.device)
-                tmp[2] = -float('inf')
-                best_action = torch.argmax(tmp, dim=-1).item()
+                tmp = probabilities.clone().detach().to(device=constants.device)
+                tmp[self.num_rels + 1:] = -float('inf')
+                t = torch.argmax(tmp, dim=-1).item()
 
             elif len(parser.buffer) > 0:
-                tmp = action_probabilities.clone().detach().to(device=constants.device)
-                best_action = torch.argmax(tmp, dim=-1).item()
+                tmp = probabilities.clone().detach().to(device=constants.device)
+                t = torch.argmax(tmp, dim=-1).item()
+            else:
+                tmp = probabilities.clone().detach().to(device=constants.device)
+                tmp[:self.num_rels + 1] = -float('inf')
+                t = torch.argmax(tmp, dim=-1).item()
+
+            if t > 0 and t <= self.num_rels:
+                rel = t
+            elif t > self.num_rels:
+                rel = t - self.num_rels
+
+            if t == 0:
+                best_action = 0
+            elif t > 0 and t <= self.num_rels:
+                best_action = 1
             else:
                 best_action = 2
 
-            rel = torch.argmax(rel_probabilities, dim=-1).item()  # +1
-            rel_ind = torch.tensor([rel], dtype=torch.long).to(device=constants.device)
-            rel_embed = self.rel_embeddings(rel_ind).to(device=constants.device)
-
+        rel_ind = torch.tensor(t, dtype=torch.long).to(device=constants.device)
+        rel_embed = self.action_embeddings(rel_ind).to(device=constants.device)
+        self.action.push(self.get_action_embed(t).squeeze(0))
         if best_action == 0:
-            self.action.push(self.get_action_embed(constants.shift).squeeze(0))
             parser.shift()
             self.stack.push(self.buffer.pop())
         elif best_action == 1:
-            self.action.push(self.get_action_embed(constants.left_arc_eager).squeeze(0))
             ret = parser.left_arc_eager(rel, rel_embed, self.linear_tree)
             self.stack.pop()
             self.buffer.replace(ret.unsqueeze(0))
 
         elif best_action == 2:
-            self.action.push(self.get_action_embed(constants.reduce_r).squeeze(0))
             ret = parser.reduce_r(rel, rel_embed, self.linear_tree)
             self.stack.pop()
             self.stack.replace(ret.unsqueeze(0))
-        else:
-            self.stack.pop()
-            self.action.push(self.get_action_embed(constants.left_arc_eager).squeeze(0))
-            elem = parser.stack.pop()
-            parser.arcs.append((elem[1], elem[1], rel))
 
-        return parser, (action_probabilities, rel_probabilities), (action_target, rel_target)
+        return parser, probabilities, target  # (action_probabilities, rel_probabilities), (action_target, rel_target)
 
     def parse_step_arc_eager(self, parser, labeled_transitions, mode):
         action_probabilities, rel_probabilities = self.parser_probabilities(parser)
