@@ -25,7 +25,7 @@ def get_args():
     parser.add_argument('--rel-embedding-size', type=int, default=100)
     parser.add_argument('--dropout', type=float, default=.33)
     parser.add_argument('--weight-decay', type=float, default=0.01)
-    parser.add_argument('--model', choices=['biaffine', 'mst', 'arc-standard',
+    parser.add_argument('--model', choices=['easy-first','easy-first-hybrid','biaffine', 'mst', 'arc-standard',
                                             'arc-eager', 'hybrid', 'non-projective'],
                         default='arc-standard')
     parser.add_argument('--bert-model',type=str,default='bert-base-cased')
@@ -67,7 +67,7 @@ def get_model(vocabs,embeddings,args):
             vocabs, args.embedding_size,args.rel_embedding_size, args.hidden_size, args.arc_size, args.label_size,
             nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings) \
             .to(device=constants.device)
-    if args.model == 'arc-standard':
+    if args.model == 'arc-standard' or args.model=='easy-first':
         return NeuralTransitionParser(
             vocabs=vocabs, embedding_size=args.embedding_size,rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
             dropout=args.dropout,
@@ -79,7 +79,7 @@ def get_model(vocabs,embeddings,args):
             dropout=args.dropout,
             transition_system=constants.arc_eager) \
             .to(device=constants.device)
-    elif args.model == 'hybrid':
+    elif args.model == 'hybrid' or args.model == 'easy-first-hybrid':
         return NeuralTransitionParser(
             vocabs=vocabs, embedding_size=args.embedding_size,rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
             dropout=args.dropout,
@@ -227,11 +227,11 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
 def main():
     # pylint: disable=too-many-locals
     args = get_args()
-    if args.model == "arc-standard":
+    if args.model == "arc-standard" or args.model == "easy-first":
         transition_system = constants.arc_standard
     elif args.model == "arc-eager":
         transition_system = constants.arc_eager
-    elif args.model == "hybrid":
+    elif args.model == "hybrid" or args.model == "easy-first-hybrid":
         transition_system = constants.hybrid
 
     trainloader, devloader, testloader,vocabs,embeddings = \
