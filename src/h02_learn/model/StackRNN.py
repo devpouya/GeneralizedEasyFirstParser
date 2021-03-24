@@ -422,7 +422,7 @@ class NeuralTransitionParser(BaseParser):
 
             labeled_transitions = self.labeled_action_pairs(transitions[i, :curr_transition_length],
                                                             relations[i, :curr_sentence_length])
-
+            print(labeled_transitions)
             parser = ShiftReduceParser(s, self.rel_embedding_size, self.transition_system)
 
 

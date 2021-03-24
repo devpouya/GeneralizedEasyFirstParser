@@ -63,7 +63,7 @@ def generate_batch(batch):
 
 
 def get_data_loader(fname, transitions_file, transition_system, tokenizer, batch_size, shuffle):
-
+    print(transitions_file)
     dataset = SyntaxDataset(fname, transitions_file, transition_system, tokenizer)
     return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle,
                       collate_fn=generate_batch)
