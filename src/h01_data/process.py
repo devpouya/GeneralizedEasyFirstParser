@@ -6,7 +6,8 @@ import numpy as np
 
 sys.path.append('./src/')
 from h01_data import Vocab, save_vocabs, save_embeddings
-from h01_data.oracle import arc_standard_oracle, arc_eager_oracle, hybrid_oracle
+from h01_data.oracle import arc_standard_oracle, arc_eager_oracle, hybrid_oracle,easy_first_arc_standard,\
+    easy_first_hybrid,easy_first_arc_eager,easy_first_mh4,mh4_oracle
 from h01_data.oracle import is_projective, is_good
 from utils import utils
 from utils import constants
@@ -19,7 +20,10 @@ def get_args():
     parser.add_argument('--glove-file', type=str, required=False)
     parser.add_argument('--bert-model', type=str, default='bert-base-cased')
     parser.add_argument('--min-vocab-count', type=int, default=2)
-    parser.add_argument('--transition', type=str, choices=['arc-standard','arc-eager','hybrid'],default='arc-standard')
+    parser.add_argument('--transition', type=str, choices=['arc-standard','arc-eager',
+                                                           'hybrid','mh4','easy-first-std',
+                                                           'easy-first-hybrid','easy-first-eager','easy-first-mh4'],
+                        default='easy-first-std')
     return parser.parse_args()
 
 
@@ -96,11 +100,14 @@ def process_data(in_fname_base, out_path, mode, vocabs, oracle=None, transition_
     print('Processing: %s' % in_fname)
     right = 0
     wrong = 0
+    step = 0
+    faileds = []
     with open(in_fname, 'r') as file:
         for sentence in get_sentence(file):
             sent_processed, heads, relations,rel2id = process_sentence(sentence, vocabs)
             heads_proper = [0] + heads
-
+            #if len(sentence) > 6 or len(sentence) <= 2:
+            #    continue
             # print(heads_proper)
             # print(relations)
             arc2label = {arc: rel for (arc, rel) in zip(list(range(len(heads))), relations)}
@@ -111,12 +118,15 @@ def process_data(in_fname_base, out_path, mode, vocabs, oracle=None, transition_
             #word2headrels = {w: (h, r) for (w, h, r) in zip(sentence_proper, heads_proper, relations)}
             # print(word2headrels)
             word2head = {w: h for (w, h) in zip(sentence_proper, heads_proper)}
-            if is_projective(word2head):
-                actions,relations_order,good = oracle(sentence_proper, word2head,relations)
+            if is_projective(word2head) or transition_name == 'mh4' or transition_name == 'easy-first-mh4':
+                step+=1
+                #print(step)
+                actions,relations_order,good = oracle(sentence_proper, word2head,relations,step)
                 relation_ids = [rel2id[rel] for rel in relations_order]
                 if good:
                     right += 1
                 else:
+                    faileds.append(step)
                     wrong += 1
                 #labeled_actions = labeled_action_pairs(actions,relation_ids.copy())
                 #actions_processed = {'transition': actions, 'relations':relation_ids,'labeled_actions':labeled_actions}
@@ -129,7 +139,8 @@ def process_data(in_fname_base, out_path, mode, vocabs, oracle=None, transition_
 
 
     print("GOOD {}".format(right))
-    print("baD {}".format(wrong))
+    print("BAD {}".format(wrong))
+    print("fails {}".format(faileds))
 
 def add_sentence_vocab(sentence, words, tags, rels):
     for token in sentence:
@@ -231,6 +242,16 @@ def main():
         oracle = arc_eager_oracle
     elif args.transition == 'hybrid':
         oracle = hybrid_oracle
+    elif args.transition == 'mh4':
+        oracle = mh4_oracle
+    elif args.transition == "easy-first-std":
+        oracle = easy_first_arc_standard
+    elif args.transition == "easy-first-hybrid":
+        oracle = easy_first_hybrid
+    elif args.transition == "easy-first-eager":
+        oracle = easy_first_arc_eager
+    elif args.transition == 'easy-first-mh4':
+        oracle = easy_first_mh4
 
 
     process_data(in_fname, out_path, 'train', vocabs, oracle, args.transition)

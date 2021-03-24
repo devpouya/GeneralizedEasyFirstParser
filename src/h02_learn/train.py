@@ -26,7 +26,7 @@ def get_args():
     parser.add_argument('--dropout', type=float, default=.33)
     parser.add_argument('--weight-decay', type=float, default=0.01)
     parser.add_argument('--model', choices=['easy-first','easy-first-hybrid','biaffine', 'mst', 'arc-standard',
-                                            'arc-eager', 'hybrid', 'non-projective'],
+                                            'arc-eager', 'hybrid', 'mh4','easy-first-mh4'],
                         default='arc-standard')
     parser.add_argument('--bert-model',type=str,default='bert-base-cased')
     # Optimization
@@ -84,6 +84,12 @@ def get_model(vocabs,embeddings,args):
             vocabs=vocabs, embedding_size=args.embedding_size,rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
             dropout=args.dropout,
             transition_system=constants.hybrid) \
+            .to(device=constants.device)
+    elif args.model == 'mh4' or args.model == 'easy-first-mh4':
+        return NeuralTransitionParser(
+            vocabs=vocabs, embedding_size=args.embedding_size,rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
+            dropout=args.dropout,
+            transition_system=constants.mh4) \
             .to(device=constants.device)
     else:
         return BiaffineParser(
@@ -233,6 +239,8 @@ def main():
         transition_system = constants.arc_eager
     elif args.model == "hybrid" or args.model == "easy-first-hybrid":
         transition_system = constants.hybrid
+    elif args.model == "mh4" or args.model == 'easy-first-mh4':
+        transition_system = constants.mh4
 
     trainloader, devloader, testloader,vocabs,embeddings = \
         get_data_loaders(args.data_path, args.language, args.batch_size, args.batch_size_eval, args.model,

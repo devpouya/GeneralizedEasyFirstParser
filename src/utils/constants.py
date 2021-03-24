@@ -126,8 +126,11 @@ reduce_r = "REDUCE_R"
 reduce = "REDUCE"
 
 left_arc_eager = "LEFT_ARC_EAGER"
+left_arc_prime = "LEFT_ARC_PRIME"
+
 
 right_arc_eager = "RIGHT_ARC_EAGER"
+right_arc_prime = "RIGHT_ARC_PRIME"
 
 left_arc_hybrid = "LEFT_ARC_H"
 
@@ -143,7 +146,7 @@ arc_eager = ([shift, left_arc_eager, right_arc_eager, reduce],
 
 hybrid = ([shift, left_arc_eager, reduce_r], list(range(3)))  # {shift: 0, left_arc_hybrid: 1, reduce_r: 2}
 
-non_projective = ([shift, reduce_l, reduce_r, left_arc_2, right_arc_2], list(range(5)))
+mh4 = ([shift, left_arc_eager, reduce_r, left_arc_prime, right_arc_prime,left_arc_2,right_arc_2], list(range(7)))
 # hybrid_actions = {0: fshift, 1: fleft_arc, 2: freduce_r}
 
 easy_first = (0, 0)
