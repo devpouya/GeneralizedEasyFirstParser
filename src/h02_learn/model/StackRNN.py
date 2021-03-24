@@ -176,21 +176,20 @@ class NeuralTransitionParser(BaseParser):
     def labeled_action_pairs(self, actions, relations):
         labeled_acts = []
         tmp_rels = relations.clone().detach().tolist()
-        if self.transition_system == "mh4":
+        if self.transition_system == constants.mh4:
             arc_actions = [1,2,3,4,5,6]
             non_arc_actions = [0]
-        elif self.transition_system == "arc-standard":
+        elif self.transition_system == constants.arc_standard:
             arc_actions = [1, 2]
             non_arc_actions = [0]
-        elif self.transition_system == "arc-eager":
+        elif self.transition_system == constants.arc_eager:
             arc_actions = [1, 2]
             non_arc_actions = [0,3]
-        elif self.transition_system == "hybrid":
+        elif self.transition_system == constants.hybrid:
             arc_actions = [1, 2]
             non_arc_actions = [0]
 
         for act in actions:
-
             if act in arc_actions:
                 labeled_acts.append((act, tmp_rels[0]))
                 tmp_rels.pop(0)
