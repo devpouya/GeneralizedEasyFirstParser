@@ -318,11 +318,12 @@ class NeuralTransitionParser(BaseParser):
         #action_probabilities, rel_probabilities = self.parser_probabilities(parser)
         action_probabilities = self.parser_probabilities(parser)
         # if labeled_transitions is not None:
-        best_action = labeled_transitions[0].item()
+
+        action_to_take = labeled_transitions[0].item()
         rel = labeled_transitions[1]
-        if best_action == 0:
+        if action_to_take == 0:
             t = 0
-        elif best_action == 1:
+        elif action_to_take == 1:
             t = rel
         else:
             t = rel+self.num_rels
@@ -345,24 +346,29 @@ class NeuralTransitionParser(BaseParser):
 
             else:
                 best_action = torch.argmax(action_probabilities, dim=-1).item()
+
             if best_action > 0:
                 if best_action >= (self.num_total_actions-1)/2:
                     rel = best_action
+                    action_to_take = 1
                 else:
                     rel = best_action - self.num_rels
+                    action_to_take = 2
+            else:
+                action_to_take = 0
             #rel = torch.argmax(rel_probabilities, dim=-1).item()  # +1
             rel_ind = torch.tensor([rel], dtype=torch.long).to(device=constants.device)
             rel_embed = self.rel_embeddings(rel_ind).to(device=constants.device)
 
         # do the action
-        if best_action == 0:
+        if action_to_take == 0:
             # shift
             self.stack.push(self.buffer.pop())
 
             self.action.push(self.get_action_embed(constants.shift).squeeze(0))
             #action_state = self.action_lstm(self.get_action_embed(constants.shift))
             parser.shift()
-        elif best_action == 1:
+        elif action_to_take == 1:
 
             # reduce-l
 
@@ -372,7 +378,7 @@ class NeuralTransitionParser(BaseParser):
             self.stack.replace(ret.unsqueeze(0))
 
 
-        elif best_action == 2:
+        elif action_to_take == 2:
 
             # reduce-r
 
@@ -380,12 +386,6 @@ class NeuralTransitionParser(BaseParser):
             ret = parser.reduce_r(rel, rel_embed,self.linear_tree)
             self.stack.pop()
             self.stack.replace(ret.unsqueeze(0))
-
-        else:
-            self.stack.pop()
-            self.action.push(self.get_action_embed(constants.reduce_l).squeeze(0))
-            elem = parser.stack.pop()
-            parser.arcs.append((elem[1], elem[1], rel))
 
         return parser, action_probabilities,target #(action_probabilities, rel_probabilities), (action_target, rel_target)
 
