@@ -322,12 +322,12 @@ class NeuralTransitionParser(BaseParser):
         action_to_take = labeled_transitions[0].item()
         rel = labeled_transitions[1]
         if action_to_take == 0:
-            t = 0
+            best_action = 0
         elif action_to_take == 1:
-            t = rel
+            best_action = rel
         else:
-            t = rel+self.num_rels
-        target = torch.tensor([t], dtype=torch.long).to(device=constants.device)
+            best_action = rel+self.num_rels
+        target = torch.tensor([best_action], dtype=torch.long).to(device=constants.device)
         #action_target = torch.tensor([best_action], dtype=torch.long).to(device=constants.device)
         rel_target = torch.tensor([rel], dtype=torch.long).to(device=constants.device)
         rel_embed = self.rel_embeddings(rel_target).to(device=constants.device)
@@ -356,23 +356,25 @@ class NeuralTransitionParser(BaseParser):
                     action_to_take = 2
             else:
                 action_to_take = 0
-            #rel = torch.argmax(rel_probabilities, dim=-1).item()  # +1
             rel_ind = torch.tensor([rel], dtype=torch.long).to(device=constants.device)
             rel_embed = self.rel_embeddings(rel_ind).to(device=constants.device)
 
+        best_action = torch.tensor(best_action, dtype=torch.long).to(device=constants.device)
+
+        self.action.push(self.action_embeddings(best_action).unsqueeze(0).unsqueeze(1).to(device=constants.device).squeeze(0))
         # do the action
         if action_to_take == 0:
             # shift
             self.stack.push(self.buffer.pop())
 
-            self.action.push(self.get_action_embed(constants.shift).squeeze(0))
-            #action_state = self.action_lstm(self.get_action_embed(constants.shift))
+            #self.action.push(self.get_action_embed().squeeze(0))
+            #self.action_embeddings(t).unsqueeze(0).unsqueeze(1).to(device=constants.device)
             parser.shift()
         elif action_to_take == 1:
 
             # reduce-l
 
-            self.action.push(self.get_action_embed(constants.reduce_l).squeeze(0))
+            #self.action.push(self.get_action_embed(constants.reduce_l).squeeze(0))
             ret = parser.reduce_l(rel, rel_embed,self.linear_tree)
             self.stack.pop(-2)
             self.stack.replace(ret.unsqueeze(0))
@@ -382,7 +384,7 @@ class NeuralTransitionParser(BaseParser):
 
             # reduce-r
 
-            self.action.push(self.get_action_embed(constants.reduce_r).squeeze(0))
+            #self.action.push(self.get_action_embed(constants.reduce_r).squeeze(0))
             ret = parser.reduce_r(rel, rel_embed,self.linear_tree)
             self.stack.pop()
             self.stack.replace(ret.unsqueeze(0))
