@@ -51,7 +51,7 @@ class NeuralTransitionParser(BaseParser):
 
         # transition system
         self.transition_system = transition_system
-        # print(self.transition_system)
+        # print(self.transition_system)©
         self.actions = transition_system[0]  # [shift, reduce_l, reduce_r]
         self.num_actions = len(self.actions)
         self.action2id = {act: i for i, act in enumerate(self.actions)}
@@ -244,7 +244,7 @@ class NeuralTransitionParser(BaseParser):
                 tmp[1] = -float('inf')
                 tmp[5] = -float('inf')
                 best_action = torch.argmax(tmp, dim=-1).item()
-            elif len(parser.stack) < 3:
+            elif len(parser.stack) < 3 and len(parser.stack)>=2:
                 tmp = action_probabilities.clone().detach().to(device=constants.device)
                 tmp[4] = -float('inf')
                 tmp[6] = -float('inf')
@@ -257,7 +257,6 @@ class NeuralTransitionParser(BaseParser):
             rel = torch.argmax(rel_probabilities, dim=-1).item()  # +1
             rel_ind = torch.tensor([rel], dtype=torch.long).to(device=constants.device)
             rel_embed = self.rel_embeddings(rel_ind).to(device=constants.device)
-
         # do the action
         if best_action == 0:
             # shift
@@ -283,7 +282,7 @@ class NeuralTransitionParser(BaseParser):
             self.stack.pop()
             self.stack.pop()
             ret = parser.left_arc_prime(rel,rel_embed,self.linear_tree)
-            self.stack.push(ret)
+            self.stack.push(ret.unsqueeze(0))
             self.action.push(self.get_action_embed(constants.left_arc_prime).squeeze(0))
         elif best_action == 4:
             # right-arc-prime
@@ -419,11 +418,9 @@ class NeuralTransitionParser(BaseParser):
             curr_sentence_length = s.shape[0]
             curr_transition_length = transit_lens[i]
             s = s[:curr_sentence_length, :]
-
             labeled_transitions = self.labeled_action_pairs(transitions[i, :curr_transition_length],
                                                             relations[i, :curr_sentence_length])
             parser = ShiftReduceParser(s, self.rel_embedding_size, self.transition_system)
-
 
             for word in reversed(s):
                 self.buffer.push(word.unsqueeze(0))
@@ -462,23 +459,49 @@ class NeuralTransitionParser(BaseParser):
 
         criterion2 = nn.CrossEntropyLoss().to(device=constants.device)
 
-        probs = probs.reshape(-1, probs.shape[-1])
-        targets = targets.reshape(-1)
-        targets = targets[probs[:, 0] != -1]
-        probs = probs[probs[:, 0] != -1, :]
 
-        probs_rel = probs_rel.reshape(-1, probs_rel.shape[-1])
+        num_batches = probs.shape[0]
+        l1,l2 = 0,0
+        for i in range(num_batches):
+            p = probs[i]
+            t = targets[i]
+            t = t[p[:,0]!=-1]
+            p = p[p[:,0]!=-1,:]
+            #print(p.shape)
+            #print(t.shape)
+            l1 += criterion1(p,t.squeeze(1))
 
-        targets_rel = targets_rel.reshape(-1)
 
-        probs_rel = probs_rel[targets_rel != 0, :]
-        targets_rel = targets_rel[targets_rel != 0]
-        targets_rel = targets_rel[probs_rel[:, 0] != -1]
-        probs_rel = probs_rel[probs_rel[:, 0] != -1, :]
+            pr = probs_rel[i]
+            tr = targets_rel[i].squeeze(1)
+            pr = pr[tr != 0,:]
+            tr = tr[tr != 0]
+            tr = tr[pr[:,0]!=-1]
+            pr = pr[pr[:,0]!=-1]
+            l2 += criterion2(pr,tr)
+        l1 /= num_batches
+        l2 /= num_batches
 
-        loss = 0.5*criterion1(probs, targets)
-        loss += 0.5*criterion2(probs_rel, targets_rel)
-        return loss
+        #probs = probs.reshape(-1, probs.shape[-1])
+        #targets = targets.reshape(-1)
+        #targets = targets[probs[:, 0] != -1]
+        #probs = probs[probs[:, 0] != -1, :]
+
+        #print(probs.shape)
+        #print(targets.shape)
+
+        #probs_rel = probs_rel.reshape(-1, probs_rel.shape[-1])
+
+        #targets_rel = targets_rel.reshape(-1)
+
+        #probs_rel = probs_rel[targets_rel != 0, :]
+        #targets_rel = targets_rel[targets_rel != 0]
+        #targets_rel = targets_rel[probs_rel[:, 0] != -1]
+        #probs_rel = probs_rel[probs_rel[:, 0] != -1, :]
+
+        #loss = 0.5*criterion1(probs, targets)
+        #loss += 0.5*criterion2(probs_rel, targets_rel)
+        return l1+l2
 
     def get_args(self):
         return {

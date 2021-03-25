@@ -12,6 +12,7 @@ class SyntaxDataset(Dataset):
         self.transition_system = {act: i for (act, i) in zip(transition_system[0], transition_system[1])}
         # self.transition_system[None] = -2
         self.tokenizer = tokenizer
+        self.act_counts = {self.transition_system[act]:0 for act in self.transition_system.keys()}
 
         self.load_data(fname, transition_file)
         self.n_instances = len(self.words)
@@ -74,7 +75,8 @@ class SyntaxDataset(Dataset):
 
     def actionsequence2tensor(self, actions):
         ids = [self.transition_system[act] for act in actions]
-
+        for id in ids:
+            self.act_counts[id] += 1
         return torch.LongTensor(ids).to(device=constants.device)
 
     def labeled_act2tensor(self, labeled_actions):
