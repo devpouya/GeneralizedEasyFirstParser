@@ -184,6 +184,8 @@ def train_batch(text, pos, heads, rels, transitions, relations_in_order, maps,mo
     #print("çççççççççççççççççççççççççççççççç")
     #print(torch.all(torch.eq(heads,pred_h)))
     #print("--------------------------------")
+    #print(pred_rel)
+    #print(rels)
     #print(torch.all(torch.eq(pred_rel,rels)))
     #print("çççççççççççççççççççççççççççççççç")
 

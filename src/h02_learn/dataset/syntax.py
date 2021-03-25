@@ -8,6 +8,8 @@ from utils import constants
 class SyntaxDataset(Dataset):
     def __init__(self, fname, transition_file, transition_system, tokenizer):
         self.fname = fname
+        self.max_rel = 0
+
         self.transition_file = transition_file
         self.transition_system = {act: i for (act, i) in zip(transition_system[0], transition_system[1])}
         # self.transition_system[None] = -2

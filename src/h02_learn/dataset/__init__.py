@@ -63,13 +63,13 @@ def generate_batch(batch):
 
 
 def get_data_loader(fname, transitions_file, transition_system, tokenizer, batch_size, shuffle):
-    print(transitions_file)
+    #print(transitions_file)
     dataset = SyntaxDataset(fname, transitions_file, transition_system, tokenizer)
-    print("action distribution {}".format(dataset.act_counts))
-    tot = 0
-    for item in dataset.act_counts.values(): tot+=item
-    print("Total {}".format(tot))
-    print("% {}".format([a/tot for a in dataset.act_counts.values()]))
+    #print("action distribution {}".format(dataset.act_counts))
+    #tot = 0
+    #for item in dataset.act_counts.values(): tot+=item
+    #print("Total {}".format(tot))
+    #print("% {}".format([a/tot for a in dataset.act_counts.values()]))
     return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle,
                       collate_fn=generate_batch)
 
