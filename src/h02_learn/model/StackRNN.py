@@ -217,12 +217,16 @@ class NeuralTransitionParser(BaseParser):
 
         state1 = self.dropout(F.relu(self.mlp_lin1(parser_state)))
 
-        actions = self.stacked_action_embeddings()
-        state1 = torch.matmul(actions, state1.transpose(1, 0)).transpose(1, 0)# + self.action_bias
-        state1 = state1 + self.action_bias
-        action_probabilities = SoftmaxLegal(dim=-1, parser=parser, num_actions=self.num_total_actions
-                                            ,transition_system=self.transition_system)(state1)
-        return action_probabilities
+        #actions = self.stacked_action_embeddings()
+        #state1 = torch.matmul(actions, state1.transpose(1, 0)).transpose(1, 0)# + self.action_bias
+        #state1 = state1 + self.action_bias
+        state2 = self.dropout(F.relu(self.mlp_act(state1)))
+        action_probabilities =  nn.Softmax(dim=-1)(state2).squeeze(0)
+        #action_probabilities = SoftmaxLegal(dim=-1, parser=parser, num_actions=self.num_total_actions
+        #                                    ,transition_system=self.transition_system)(state2)
+        state2 = self.dropout(F.relu(self.mlp_rel(state1)))
+        rel_probabilities = nn.Softmax(dim=-1)(state2).squeeze(0)
+        return action_probabilities,rel_probabilities
     def parse_step_mh4(self, parser, labeled_transitions, mode):
         # get parser state
         action_probabilities, rel_probabilities = self.parser_probabilities(parser)
@@ -324,11 +328,7 @@ class NeuralTransitionParser(BaseParser):
         else:
             best_action = rel+self.num_rels
 
-        #print("Action to take {}".format(action_to_take))
-        #print("bestacto {}".format(best_action))
-        #print("rel{}".format(rel))
         target = torch.tensor([best_action], dtype=torch.long).to(device=constants.device)
-        #action_target = torch.tensor([best_action], dtype=torch.long).to(device=constants.device)
         if rel > 0:
             rel_target = torch.tensor([rel-1], dtype=torch.long).to(device=constants.device)
             rel = int(rel_target.item())
@@ -362,10 +362,7 @@ class NeuralTransitionParser(BaseParser):
                 rel_ind = torch.tensor([rel-1], dtype=torch.long).to(device=constants.device)
                 rel_embed = self.rel_embeddings(rel_ind).to(device=constants.device)
 
-
         best_action = torch.tensor(best_action, dtype=torch.long).to(device=constants.device)
-
-
         # do the action
         self.action.push(self.action_embeddings(best_action).unsqueeze(0).to(device=constants.device))
         if action_to_take == 0:
@@ -396,26 +393,26 @@ class NeuralTransitionParser(BaseParser):
             out = self.bert(x[0].to(device=constants.device))[2]
             x_emb = torch.stack(out[-8:]).mean(0)
 
-        #probs_action_batch = torch.ones((x_emb.shape[0], transitions.shape[1], self.num_actions), dtype=torch.float).to(
-        #    device=constants.device)
-        #probs_rel_batch = torch.ones((x_emb.shape[0], transitions.shape[1], self.num_rels), dtype=torch.float).to(
-        #    device=constants.device)
-        #targets_action_batch = torch.ones((x_emb.shape[0], transitions.shape[1], 1), dtype=torch.long).to(
-        #    device=constants.device)
-        #targets_rel_batch = torch.ones((x_emb.shape[0], transitions.shape[1], 1), dtype=torch.long).to(
-        #    device=constants.device)
-        probs_batch = torch.ones((x_emb.shape[0],transitions.shape[1],self.num_total_actions),dtype=torch.float).to(device=constants.device)
-        targets_batch = torch.ones((x_emb.shape[0],transitions.shape[1],1),dtype=torch.long).to(device=constants.device)
+        probs_action_batch = torch.ones((x_emb.shape[0], transitions.shape[1], self.num_actions), dtype=torch.float).to(
+            device=constants.device)
+        probs_rel_batch = torch.ones((x_emb.shape[0], transitions.shape[1], self.num_rels), dtype=torch.float).to(
+            device=constants.device)
+        targets_action_batch = torch.ones((x_emb.shape[0], transitions.shape[1], 1), dtype=torch.long).to(
+            device=constants.device)
+        targets_rel_batch = torch.ones((x_emb.shape[0], transitions.shape[1], 1), dtype=torch.long).to(
+            device=constants.device)
+        #probs_batch = torch.ones((x_emb.shape[0],transitions.shape[1],self.num_total_actions),dtype=torch.float).to(device=constants.device)
+        #targets_batch = torch.ones((x_emb.shape[0],transitions.shape[1],1),dtype=torch.long).to(device=constants.device)
         heads_batch = torch.ones((x_emb.shape[0], tags.shape[1])).to(device=constants.device)
-        rels_batch = torch.zeros((x_emb.shape[0], tags.shape[1])).to(device=constants.device)
+        rels_batch = torch.ones((x_emb.shape[0], tags.shape[1])).to(device=constants.device)
         heads_batch *= -1
-        #rels_batch *= -1
-        #probs_rel_batch *= -1
-        #probs_action_batch *= -1
-        #targets_rel_batch *= -1
-        #targets_action_batch *= -1
-        probs_batch *= -1
-        targets_batch *= -1
+        rels_batch *= -1
+        probs_rel_batch *= -1
+        probs_action_batch *= -1
+        targets_rel_batch *= -1
+        targets_action_batch *= -1
+        #probs_batch *= -1
+        #targets_batch *= -1
         # for testing
         # labeled_transitions = self.labeled_action_pairs(transitions[0], relations[0])
         # tr = [t.item() for (t,_) in labeled_transitions]
@@ -443,14 +440,14 @@ class NeuralTransitionParser(BaseParser):
                                                         labeled_transitions[step],
                                                         mode)
 
-                #(action_probs, rel_probs) = probs
-                #(action_target, rel_target) = target
-                #probs_action_batch[i, step, :] = action_probs
-                #probs_rel_batch[i, step, :] = rel_probs
-                #targets_action_batch[i, step, :] = action_target
-                #targets_rel_batch[i, step, :] = rel_target
-                probs_batch[i,step,:] = probs
-                targets_batch[i,step,:] = target
+                (action_probs, rel_probs) = probs
+                (action_target, rel_target) = target
+                probs_action_batch[i, step, :] = action_probs
+                probs_rel_batch[i, step, :] = rel_probs
+                targets_action_batch[i, step, :] = action_target
+                targets_rel_batch[i, step, :] = rel_target
+                #probs_batch[i,step,:] = probs
+                #targets_batch[i,step,:] = target
 
             heads_batch[i, :curr_sentence_length] = parser.heads_from_arcs()[0]
             rels_batch[i, :curr_sentence_length] = parser.heads_from_arcs()[1]
@@ -458,8 +455,8 @@ class NeuralTransitionParser(BaseParser):
             self.buffer.back_to_init()
             self.action.back_to_init()
 
-        #batch_loss = self.loss(probs_action_batch, targets_action_batch, probs_rel_batch, targets_rel_batch)
-        batch_loss = self.loss_2(probs_batch, targets_batch)
+        batch_loss = self.loss(probs_action_batch, targets_action_batch, probs_rel_batch, targets_rel_batch)
+        #batch_loss = self.loss_2(probs_batch, targets_batch)
 
         return batch_loss, heads_batch, rels_batch
 

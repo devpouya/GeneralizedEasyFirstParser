@@ -97,19 +97,6 @@ def get_model(vocabs,embeddings,args):
             nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings) \
             .to(device=constants.device)
 
-
-"""
-def calculate_attachment_score(heads_tgt, l_logits, heads, rels):
-    acc_h = (heads_tgt == heads)[heads != -1]
-    acc_l = (l_logits.argmax(-1) == rels)[heads != -1]
-
-    uas = acc_h.float().mean().item()
-    las = (acc_h & acc_l).float().mean().item()
-
-    return las, uas
-"""
-
-
 def calculate_attachment_score(heads_tgt, heads, predicted_rels, rels):
     acc_h = (heads_tgt == heads)[heads != -1]
     predicted_rels = predicted_rels[predicted_rels != -1]
@@ -143,12 +130,12 @@ def _evaluate(evalloader, model):
         loss, predicted_heads, predicted_rels = model((text, pos), transitions, relations_in_order,maps, mode='eval')
 
         #print("çççççççççççççççççççççççççççççççç")
-        #print("predicted heads {}".format(predicted_heads.shape))
-        #print("real heads {}".format(heads.shape))
+        #print("predicted heads {}".format(predicted_heads))
+        #print("real heads {}".format(heads))
         #print(torch.all(torch.eq(heads, predicted_heads)))
         #print("--------------------------------")
-        #print("predicted rels {}".format(predicted_rels))
-        #print("real rels {}".format(rels))
+        #print("predicted rels {}".format(predicted_rels.shape))
+        #print("real rels {}".format(rels.shape))
         #print(torch.all(torch.eq(predicted_rels, rels)))
         #print("çççççççççççççççççççççççççççççççç")
         # loss = model.loss(h_logits, l_logits, heads, rels)
@@ -182,10 +169,12 @@ def train_batch(text, pos, heads, rels, transitions, relations_in_order, maps,mo
 
     loss, pred_h, pred_rel = model((text, pos), transitions, relations_in_order,maps, mode='train')
     #print("çççççççççççççççççççççççççççççççç")
+    #print(pred_h)
+    #print(heads)
     #print(torch.all(torch.eq(heads,pred_h)))
     #print("--------------------------------")
-    #print(pred_rel)
-    #print(rels)
+    ##print(pred_rel)
+    ##print(rels)
     #print(torch.all(torch.eq(pred_rel,rels)))
     #print("çççççççççççççççççççççççççççççççç")
 
