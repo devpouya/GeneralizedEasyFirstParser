@@ -27,7 +27,7 @@ def get_args():
     parser.add_argument('--weight-decay', type=float, default=0.01)
     parser.add_argument('--model', choices=['easy-first','easy-first-hybrid','biaffine', 'mst', 'arc-standard',
                                             'arc-eager', 'hybrid', 'mh4','easy-first-mh4'],
-                        default='arc-standard')
+                        default='easy-first')
     parser.add_argument('--bert-model',type=str,default='bert-base-cased')
     # Optimization
     parser.add_argument('--optim', choices=['adam', 'adamw', 'sgd'], default='adamw')
@@ -142,15 +142,15 @@ def _evaluate(evalloader, model):
         relations_in_order = relations_in_order.to(device=constants.device)
         loss, predicted_heads, predicted_rels = model((text, pos), transitions, relations_in_order,maps, mode='eval')
 
-        print("çççççççççççççççççççççççççççççççç")
-        print("predicted heads {}".format(predicted_heads.shape))
-        print("real heads {}".format(heads.shape))
-        print(torch.all(torch.eq(heads, predicted_heads)))
-        print("--------------------------------")
-        print("predicted rels {}".format(predicted_rels))
-        print("real rels {}".format(rels))
-        print(torch.all(torch.eq(predicted_rels, rels)))
-        print("çççççççççççççççççççççççççççççççç")
+        #print("çççççççççççççççççççççççççççççççç")
+        #print("predicted heads {}".format(predicted_heads.shape))
+        #print("real heads {}".format(heads.shape))
+        #print(torch.all(torch.eq(heads, predicted_heads)))
+        #print("--------------------------------")
+        #print("predicted rels {}".format(predicted_rels))
+        #print("real rels {}".format(rels))
+        #print(torch.all(torch.eq(predicted_rels, rels)))
+        #print("çççççççççççççççççççççççççççççççç")
         # loss = model.loss(h_logits, l_logits, heads, rels)
         lengths = (text != 0).sum(-1)
         # heads_tgt = get_mst_batch(h_logits, lengths)

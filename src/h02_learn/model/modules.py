@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 from utils import constants
-
+import torch.nn.functional as F
 
 # adapted from stack-lstm-ner (https://github.com/clab/stack-lstm-ner)
 class StackRNN(nn.Module):
@@ -265,31 +265,21 @@ class HiddenOutput():
 class SoftmaxLegal(nn.Module):
     # __constants__ = ['dim']
     # dim: Optional[int]
-    def __init__(self, dim, parser, actions,is_relation=False):
+    def __init__(self, dim, parser, num_actions,transition_system):
         super(SoftmaxLegal, self).__init__()
         self.dim = dim
-        # self.parser = parser
-        self.actions = actions
-        self.num_actions = len(actions)
+        self.num_actions = num_actions
+        self.transition_system = transition_system
         self.indices = self.legal_indices(parser)
-        #elf.relate = self.rel_or_not()
-        self.is_relation = is_relation
-        # self.inds_zero = list(set(range(self.num_actions)).difference(set(self.indices)))
 
     def legal_indices(self, parser):
         if len(parser.stack) < 2:
             return [0]
         elif len(parser.buffer) < 1:
-            return [1, 2]
+            return list(range(self.num_actions))[1:]#[1, 2]
         else:
 
-            return [0, 1, 2]
-
-    def rel_or_not(self):
-        if self.indices == [0]:
-            return False
-        else:
-            return True
+            return list(range(self.num_actions))#[0, 1, 2]
 
     def __setstate__(self, state):
         self.__dict__.update(state)
@@ -297,23 +287,11 @@ class SoftmaxLegal(nn.Module):
             self.dim = None
 
     def forward(self, input):
-        if self.is_relation:
-            if self.rel_or_not():
-                tmp = F.softmax(input[1:], self.dim, _stacklevel=5)
-                ret = torch.zeros_like(input)
-                ret[1:] = tmp  #.detach().clone()
-                return ret
-            else:
-                tmp = F.softmax(input[0], self.dim, _stacklevel=5)
-                ret = torch.zeros_like(input)
-                ret[0] = tmp  # .detach().clone()
-                return ret
-        else:
-            tmp = F.softmax(input[self.indices], self.dim, _stacklevel=5)
-            # print(tmp)
-            ret = torch.zeros_like(input)
-            ret[self.indices] = tmp  # .detach().clone()
-            return ret  # F.softmax(input, self.dim, _stacklevel=5)
+        tmp = F.softmax(input[:,self.indices], self.dim, _stacklevel=5)
+        # print(tmp)
+        ret = torch.zeros_like(input)
+        ret[:,self.indices] = tmp  # .detach().clone()
+        return ret  # F.softmax(input, self.dim, _stacklevel=5)
 
     def extra_repr(self):
         return 'dim={dim}'.format(dim=self.dim)
