@@ -140,7 +140,7 @@ def test_oracle_arc_standard(action_history, sentence, true_arcs):
             arcs.append((sigma[-2], sigma[-1]))
             sigma.pop(-1)
             # beta[0] = item
-    # arcs.append((0,0))
+    arcs.append((0,0))
 
     return set(arcs) == set(true_arcs)
 
@@ -491,15 +491,12 @@ def test_oracle_mh4(action_history, sentence, true_arcs):
     # print(arcs)
     return set(arcs) == set(true_arcs)
 
-def mh4_oracle(sentence, word2head, relations,step):
-    stack = []  # BaseStack()
-    buffer = sentence.copy()  # BaseBuffer(sentence)
-    # true_arcs_no_label = get_arcs(word2head)
-    # true_arcs_labeled = get_labeled_arcs(word2headrels)
+def mh4_oracle(sentence, word2head, relations):
+    stack = []
+    buffer = sentence.copy()
+
     true_arcs = get_arcs(word2head)
     built_arcs = []
-    built_labeled_arcs = []
-    # labeled_arcs = arcs_with_relations(true_arcs, relations)
     action_history = []
 
     arcs_sorted = sorted(true_arcs, key=lambda tup: tup[1])[1:]
@@ -508,12 +505,7 @@ def mh4_oracle(sentence, word2head, relations,step):
         labeled_arcs.append((u, v, relations[i]))
 
     relations_in_order = []
-    #if step == 1244:
-    #    print(true_arcs)
-    #    print(buffer)
-    #    print(sentence)
-    #    print(labeled_arcs)
-    #    print(word2head)
+
 
     this_step = 0
     while len(buffer) > 0 or len(stack) > 1:
@@ -589,16 +581,12 @@ def mh4_oracle(sentence, word2head, relations,step):
             stack.append(buffer.pop(0))
             action_history.append(constants.shift)
             continue
-
     built_arcs.append((0, 0))
-    # action_history.append(None)
-
     cond1 = set(built_arcs) == set(true_arcs)
     cond2 = test_oracle_mh4(action_history, sentence.copy(), true_arcs)
-    #print(cond1)
-    #print(cond2)
-
     return action_history, relations_in_order, cond1 and cond2
+
+
 
 def has_all_children(true_arcs, built_arcs, item):
     for (u, v) in true_arcs:
@@ -878,6 +866,19 @@ def build_hypergraph_hybrid(ordered_arcs, n):
     return b_hypergraph
 
 
+def build_hypergraph_mh4(ordered_arcs, n):
+    derived_items = [{i, i + 1} for i in range(n)]
+
+    # derived_items.remove((n-1,n,n))
+    b_hypergraph = []
+    while len(derived_items) > 0:
+        item = derived_items.pop(0)
+
+
+
+    return b_hypergraph
+
+
 def build_hypergraph_eager(ordered_arcs, n):
     # the item is [i,j,h,b] === [i,j,h^b]
     derived_items = [(i, i + 1, 0) for i in range(n)]
@@ -940,6 +941,9 @@ def prepare_easy_first(sentence, word2head, relations, mode):
         # for i in range(n):
         #    axioms.append((i, i + 1, 1))
         b_hypergraph = build_hypergraph_eager(ordered_arcs, n)
+    elif mode == 'mh4':
+        axioms = [(i,i+1,i+1) for i in range(n)]
+        b_hypergraph = build_hypergraph_mh4(ordered_arcs,n)
 
     sorted_b_hypergraph = sort_hypergraph(b_hypergraph, axioms)
     return sorted_b_hypergraph, labeled_arcs, ordered_arcs, true_arcs
@@ -1032,6 +1036,22 @@ def easy_first_hybrid(sentence, word2head, relations):
     return action_history, relations_in_order, cond1 and cond2
 
 
+def easy_first_mh4(sentence, word2head, relations):
+    stack = []  # BaseStack()
+    buffer = sentence.copy()  # BaseBuffer(sentence)
+    action_history = []
+    relations_in_order = []
+    sorted_b_hypergraph, labeled_arcs, ordered_arcs, true_arcs = prepare_easy_first(sentence, word2head, relations,
+                                                                                    mode='mh4')
+    have_shifted = [False] * (len(sentence))
+    n = len(sentence)
+
+    hypergraph = []
+    pass
+
+
+
+
 def easy_first_arc_eager(sentence, word2head, relations):
     stack = []  # BaseStack()
     buffer = sentence.copy()  # BaseBuffer(sentence)
@@ -1104,6 +1124,3 @@ def easy_first_arc_eager(sentence, word2head, relations):
     print(cond1)
     return action_history, relations_in_order, cond1 and cond2
 
-
-def easy_first_mh4(sentence, word2head, relations):
-    pass

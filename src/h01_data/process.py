@@ -120,8 +120,7 @@ def process_data(in_fname_base, out_path, mode, vocabs, oracle=None, transition_
             word2head = {w: h for (w, h) in zip(sentence_proper, heads_proper)}
             if is_projective(word2head) or transition_name == 'mh4' or transition_name == 'easy-first-mh4':
                 step+=1
-                #print(step)
-                actions,relations_order,good = oracle(sentence_proper, word2head,relations,step)
+                actions,relations_order,good = oracle(sentence_proper, word2head,relations)
                 relation_ids = [rel2id[rel] for rel in relations_order]
                 if good:
                     right += 1
