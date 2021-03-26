@@ -189,8 +189,10 @@ class NeuralTransitionParser(BaseParser):
         state1 = self.dropout(F.relu(self.mlp_lin1(parser_state)))
 
         state2 = self.dropout(F.relu(self.mlp_act(state1)))
-
-        action_probabilities = SoftmaxActions(dim=-1, parser=parser, transition_system=self.transition_system,temperature=2)(state2)
+        if mode == 'eval':
+            action_probabilities = SoftmaxActions(dim=-1, parser=parser, transition_system=self.transition_system,temperature=2)(state2)
+        else:
+            action_probabilities = nn.Softmax(dim=-1)(state2).squeeze(0)
         state2 = self.dropout(F.relu(self.mlp_rel(state1)))
         rel_probabilities = nn.Softmax(dim=-1)(state2).squeeze(0)
 
@@ -277,16 +279,15 @@ class NeuralTransitionParser(BaseParser):
         action_probabilities, rel_probabilities, best_action, \
         rel, rel_embed, action_target, rel_target = self.parser_probabilities(parser, labeled_transitions, mode)
 
-        if mode == 'eval':
-            probs = torch.distributions.Categorical(action_probabilities)
-            #inds = parser.legal_indices_mh4()
-            #probs = torch.distributions.Uniform()
-            #action_samples = []
-            #for _ in range(self.beam_size):
-            #    action_samples.append(probs.sample().item())
-            best_action = probs.sample().item()#random.choice(action_samples)
-            #print(probs.probs)
-            #print(best_action)
+        #if mode == 'eval':
+        #    probs = torch.distributions.Categorical(action_probabilities)
+        #    #inds = parser.legal_indices_mh4()
+        #    #probs = torch.distributions.Uniform()
+        #    #action_samples = []
+        #    #for _ in range(self.beam_size):
+        #    #    action_samples.append(probs.sample().item())
+        #    best_action = probs.sample().item()#random.choice(action_samples)
+
         # do the action
         self.action.push(self.action_embeddings(torch.tensor(best_action, dtype=torch.long).to(device=constants.device))
                          .unsqueeze(0).to(device=constants.device))
