@@ -190,7 +190,7 @@ class NeuralTransitionParser(BaseParser):
 
         state2 = self.dropout(F.relu(self.mlp_act(state1)))
 
-        action_probabilities = SoftmaxActions(dim=-1, parser=parser, transition_system=self.transition_system)(state2)
+        action_probabilities = SoftmaxActions(dim=-1, parser=parser, transition_system=self.transition_system,temperature=2)(state2)
         state2 = self.dropout(F.relu(self.mlp_rel(state1)))
         rel_probabilities = nn.Softmax(dim=-1)(state2).squeeze(0)
 
@@ -277,6 +277,16 @@ class NeuralTransitionParser(BaseParser):
         action_probabilities, rel_probabilities, best_action, \
         rel, rel_embed, action_target, rel_target = self.parser_probabilities(parser, labeled_transitions, mode)
 
+        if mode == 'eval':
+            probs = torch.distributions.Categorical(action_probabilities)
+            #inds = parser.legal_indices_mh4()
+            #probs = torch.distributions.Uniform()
+            #action_samples = []
+            #for _ in range(self.beam_size):
+            #    action_samples.append(probs.sample().item())
+            best_action = probs.sample().item()#random.choice(action_samples)
+            #print(probs.probs)
+            #print(best_action)
         # do the action
         self.action.push(self.action_embeddings(torch.tensor(best_action, dtype=torch.long).to(device=constants.device))
                          .unsqueeze(0).to(device=constants.device))
@@ -299,7 +309,7 @@ class NeuralTransitionParser(BaseParser):
         elif best_action == 3:
             # left-arc-prime
             self.stack.pop()
-            self.stack.pop()
+            #self.stack.pop()
             ret = parser.left_arc_prime(rel, rel_embed, self.linear_tree)
             self.stack.push(ret.unsqueeze(0))
         elif best_action == 4:
@@ -398,44 +408,38 @@ class NeuralTransitionParser(BaseParser):
 
         criterion2 = nn.CrossEntropyLoss().to(device=constants.device)
 
-        num_batches = probs.shape[0]
-        l1, l2 = 0, 0
-        for i in range(num_batches):
-            p = probs[i]
-            t = targets[i]
-            t = t[p[:, 0] != -1]
-            p = p[p[:, 0] != -1, :]
-            l1 += criterion1(p, t.squeeze(1))
-            pr = probs_rel[i]
-            tr = targets_rel[i].squeeze(1)
-            pr = pr[tr != 0, :]
-            tr = tr[tr != 0]
-            tr = tr[pr[:, 0] != -1]
-            pr = pr[pr[:, 0] != -1]
-            l2 += criterion2(pr, tr)
-        l1 /= num_batches
-        l2 /= num_batches
+        #num_batches = probs.shape[0]
+        #l1, l2 = 0, 0
+        #for i in range(num_batches):
+        #    p = probs[i]
+        #    t = targets[i]
+        #    t = t[p[:, 0] != -1]
+        #    p = p[p[:, 0] != -1, :]
+        #    l1 += criterion1(p, t.squeeze(1))
+        #    pr = probs_rel[i]
+        #    tr = targets_rel[i].squeeze(1)
+        #    pr = pr[tr != 0, :]
+        #    tr = tr[tr != 0]
+        #    tr = tr[pr[:, 0] != -1]
+        #    pr = pr[pr[:, 0] != -1]
+        #    l2 += criterion2(pr, tr)
+        #l1 /= num_batches
+        #l2 /= num_batches
 
-        # probs = probs.reshape(-1, probs.shape[-1])
-        # targets = targets.reshape(-1)
-        # targets = targets[probs[:, 0] != -1]
-        # probs = probs[probs[:, 0] != -1, :]
+        probs = probs.reshape(-1, probs.shape[-1])
+        targets = targets.reshape(-1)
+        targets = targets[probs[:, 0] != -1]
+        probs = probs[probs[:, 0] != -1, :]
+        probs_rel = probs_rel.reshape(-1, probs_rel.shape[-1])
+        targets_rel = targets_rel.reshape(-1)
+        probs_rel = probs_rel[targets_rel != 0, :]
+        targets_rel = targets_rel[targets_rel != 0]
+        targets_rel = targets_rel[probs_rel[:, 0] != -1]
+        probs_rel = probs_rel[probs_rel[:, 0] != -1, :]
 
-        # print(probs.shape)
-        # print(targets.shape)
-
-        # probs_rel = probs_rel.reshape(-1, probs_rel.shape[-1])
-
-        # targets_rel = targets_rel.reshape(-1)
-
-        # probs_rel = probs_rel[targets_rel != 0, :]
-        # targets_rel = targets_rel[targets_rel != 0]
-        # targets_rel = targets_rel[probs_rel[:, 0] != -1]
-        # probs_rel = probs_rel[probs_rel[:, 0] != -1, :]
-
-        # loss = 0.5*criterion1(probs, targets)
-        # loss += 0.5*criterion2(probs_rel, targets_rel)
-        return l1 + l2
+        loss = criterion1(probs, targets)
+        loss +=criterion2(probs_rel, targets_rel)
+        return loss#l1 + l2
 
     def get_args(self):
         return {

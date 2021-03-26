@@ -62,6 +62,17 @@ class ShiftReduceParser():
         self.buffer[0] = (c, ind)
         return c
 
+    def legal_indices_mh4(self):
+        if len(self.stack) < 1:
+            return [0]
+        elif len(self.buffer) < 1:
+            return [2,3,4,6]
+        elif 3 > len(self.stack) >= 2:
+            return [0,1,2,3,5]
+        elif len(self.stack) < 2 and len(self.buffer) >= 1:
+            return [1]
+        elif len(self.buffer) >= 1 and len(self.stack) >= 3:
+            return [0,1,2,3,4,5,6]
 
 
     def shift(self):

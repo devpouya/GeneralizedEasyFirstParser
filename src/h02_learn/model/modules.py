@@ -276,7 +276,7 @@ class HiddenOutput():
 class SoftmaxLegal(nn.Module):
     # __constants__ = ['dim']
     # dim: Optional[int]
-    def __init__(self,dim, parser, num_actions, num_rels, transition_system):
+    def __init__(self, dim, parser, num_actions, num_rels, transition_system):
         super(SoftmaxLegal, self).__init__()
         self.dim = dim
         self.num_actions = num_actions
@@ -330,13 +330,13 @@ class SoftmaxLegal(nn.Module):
         else:
             return self.all_ind[self.num_rels + 1:]
 
-    def legal_indices_mh4(self,parser):
+    def legal_indices_mh4(self, parser):
         if len(parser.stack) < 1:
             return [0]
         elif len(parser.buffer) < 1:
-            return self.all_ind[2*self.num_rels+1:5*self.num_rels+1]+self.all_ind[6*self.num_rels+1:]
+            return self.all_ind[2 * self.num_rels + 1:5 * self.num_rels + 1] + self.all_ind[6 * self.num_rels + 1:]
         elif 3 > len(parser.stack) >= 2:
-            return self.all_ind[:self.num_rels*4+1]+self.all_ind[self.num_rels*5+1:self.num_rels*6+1]
+            return self.all_ind[:self.num_rels * 4 + 1] + self.all_ind[self.num_rels * 5 + 1:self.num_rels * 6 + 1]
         elif len(parser.stack) < 2 and len(parser.buffer) >= 1:
             return self.all_ind[1:self.num_rels]
         elif len(parser.buffer) >= 1 and len(parser.stack) >= 3:
@@ -359,7 +359,7 @@ class SoftmaxLegal(nn.Module):
 
 class SoftmaxActions(nn.Module):
 
-    def __init__(self,dim, parser,transition_system):
+    def __init__(self, dim, parser, transition_system, temperature, aggresive=True):
         super(SoftmaxActions, self).__init__()
         self.dim = dim
 
@@ -375,13 +375,19 @@ class SoftmaxActions(nn.Module):
 
         self.indices = legal_indices(parser)
 
+
+        if aggresive:
+            self.temp = len(self.indices)
+        else:
+            self.temp = temperature
+
     def legal_indices_arc_standard(self, parser):
         if len(parser.stack) < 2:
             return [0]
         elif len(parser.buffer) < 1:
-            return [1,2]
+            return [1, 2]
         else:
-            return [0,1,2]
+            return [0, 1, 2]
 
     def legal_indices_arc_eager(self, parser):
         if len(parser.stack) < 1:
@@ -393,10 +399,10 @@ class SoftmaxActions(nn.Module):
         else:
             if not has_head(parser.stack[-1], parser.arcs):
                 # can left, can't reduce
-                return [0,1,2]
+                return [0, 1, 2]
             else:
                 # can't left, can reduce
-                return [0,2,3]
+                return [0, 2, 3]
 
     def legal_indices_hybrid(self, parser):
         if len(parser.stack) < 1:
@@ -404,23 +410,37 @@ class SoftmaxActions(nn.Module):
             return [0]
         elif len(parser.stack) == 1 and len(parser.buffer) > 0:
             # can't right reduce
-            return [0,1]
+            return [0, 1]
         elif len(parser.buffer) > 0:
-            return [0,1,2]
+            return [0, 1, 2]
         else:
             return [2]
 
-    def legal_indices_mh4(self,parser):
-        if len(parser.stack) < 1:
-            return [0]
-        elif len(parser.buffer) < 1:
-            return [2,3,4,6]
-        elif 3 > len(parser.stack) >= 2:
-            return [0,1,2,3,5]
-        elif len(parser.stack) < 2 and len(parser.buffer) >= 1:
-            return [1]
-        elif len(parser.buffer) >= 1 and len(parser.stack) >= 3:
-            return [0,1,2,3,4,5,6]
+    def legal_indices_mh4(self, parser):
+        # la: stack >= 1 and buffer >= 1 (1)
+        # ra: stack >= 2 (2)
+        # la': stack >= 2 (3)
+        # ra': stack >= 3 (4)
+        # la2: stack >= 2 and buffer >= 1 (5)
+        # ra2: stack >= 3 (6)
+        sgt3 = len(parser.stack) >= 3
+        sgt2 = len(parser.stack) >= 2
+        bgt1 = len(parser.buffer) >= 1
+        sgt1 = len(parser.stack) >= 1
+        legal_ind = []
+        if sgt3:
+            legal_ind.append(4)
+            legal_ind.append(6)
+        if sgt2:
+            legal_ind.append(2)
+            legal_ind.append(3)
+        if sgt2 and bgt1:
+            legal_ind.append(5)
+        if sgt1 and bgt1:
+            legal_ind.append(1)
+        if bgt1:
+            legal_ind.append(0)
+        return legal_ind
 
     def __setstate__(self, state):
         self.__dict__.update(state)
@@ -429,6 +449,7 @@ class SoftmaxActions(nn.Module):
 
     def forward(self, input):
         tmp = F.softmax(input[:, self.indices], self.dim, _stacklevel=5)
+        tmp = torch.div(tmp, 2 ** 8)
         ret = torch.zeros_like(input)
         ret[:, self.indices] = tmp  # .detach().clone()
         return ret
