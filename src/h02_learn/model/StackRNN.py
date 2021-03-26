@@ -41,15 +41,24 @@ class NeuralTransitionParser(BaseParser):
         for act in self.actions:
             if act == constants.shift or act == constants.reduce:
                 non_labeling_actions += 1
+
         self.action2id = {act: i for i, act in enumerate(self.actions)}
         if self.transition_system == constants.arc_standard:
             self.parse_step = self.parse_step_arc_standard
+            self.arc_actions = [1, 2]
+            self.non_arc_actions = [0]
         elif self.transition_system == constants.arc_eager:
             self.parse_step = self.parse_step_arc_eager
+            self.arc_actions = [1, 2]
+            self.non_arc_actions = [0, 3]
         elif self.transition_system == constants.hybrid:
             self.parse_step = self.parse_step_hybrid
+            self.arc_actions = [1, 2]
+            self.non_arc_actions = [0]
         elif self.transition_system == constants.mh4:
             self.parse_step = self.parse_step_mh4
+            self.arc_actions = [1, 2, 3, 4, 5, 6]
+            self.non_arc_actions = [0]
         else:
             raise Exception("A transition system needs to be satisfied")
         _, _, rels = vocabs
@@ -133,7 +142,7 @@ class NeuralTransitionParser(BaseParser):
         action_embedding = nn.Embedding(self.num_actions, self.action_embeddings_size, scale_grad_by_freq=True)
         return tag_embeddings, action_embedding, rel_embeddings
 
-    def pairwise(iterable):
+    def pairwise(self, iterable):
         a = iter(iterable)
         return zip(a, a)
 
@@ -150,24 +159,11 @@ class NeuralTransitionParser(BaseParser):
     def labeled_action_pairs(self, actions, relations):
         labeled_acts = []
         tmp_rels = relations.clone().detach().tolist()
-        if self.transition_system == constants.mh4:
-            arc_actions = [1, 2, 3, 4, 5, 6]
-            non_arc_actions = [0]
-        elif self.transition_system == constants.arc_standard:
-            arc_actions = [1, 2]
-            non_arc_actions = [0]
-        elif self.transition_system == constants.arc_eager:
-            arc_actions = [1, 2]
-            non_arc_actions = [0, 3]
-        elif self.transition_system == constants.hybrid:
-            arc_actions = [1, 2]
-            non_arc_actions = [0]
-
         for act in actions:
-            if act in arc_actions:
+            if act in self.arc_actions:
                 labeled_acts.append((act, tmp_rels[0]))
                 tmp_rels.pop(0)
-            elif act in non_arc_actions:
+            elif act in self.non_arc_actions:
                 labeled_acts.append((act, 0))
 
         return labeled_acts
@@ -206,13 +202,84 @@ class NeuralTransitionParser(BaseParser):
 
         return action_probabilities, rel_probabilities, best_action, rel, rel_embed, action_target, rel_target
 
+    def parse_step_arc_standard(self, parser, labeled_transitions, mode):
+        action_probabilities, rel_probabilities, best_action, \
+        rel, rel_embed, action_target, rel_target = self.parser_probabilities(parser, labeled_transitions, mode)
+
+        # do the action
+        self.action.push(self.action_embeddings(torch.tensor(best_action, dtype=torch.long).to(device=constants.device))
+                         .unsqueeze(0).to(device=constants.device))
+        if best_action == 0:
+            # shift
+            self.stack.push(self.buffer.pop())
+            parser.shift()
+        elif best_action == 1:
+            # reduce-l
+            ret = parser.reduce_l(rel, rel_embed, self.linear_tree)
+            self.stack.pop(-2)
+            self.stack.replace(ret.unsqueeze(0))
+        elif best_action == 2:
+            # reduce-r
+            ret = parser.reduce_r(rel, rel_embed, self.linear_tree)
+            self.stack.pop()
+            self.stack.replace(ret.unsqueeze(0))
+        return parser, (action_probabilities, rel_probabilities), (action_target, rel_target)
+
+    def parse_step_hybrid(self, parser, labeled_transitions, mode):
+        action_probabilities, rel_probabilities, best_action, \
+        rel, rel_embed, action_target, rel_target = self.parser_probabilities(parser, labeled_transitions, mode)
+        self.action.push(self.action_embeddings(torch.tensor(best_action, dtype=torch.long).to(device=constants.device))
+                         .unsqueeze(0).to(device=constants.device))
+        if best_action == 0:
+            parser.shift()
+            self.stack.push(self.buffer.pop())
+        elif best_action == 1:
+            ret = parser.left_arc_eager(rel, rel_embed, self.linear_tree)
+            self.stack.pop()
+            self.buffer.replace(ret.unsqueeze(0))
+
+        elif best_action == 2:
+            ret = parser.reduce_r(rel, rel_embed, self.linear_tree)
+            self.stack.pop()
+            self.stack.replace(ret.unsqueeze(0))
+
+        return parser, (action_probabilities, rel_probabilities), (action_target, rel_target)
+
+    def parse_step_arc_eager(self, parser, labeled_transitions, mode):
+        action_probabilities, rel_probabilities, best_action, \
+        rel, rel_embed, action_target, rel_target = self.parser_probabilities(parser, labeled_transitions, mode)
+
+        self.action.push(self.action_embeddings(torch.tensor(best_action, dtype=torch.long).to(device=constants.device))
+                         .unsqueeze(0).to(device=constants.device))
+        if best_action == 0:
+            parser.shift()
+            self.stack.push(self.buffer.pop())
+        elif best_action == 1:
+            ret = parser.left_arc_eager(rel, rel_embed, self.linear_tree)
+            self.stack.pop()
+            self.buffer.replace(ret.unsqueeze(0))
+        elif best_action == 2:
+            ret = parser.right_arc_eager(rel, rel_embed, self.linear_tree)
+            self.stack.replace(ret.unsqueeze(0))
+            self.stack.push(self.buffer.pop())
+        elif best_action == 3:
+            parser.reduce()
+            self.stack.pop()
+        else:
+            self.stack.pop()
+            elem = parser.stack.pop()
+            parser.arcs.append((elem[1], elem[1], rel))
+
+        return parser, (action_probabilities, rel_probabilities), (action_target, rel_target)
+
     def parse_step_mh4(self, parser, labeled_transitions, mode):
         # get parser state
         action_probabilities, rel_probabilities, best_action, \
         rel, rel_embed, action_target, rel_target = self.parser_probabilities(parser, labeled_transitions, mode)
 
         # do the action
-        self.action.push(self.action_embeddings(best_action).unsqueeze(0).to(device=constants.device))
+        self.action.push(self.action_embeddings(torch.tensor(best_action, dtype=torch.long).to(device=constants.device))
+                         .unsqueeze(0).to(device=constants.device))
         # do the action
         if best_action == 0:
             # shift
@@ -257,73 +324,6 @@ class NeuralTransitionParser(BaseParser):
             item = self.stack.pop()
             self.stack.replace(ret.unsqueeze(0))
             self.stack.push(item)
-        return parser, (action_probabilities, rel_probabilities), (action_target, rel_target)
-
-    def parse_step_arc_standard(self, parser, labeled_transitions, mode):
-        action_probabilities, rel_probabilities, best_action, \
-        rel, rel_embed, action_target, rel_target = self.parser_probabilities(parser, labeled_transitions, mode)
-
-        # do the action
-        self.action.push(self.action_embeddings(best_action).unsqueeze(0).to(device=constants.device))
-        if best_action == 0:
-            # shift
-            self.stack.push(self.buffer.pop())
-            parser.shift()
-        elif best_action == 1:
-            # reduce-l
-            ret = parser.reduce_l(rel, rel_embed, self.linear_tree)
-            self.stack.pop(-2)
-            self.stack.replace(ret.unsqueeze(0))
-        elif best_action == 2:
-            # reduce-r
-            ret = parser.reduce_r(rel, rel_embed, self.linear_tree)
-            self.stack.pop()
-            self.stack.replace(ret.unsqueeze(0))
-        return parser, (action_probabilities, rel_probabilities), (action_target, rel_target)
-
-    def parse_step_hybrid(self, parser, labeled_transitions, mode):
-        action_probabilities, rel_probabilities, best_action, \
-        rel, rel_embed, action_target, rel_target = self.parser_probabilities(parser, labeled_transitions, mode)
-        self.action.push(self.action_embeddings(best_action).unsqueeze(0).to(device=constants.device))
-        if best_action == 0:
-            parser.shift()
-            self.stack.push(self.buffer.pop())
-        elif best_action == 1:
-            ret = parser.left_arc_eager(rel, rel_embed, self.linear_tree)
-            self.stack.pop()
-            self.buffer.replace(ret.unsqueeze(0))
-
-        elif best_action == 2:
-            ret = parser.reduce_r(rel, rel_embed, self.linear_tree)
-            self.stack.pop()
-            self.stack.replace(ret.unsqueeze(0))
-
-        return parser, (action_probabilities, rel_probabilities), (action_target, rel_target)
-
-    def parse_step_arc_eager(self, parser, labeled_transitions, mode):
-        action_probabilities, rel_probabilities, best_action, \
-        rel, rel_embed, action_target, rel_target = self.parser_probabilities(parser, labeled_transitions, mode)
-
-        self.action.push(self.action_embeddings(best_action).unsqueeze(0).to(device=constants.device))
-        if best_action == 0:
-            parser.shift()
-            self.stack.push(self.buffer.pop())
-        elif best_action == 1:
-            ret = parser.left_arc_eager(rel, rel_embed, self.linear_tree)
-            self.stack.pop()
-            self.buffer.replace(ret.unsqueeze(0))
-        elif best_action == 2:
-            ret = parser.right_arc_eager(rel, rel_embed, self.linear_tree)
-            self.stack.replace(ret.unsqueeze(0))
-            self.stack.push(self.buffer.pop())
-        elif best_action == 3:
-            parser.reduce()
-            self.stack.pop()
-        else:
-            self.stack.pop()
-            elem = parser.stack.pop()
-            parser.arcs.append((elem[1], elem[1], rel))
-
         return parser, (action_probabilities, rel_probabilities), (action_target, rel_target)
 
     def forward(self, x, transitions, relations, map, mode):
