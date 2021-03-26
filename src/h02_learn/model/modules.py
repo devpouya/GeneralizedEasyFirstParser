@@ -355,3 +355,83 @@ class SoftmaxLegal(nn.Module):
 
     def extra_repr(self):
         return 'dim={dim}'.format(dim=self.dim)
+
+
+class SoftmaxActions(nn.Module):
+
+    def __init__(self,dim, parser,transition_system):
+        super(SoftmaxActions, self).__init__()
+        self.dim = dim
+
+        self.transition_system = transition_system
+        if transition_system == constants.arc_standard:
+            legal_indices = self.legal_indices_arc_standard
+        elif transition_system == constants.arc_eager:
+            legal_indices = self.legal_indices_arc_eager
+        elif transition_system == constants.hybrid:
+            legal_indices = self.legal_indices_hybrid
+        else:
+            legal_indices = self.legal_indices_mh4
+
+        self.indices = legal_indices(parser)
+
+    def legal_indices_arc_standard(self, parser):
+        if len(parser.stack) < 2:
+            return [0]
+        elif len(parser.buffer) < 1:
+            return [1,2]
+        else:
+            return [0,1,2]
+
+    def legal_indices_arc_eager(self, parser):
+        if len(parser.stack) < 1:
+            # can only shift
+            return [0]
+
+        elif len(parser.buffer) < 1:
+            return [3]
+        else:
+            if not has_head(parser.stack[-1], parser.arcs):
+                # can left, can't reduce
+                return [0,1,2]
+            else:
+                # can't left, can reduce
+                return [0,2,3]
+
+    def legal_indices_hybrid(self, parser):
+        if len(parser.stack) < 1:
+            # can only shift
+            return [0]
+        elif len(parser.stack) == 1 and len(parser.buffer) > 0:
+            # can't right reduce
+            return [0,1]
+        elif len(parser.buffer) > 0:
+            return [0,1,2]
+        else:
+            return [2]
+
+    def legal_indices_mh4(self,parser):
+        if len(parser.stack) < 1:
+            return [0]
+        elif len(parser.buffer) < 1:
+            return [2,3,4,6]
+        elif 3 > len(parser.stack) >= 2:
+            return [0,1,2,3,5]
+        elif len(parser.stack) < 2 and len(parser.buffer) >= 1:
+            return [1]
+        elif len(parser.buffer) >= 1 and len(parser.stack) >= 3:
+            return [0,1,2,3,4,5,6]
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        if not hasattr(self, 'dim'):
+            self.dim = None
+
+    def forward(self, input):
+        tmp = F.softmax(input[:, self.indices], self.dim, _stacklevel=5)
+        ret = torch.zeros_like(input)
+        ret[:, self.indices] = tmp  # .detach().clone()
+        return ret
+
+    def extra_repr(self):
+        return 'dim={dim}'.format(dim=self.dim)
