@@ -4,6 +4,14 @@ import torch.nn as nn
 from utils import constants
 import torch.nn.functional as F
 
+
+def has_head(node, arcs):
+    for (u, v, _) in arcs:
+        if v == node:
+            return True
+    return False
+
+
 # adapted from stack-lstm-ner (https://github.com/clab/stack-lstm-ner)
 class StackRNN(nn.Module):
     def __init__(self, cell, initial_state, initial_hidden, dropout, p_empty_embedding=None):
@@ -55,7 +63,7 @@ class StackRNN(nn.Module):
         self.s.reverse()
         self.back_to_init()
 
-    def forward(self, x,replace=False):
+    def forward(self, x, replace=False):
         if replace:
             self.replace(x)
         else:
@@ -72,8 +80,8 @@ class StackCell():
         self.dropout = dropout
         self.s = [initial_state]
         # initial_hidden is a tuple (h,c)
-        #self.s = [(initial_state, initial_hidden)]
-        #self.s = [(initial_state, initial_hidden)]
+        # self.s = [(initial_state, initial_hidden)]
+        # self.s = [(initial_state, initial_hidden)]
 
         self.empty = None
         if p_empty_embedding is not None:
@@ -81,18 +89,19 @@ class StackCell():
 
     def replace(self, expr):
         h, c = self.cell(expr, self.s[-1])
-        #self.s[-1][0].detach()
-        #self.s[-1][1].detach()
-        self.s[-1] = (h,c)
-    def put_first(self,expr):
+        # self.s[-1][0].detach()
+        # self.s[-1][1].detach()
+        self.s[-1] = (h, c)
+
+    def put_first(self, expr):
         h, c = self.cell(expr, self.s[0])
-        self.s[0] = (h,c)
+        self.s[0] = (h, c)
 
     def push(self, expr):
-        h,c = self.cell(expr, self.s[-1])
-        self.s.append((h,c))
+        h, c = self.cell(expr, self.s[-1])
+        self.s.append((h, c))
 
-    def pop(self,ind=-1):
+    def pop(self, ind=-1):
         return self.s.pop(ind)[1]
 
     def embedding(self):
@@ -108,6 +117,7 @@ class StackCell():
 
     def __len__(self):
         return len(self.s) - 1
+
 
 class StackLSTM(nn.Module):
     def __init__(self, input_size, hidden_size, dropout, batch_size, batch_first, bidirectional=False):
@@ -262,24 +272,75 @@ class HiddenOutput():
         self.is_top = False
         self.is_root = False
 
+
 class SoftmaxLegal(nn.Module):
     # __constants__ = ['dim']
     # dim: Optional[int]
-    def __init__(self, dim, parser, num_actions,transition_system):
+    def __init__(self,dim, parser, num_actions, num_rels, transition_system):
         super(SoftmaxLegal, self).__init__()
         self.dim = dim
         self.num_actions = num_actions
+        self.all_ind = list(range(num_actions))
+        self.num_rels = num_rels
         self.transition_system = transition_system
-        self.indices = self.legal_indices(parser)
+        if transition_system == constants.arc_standard:
+            legal_indices = self.legal_indices_arc_standard
+        elif transition_system == constants.arc_eager:
+            legal_indices = self.legal_indices_arc_eager
+        elif transition_system == constants.hybrid:
+            legal_indices = self.legal_indices_hybrid
+        elif transition_system == constants.mh4:
+            legal_indices = self.legal_indices_mh4
 
-    def legal_indices(self, parser):
+        self.indices = legal_indices(parser)
+
+    def legal_indices_arc_standard(self, parser):
         if len(parser.stack) < 2:
             return [0]
         elif len(parser.buffer) < 1:
-            return list(range(self.num_actions))[1:]#[1, 2]
+            return list(range(self.num_actions))[1:]  # [1, 2]
         else:
 
-            return list(range(self.num_actions))#[0, 1, 2]
+            return list(range(self.num_actions))  # [0, 1, 2]
+
+    def legal_indices_arc_eager(self, parser):
+        if len(parser.stack) < 1:
+            # can only shift
+            return [0]
+
+        elif len(parser.buffer) < 1:
+            return [1]
+        else:
+            if not has_head(parser.stack[-1], parser.arcs):
+                # can left, can't reduce
+                return [0] + self.all_ind[1:]
+            else:
+                # can't left, can reduce
+                return [0] + self.all_ind[1 + self.num_rels:]
+
+    def legal_indices_hybrid(self, parser):
+        if len(parser.stack) < 1:
+            # can only shift
+            return [0]
+        elif len(parser.stack) == 1 and len(parser.buffer) > 0:
+            # can't right reduce
+            return self.all_ind[:self.num_rels + 1]
+        elif len(parser.buffer) > 0:
+            return self.all_ind
+        else:
+            return self.all_ind[self.num_rels + 1:]
+
+    def legal_indices_mh4(self,parser):
+        if len(parser.stack) < 1:
+            return [0]
+        elif len(parser.buffer) < 1:
+            return self.all_ind[2*self.num_rels+1:5*self.num_rels+1]+self.all_ind[6*self.num_rels+1:]
+        elif 3 > len(parser.stack) >= 2:
+            return self.all_ind[:self.num_rels*4+1]+self.all_ind[self.num_rels*5+1:self.num_rels*6+1]
+        elif len(parser.stack) < 2 and len(parser.buffer) >= 1:
+            return self.all_ind[1:self.num_rels]
+        elif len(parser.buffer) >= 1 and len(parser.stack) >= 3:
+            return self.all_ind
 
     def __setstate__(self, state):
         self.__dict__.update(state)
@@ -287,12 +348,10 @@ class SoftmaxLegal(nn.Module):
             self.dim = None
 
     def forward(self, input):
-        tmp = F.softmax(input[:,self.indices], self.dim, _stacklevel=5)
-        # print(tmp)
+        tmp = F.softmax(input[:, self.indices], self.dim, _stacklevel=5)
         ret = torch.zeros_like(input)
-        ret[:,self.indices] = tmp  # .detach().clone()
-        return ret  # F.softmax(input, self.dim, _stacklevel=5)
+        ret[:, self.indices] = tmp  # .detach().clone()
+        return ret
 
     def extra_repr(self):
         return 'dim={dim}'.format(dim=self.dim)
-

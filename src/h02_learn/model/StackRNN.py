@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 import torch.nn.functional as F
-
+import random
 import numpy as np
 
 from utils import constants
@@ -223,8 +223,8 @@ class NeuralTransitionParser(BaseParser):
         state1 = state1 + self.action_bias
         #state2 = self.dropout(F.relu(self.mlp_act(state1)))
         #action_probabilities =  nn.Softmax(dim=-1)(state2).squeeze(0)
-        action_probabilities = SoftmaxLegal(dim=-1, parser=parser, num_actions=self.num_total_actions
-                                            ,transition_system=self.transition_system)(state1)
+        action_probabilities = SoftmaxLegal(dim=-1, parser=parser, num_actions=self.num_total_actions,
+                                            num_rels=self.num_rels,transition_system=self.transition_system)(state1)
         #state2 = self.dropout(F.relu(self.mlp_rel(state1)))
         #rel_probabilities = nn.Softmax(dim=-1)(state2).squeeze(0)
         return action_probabilities #,rel_probabilities
@@ -323,53 +323,29 @@ class NeuralTransitionParser(BaseParser):
         action_to_take = labeled_transitions[0].item()
         rel = labeled_transitions[1]
         if action_to_take == 0:
-            best_action = 0
+            t = 0
         elif action_to_take == 1:
-            best_action = rel
+            t = rel
         else:
-            best_action = rel+self.num_rels
+            t = rel+self.num_rels
 
-        target = torch.tensor([best_action], dtype=torch.long).to(device=constants.device)
+        target = torch.tensor([t], dtype=torch.long).to(device=constants.device)
         if rel > 0:
             rel_target = torch.tensor([rel-1], dtype=torch.long).to(device=constants.device)
             rel = int(rel_target.item())
             rel_embed = self.rel_embeddings(rel_target).to(device=constants.device)
         if mode == 'eval':
-
-            #if len(parser.stack) < 2:
-            #    # can't left or right
-            #    best_action = 0  # torch.argmax(action_probabilities[:, 0], dim=-1).item()
-            #    #beam = torch.zeros((self.beam_size))
-            #elif len(parser.buffer) < 1:
-            #    # can't shift
-            #    tmp = action_probabilities.clone().detach().to(device=constants.device)
-            #    tmp[:,0] = -float('inf')
-            #    best_action = torch.argmax(tmp, dim=-1).item()
-            #    #vals,beam = torch.topk(tmp,self.beam_size,dim=-1)
-            #else:
-            #    best_action = torch.argmax(action_probabilities, dim=-1).item()
             probs = torch.distributions.Categorical(action_probabilities[0])
-            best_action = probs.sample()
-                #vals,beam = torch.topk(action_probabilities,self.beam_size,dim=-1)
-            beam_rels, beam_actions = [],[]
-            #for ind in beam:
-            #    if ind > 0:
-            #        if ind <= (self.num_total_actions-1)/2:
-            #            beam_rels.append(ind)
-            #            beam_actions.append(1)
-            #        else:
-            #            beam_rels.append(ind - self.num_rels)
-            #            beam_actions.append(2)
-            #    else:
-            #        beam_rels.append(0)
-            #        beam_actions.append(0)
-
-            if best_action > 0:
-                if best_action <= (self.num_total_actions-1)/2:
-                    rel = best_action
+            samples = []
+            for _ in range(self.beam_size):
+                samples.append(probs.sample())
+            t = random.choice(samples)
+            if t > 0:
+                if t <= (self.num_total_actions-1)/2:
+                    rel = t
                     action_to_take = 1
                 else:
-                    rel = best_action - self.num_rels
+                    rel = t - self.num_rels
                     action_to_take = 2
             else:
                 action_to_take = 0
@@ -378,7 +354,7 @@ class NeuralTransitionParser(BaseParser):
                 rel_ind = torch.tensor([rel-1], dtype=torch.long).to(device=constants.device)
                 rel_embed = self.rel_embeddings(rel_ind).to(device=constants.device)
 
-        best_action = torch.tensor(best_action, dtype=torch.long).to(device=constants.device)
+        best_action = torch.tensor(t, dtype=torch.long).to(device=constants.device)
         # do the action
         self.action.push(self.action_embeddings(best_action).unsqueeze(0).to(device=constants.device))
         if action_to_take == 0:
