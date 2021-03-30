@@ -81,8 +81,9 @@ class AgendaParser(BertParser):
 
         #self.stack = StackCell(self.stack_lstm, self.lstm_init_state, self.lstm_init_state, self.dropout,
         #                      self.empty_initial)
-        self.pending = PendingRNN(self.buffer_lstm, self.lstm_init_state, self.lstm_init_state, self.dropout,
-                               self.empty_initial)
+        #self.pending = PendingRNN(self.buffer_lstm, self.lstm_init_state, self.lstm_init_state, self.dropout,
+        #                       self.empty_initial)
+        self.pending = nn.LSTM(stack_lstm_size, stack_lstm_size)
         #self.action = StackCell(self.action_lstm, self.lstm_init_state_actions, self.lstm_init_state_actions,
         #                       self.dropout,
         #                       self.empty_initial_act)
@@ -113,10 +114,9 @@ class AgendaParser(BertParser):
         action_target = torch.tensor([best_action], dtype=torch.long).to(device=constants.device)
         rel_target = torch.tensor([rel], dtype=torch.long).to(device=constants.device)
         rel_embed = self.rel_embeddings(rel_target).to(device=constants.device)
-        pending_representation = self.pending.embedding()
-        action_probabilities, rel_probabilities, index, dir = parser.score_pending(self.mlp_u, self.mlp_l,self.action_embeddings(torch.tensor(1, dtype=torch.long).to(device=constants.device)),
-                                                                                   self.action_embeddings(torch.tensor(0, dtype=torch.long).to(device=constants.device)),
-                                                                                   pending_representation)
+        action_probabilities, rel_probabilities, index, dir,self.pending = parser.score_pending(self.mlp_u, self.mlp_l,self.pending,self.action_embeddings(torch.tensor(1, dtype=torch.long).to(device=constants.device)),
+                                                                                   self.action_embeddings(torch.tensor(0, dtype=torch.long).to(device=constants.device))
+                                                                                   )
         if mode == 'eval':
             rel = torch.argmax(rel_probabilities,dim=-1)
             rel_embed = self.rel_embeddings(rel).to(device=constants.device)
@@ -130,9 +130,13 @@ class AgendaParser(BertParser):
             parser.easy_first_action(index_head, index_mod, rel, rel_embed, self.linear_tree)
         else:
             ret = parser.easy_first_action(target_head,target_mod, rel, rel_embed, self.linear_tree)
-            self.pending.back_to_init()
-            for tree in parser.pending:
-                self.pending.push(tree[0].unsqueeze(0))
+            #self.pending.back_to_init()
+            #tree = []
+            #for t in parser.pending:
+            #    t.append(t[0])
+            #self.pending(torch.stack(t).unsqueeze(1).to(device=constants.device))
+            #for tree in parser.pending:
+            #    self.pending.push(tree[0].unsqueeze(0))
             #self.pending.pop(target_mod)
         return parser, (action_probabilities, rel_probabilities), (action_target, rel_target)
 
@@ -177,8 +181,9 @@ class AgendaParser(BertParser):
             labeled_transitions = self.easy_first_labeled_transitions(transitions[i, :curr_transition_length],
                                                             relations[i, :curr_sentence_length])
             parser = ShiftReduceParser(s, self.rel_embedding_size, self.transition_system, easy_first=True)
-            for word in s:
-                self.pending.push(word.unsqueeze(0))
+            #for word in s:
+            #    self.pending.push(word.unsqueeze(0))
+            self.pending(s.unsqueeze(1))
             for step in range(len(labeled_transitions)):
                 parser, probs, target = self.parse_step(parser,
                                                         labeled_transitions[step],
@@ -194,7 +199,7 @@ class AgendaParser(BertParser):
             heads_batch[i, :curr_sentence_length] = parser.heads_from_arcs()[0]
             rels_batch[i, :curr_sentence_length] = parser.heads_from_arcs()[1]
             #self.stack.back_to_init()
-            self.pending.back_to_init()
+            #self.pending.back_to_init()
             #self.action.back_to_init()
 
         batch_loss = self.loss(probs_action_batch, targets_action_batch, probs_rel_batch, targets_rel_batch)
@@ -376,15 +381,6 @@ class NeuralTransitionParser(BertParser):
         # get parser state
         action_probabilities, rel_probabilities, best_action, \
         rel, rel_embed, action_target, rel_target = self.parser_probabilities(parser, labeled_transitions, mode)
-
-        # if mode == 'eval':
-        #    probs = torch.distributions.Categorical(action_probabilities)
-        #    #inds = parser.legal_indices_mh4()
-        #    #probs = torch.distributions.Uniform()
-        #    #action_samples = []
-        #    #for _ in range(self.beam_size):
-        #    #    action_samples.append(probs.sample().item())
-        #    best_action = probs.sample().item()#random.choice(action_samples)
 
         # do the action
         self.action.push(self.action_embeddings(torch.tensor(best_action, dtype=torch.long).to(device=constants.device))

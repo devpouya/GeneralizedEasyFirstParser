@@ -79,7 +79,7 @@ class ShiftReduceParser():
         else:
             return slice(i-2,min(i+3,len(self.pending)))
 
-    def score_pending(self,mlp_u,mlp_l,emb_left,emb_right,pending_rep):
+    def score_pending(self,mlp_u,mlp_l,lstm,emb_left,emb_right):
         action_s = []
         rel_s = []
 
@@ -89,14 +89,16 @@ class ShiftReduceParser():
             have a history of actions, plus a stack-lstm representation of pending as input to mlp'ss
         """
         scores = []
+        tree = torch.stack(list(list(zip(*self.pending))[0])).unsqueeze(1).to(device=constants.device)
+        rep,(h,c) = lstm(tree)
         for i in range(len(self.pending)):
             window_trees = list(list(zip(*self.pending))[0][self.window(i)])
             if len(window_trees) < 5:
                 while len(window_trees) < 5:
                     window_trees.append(torch.zeros_like(window_trees[0]).to(device=constants.device))
             window_trees_vec = torch.cat(window_trees,dim=0)
-            window_trees_left = torch.cat([window_trees_vec,emb_left,pending_rep.squeeze(0)],dim=0)
-            window_trees_right = torch.cat([window_trees_vec,emb_right,pending_rep.squeeze(0)],dim=0)
+            window_trees_left = torch.cat([window_trees_vec,emb_left,h.squeeze(0).squeeze(0)],dim=0)
+            window_trees_right = torch.cat([window_trees_vec,emb_right,h.squeeze(0).squeeze(0)],dim=0)
             score_uil = mlp_u(window_trees_left)
             score_uir = mlp_u(window_trees_right)
             score_lil = mlp_l(window_trees_left)
@@ -119,7 +121,7 @@ class ShiftReduceParser():
             direction = 0
             index = int((i-1)/2)
         rel_probabilities = nn.Softmax(dim=-1)(rel_s[best_i])
-        return action_probabilities, rel_probabilities, index, direction
+        return action_probabilities, rel_probabilities, index, direction, lstm
 
     def easy_first_action(self, index_head,index_mod,rel,rel_embed,linear):
 
