@@ -23,6 +23,7 @@ class AgendaParser(BertParser):
         self.action_lstm = nn.LSTMCell(self.action_embeddings_size, self.action_embeddings_size).to(
             device=constants.device)
 
+
         input_init = torch.zeros((1, stack_lstm_size)).to(
             device=constants.device)
         hidden_init = torch.zeros((1, stack_lstm_size)).to(
@@ -88,6 +89,8 @@ class AgendaParser(BertParser):
         #                       self.dropout,
         #                       self.empty_initial_act)
 
+        # self.transform_weight = nn.GRU(input_size=stack_lstm_size,hidden_size=max_sent_len)
+
     def easy_first_labeled_transitions(self,transitions,relations):
         labeled_actions = []
         relations = relations.tolist()
@@ -115,29 +118,21 @@ class AgendaParser(BertParser):
         rel_target = torch.tensor([rel], dtype=torch.long).to(device=constants.device)
         rel_embed = self.rel_embeddings(rel_target).to(device=constants.device)
         action_probabilities, rel_probabilities, index, dir,self.pending = parser.score_pending(self.mlp_u, self.mlp_l,self.pending,self.action_embeddings(torch.tensor(1, dtype=torch.long).to(device=constants.device)),
-                                                                                   self.action_embeddings(torch.tensor(0, dtype=torch.long).to(device=constants.device))
-                                                                                   )
+                                                                                   self.action_embeddings(torch.tensor(0, dtype=torch.long).to(device=constants.device)))
         if mode == 'eval':
             rel = torch.argmax(rel_probabilities,dim=-1)
             rel_embed = self.rel_embeddings(rel).to(device=constants.device)
-            rel = rel.item()+1
+            rel = rel.item()#+1
             if dir == 1:
                 index_mod = index
-                index_head = max(0,index-1)
+                index_head = index-1#max(0,index-1)
             else:
-                index_mod = min(index+1,len(parser.pending)-1)
+                index_mod = index+1#min(index+1,len(parser.pending)-1)
                 index_head = index
             parser.easy_first_action(index_head, index_mod, rel, rel_embed, self.linear_tree)
         else:
-            ret = parser.easy_first_action(target_head,target_mod, rel, rel_embed, self.linear_tree)
-            #self.pending.back_to_init()
-            #tree = []
-            #for t in parser.pending:
-            #    t.append(t[0])
-            #self.pending(torch.stack(t).unsqueeze(1).to(device=constants.device))
-            #for tree in parser.pending:
-            #    self.pending.push(tree[0].unsqueeze(0))
-            #self.pending.pop(target_mod)
+            parser.easy_first_action(target_head,target_mod, rel, rel_embed, self.linear_tree)
+
         return parser, (action_probabilities, rel_probabilities), (action_target, rel_target)
 
     def forward(self, x, transitions, relations, map, mode):
@@ -178,16 +173,18 @@ class AgendaParser(BertParser):
             curr_sentence_length = s.shape[0]
             curr_transition_length = transit_lens[i]
             s = s[:curr_sentence_length, :]
+            # n * embedding_size ---> n*n
             labeled_transitions = self.easy_first_labeled_transitions(transitions[i, :curr_transition_length],
                                                             relations[i, :curr_sentence_length])
             parser = ShiftReduceParser(s, self.rel_embedding_size, self.transition_system, easy_first=True)
-            #for word in s:
-            #    self.pending.push(word.unsqueeze(0))
             self.pending(s.unsqueeze(1))
-            for step in range(len(labeled_transitions)):
+            step = 0
+            while len(parser.pending)>1:
+            #for step in range(len(labeled_transitions)):
                 parser, probs, target = self.parse_step(parser,
                                                         labeled_transitions[step],
                                                         mode)
+                step+=1
 
                 (action_probs, rel_probs) = probs
                 (action_target, rel_target) = target

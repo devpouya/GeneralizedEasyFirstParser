@@ -6,13 +6,15 @@ import heapq
 # arc-standard shift reduce parser
 
 class Item(object):
-    def __init__(self,i,j,h,weight):
+    def __init__(self,i,j,h,weight,item_l,item_r):
         self.i = i
         self.j = j
         self.h = h
-        self.W = weight
+        self.item_l = item_l
+        self.item_r = item_r
+        self.w = weight
     def __lt__(self, other):
-        return self.W < other.W
+        return self.w < other.w
     def __eq__(self, other):
         return self.i == other.i and self.j == other.j and self.h == other.h
 

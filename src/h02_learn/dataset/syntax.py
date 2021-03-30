@@ -14,6 +14,7 @@ class SyntaxDataset(Dataset):
         self.transition_system = {act: i for (act, i) in zip(transition_system[0], transition_system[1])}
         # self.transition_system[None] = -2
         self.tokenizer = tokenizer
+        self.max_sent_len = 0
         self.act_counts = {self.transition_system[act]:0 for act in self.transition_system.keys()}
 
         self.load_data(fname, transition_file)
@@ -33,6 +34,9 @@ class SyntaxDataset(Dataset):
                 tokens, mapping = self.tokenize([word['word'] for word in sentence])
                 self.word_st += [tokens]
                 self.mappings += [mapping]
+                length = len([word['word_id'] for word in sentence])
+                if length > self.max_sent_len:
+                    self.max_sent_len = length
                 # self.check_lens([word['word_id'] for word in sentence],tranisiton['transition'])
                 self.pos += [self.list2tensor([word['tag1_id'] for word in sentence])]
                 self.heads += [self.list2tensor([word['head'] for word in sentence])]
