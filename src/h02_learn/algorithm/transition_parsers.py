@@ -111,12 +111,13 @@ class ShiftReduceParser():
             rel_s.append(score_lir)
         action_probabilities = nn.Softmax(dim=-1)(torch.stack(action_s))
         best_i = torch.argmax(torch.stack(scores),dim=0)
+        i = best_i.item()
         if best_i%2 == 0:
             direction = 1
-            index = int(best_i/2)
+            index = int(i/2)
         else:
             direction = 0
-            index = int((best_i-1)/2)
+            index = int((i-1)/2)
         rel_probabilities = nn.Softmax(dim=-1)(rel_s[best_i])
         return action_probabilities, rel_probabilities, index, direction
 
