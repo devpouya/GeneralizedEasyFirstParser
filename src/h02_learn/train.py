@@ -6,7 +6,7 @@ import torch.optim as optim
 sys.path.append('./src/')
 from h02_learn.dataset import get_data_loaders
 from h02_learn.model import BiaffineParser, MSTParser
-from h02_learn.model import NeuralTransitionParser
+from h02_learn.model import NeuralTransitionParser, AgendaParser
 from h02_learn.train_info import TrainInfo
 from h02_learn.algorithm.mst import get_mst_batch
 from utils import constants
@@ -62,16 +62,17 @@ def get_optimizer(paramters, optim_alg, lr_decay, weight_decay):
 
 
 def get_model(vocabs,embeddings,args):
-    if args.model == 'mst':
-        return MSTParser(
-            vocabs, args.embedding_size,args.rel_embedding_size, args.hidden_size, args.arc_size, args.label_size,
-            nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings) \
-            .to(device=constants.device)
-    if args.model == 'arc-standard' or args.model=='easy-first':
+
+    if args.model == 'arc-standard': # or args.model=='easy-first':
         return NeuralTransitionParser(
             vocabs=vocabs, embedding_size=args.embedding_size,rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
             dropout=args.dropout,
             transition_system=constants.arc_standard) \
+            .to(device=constants.device)
+    elif args.model == 'easy-first':
+        return AgendaParser(vocabs=vocabs, embedding_size=args.embedding_size,rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
+            dropout=args.dropout,
+            transition_system=constants.easy_first) \
             .to(device=constants.device)
     elif args.model == 'arc-eager':
         return NeuralTransitionParser(
@@ -169,12 +170,12 @@ def train_batch(text, pos, heads, rels, transitions, relations_in_order, maps,mo
 
     loss, pred_h, pred_rel = model((text, pos), transitions, relations_in_order,maps, mode='train')
     #print("çççççççççççççççççççççççççççççççç")
-    #print(pred_h)
-    #print(heads)
+    ##print(pred_h)
+    ##print(heads)
     #print(torch.all(torch.eq(heads,pred_h)))
     #print("--------------------------------")
-    ##print(pred_rel)
-    ##print(rels)
+    #print(pred_rel)
+    #print(rels)
     #print(torch.all(torch.eq(pred_rel,rels)))
     #print("çççççççççççççççççççççççççççççççç")
 
@@ -220,8 +221,10 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
 def main():
     # pylint: disable=too-many-locals
     args = get_args()
-    if args.model == "arc-standard" or args.model == "easy-first":
+    if args.model == "arc-standard":# or args.model == "easy-first":
         transition_system = constants.arc_standard
+    elif args.model == "easy-first":
+        transition_system = constants.easy_first
     elif args.model == "arc-eager":
         transition_system = constants.arc_eager
     elif args.model == "hybrid" or args.model == "easy-first-hybrid":

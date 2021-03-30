@@ -137,6 +137,9 @@ left_arc_hybrid = "LEFT_ARC_H"
 left_arc_2 = "LEFT_ARC_2"
 right_arc_2 = "RIGHT_ARC_2"
 
+right_attach = "ATTACH_RIGHT"
+left_attach = "ATTACH_LEFT"
+
 arc_standard = ([shift, reduce_l, reduce_r], list(range(3)))  # {shift: 0, reduce_l: 1, reduce_r: 2}
 # arc_standard_actions = {0: fshift, 1: freduce_l, 2: freduce_r}
 
@@ -149,4 +152,4 @@ hybrid = ([shift, left_arc_eager, reduce_r], list(range(3)))  # {shift: 0, left_
 mh4 = ([shift, left_arc_eager, reduce_r, left_arc_prime, right_arc_prime,left_arc_2,right_arc_2], list(range(7)))
 # hybrid_actions = {0: fshift, 1: fleft_arc, 2: freduce_r}
 
-easy_first = (0, 0)
+easy_first = ([left_attach,right_attach],list(range(2)))

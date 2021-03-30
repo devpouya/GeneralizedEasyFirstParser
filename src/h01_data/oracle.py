@@ -601,25 +601,97 @@ def has_all_children(true_arcs, built_arcs, item):
 
 
 def test_oracle_easy_first(action_history, sentence, true_arcs):
-    sigma = []
-    beta = sentence.copy()
+    pending = sentence.copy()
     arcs = []
     for action in action_history:
-        if action == constants.shift:
-            sigma.append(beta.pop(0))
-        elif action == constants.reduce_l:
-            arcs.append((sigma[-1], sigma[-2]))
-            sigma.pop(-2)
-        elif action == constants.reduce_r:
-            arcs.append((sigma[-2], sigma[-1]))
-            sigma.pop(-1)
-        else:
-            # prune
-            beta = [sigma[-1]] + beta
-            sigma.pop(-1)
+        (i,j) = action
+        arcs.append((pending[i],pending[j]))
+        pending.pop(j)
+
 
     return set(arcs) == set(true_arcs)
 
+def easy_first_pending(sentence, word2head, relations):
+    stack = []  # BaseStack()
+    pending = sentence.copy()  # BaseBuffer(sentence)
+    buffer = sentence.copy()  # BaseBuffer(sentence)
+    # true_arcs_no_label = get_arcs(word2head)
+    # true_arcs_labeled = get_labeled_arcs(word2headrels)
+    true_arcs = get_arcs(word2head)
+    built_arcs = {}
+    counter = 0
+    built_labeled_arcs = []
+    # labeled_arcs = arcs_with_relations(true_arcs, relations)
+    action_history = []
+    arcs_sorted = sorted(true_arcs, key=lambda tup: tup[1])[1:]
+    labeled_arcs = []
+    for i, (u, v) in enumerate(arcs_sorted):
+        labeled_arcs.append((u, v, relations[i]))
+    relations_in_order = []
+    easy_first_actions = []
+    true_arcs.remove((0, 0))
+    #pending = pending[1:]
+    while len(pending) > 1:
+        n = len(pending)
+        if n==2:
+            if (pending[0], pending[1]) in true_arcs:
+                built_arcs[counter] = (pending[0], pending[1])
+                easy_first_actions.append((0, 1))
+                relations_in_order.append(find_corresponding_relation(labeled_arcs, (pending[0], pending[1])))
+
+                counter += 1
+                # built_arcs.append((0,pending[0]))
+                pending.pop(1)
+                continue
+            elif (pending[1], pending[0]) in true_arcs:
+                built_arcs[counter] = (pending[1], pending[0])
+                easy_first_actions.append((1, 0))
+                relations_in_order.append(find_corresponding_relation(labeled_arcs, (pending[1], pending[0])))
+
+                counter += 1
+                # built_arcs.append((0,pending[0]))
+                pending.pop(0)
+                continue
+        #print(n)
+        for i in range(1,n,1):
+            this = i
+            nxt = min(i+1,n-1)
+            precondition_i = has_all_children(true_arcs, built_arcs, pending[nxt])
+            precondition_inext = has_all_children(true_arcs, built_arcs, pending[i])
+            if (pending[i], pending[nxt]) in true_arcs and precondition_i:
+                built_arcs[counter] = (pending[i], pending[nxt])
+                relations_in_order.append(find_corresponding_relation(labeled_arcs, (pending[i], pending[i + 1])))
+                counter += 1
+                # built_arcs.append((pending[i],pending[i+1]))
+                #pending[i + 1] = -1
+                #easy_first_actions.append((pending[i], pending[i + 1]))
+                easy_first_actions.append((i, nxt))
+                pending.pop(i+1)
+
+                break
+            elif (pending[nxt], pending[i]) in true_arcs and precondition_inext:
+                built_arcs[counter] = (pending[nxt], pending[i])
+                relations_in_order.append(find_corresponding_relation(labeled_arcs, (pending[nxt], pending[i])))
+                counter += 1
+                # built_arcs.append((pending[i+1],pending[i]))
+                #pending[i] = -1
+                #easy_first_actions.append((pending[i + 1], pending[i]))
+                easy_first_actions.append((nxt, i))
+                pending.pop(i)
+
+                break
+
+
+    ordered_arcs = built_arcs.values()  # []
+    actions = []
+    for (i,j) in easy_first_actions:
+        if i < j:
+            actions.append((constants.left_attach,(i,j)))
+        else:
+            actions.append((constants.right_attach,(i,j)))
+    cond1 = set(ordered_arcs) == set(true_arcs)
+    cond2 = test_oracle_easy_first(easy_first_actions,sentence,true_arcs)
+    return actions,relations_in_order, cond1 and cond2
 
 def easy_first_prune(sentence, word2head, relations):
     stack = []  # BaseStack()
@@ -647,7 +719,7 @@ def easy_first_prune(sentence, word2head, relations):
             built_arcs[counter] = (0, pending[0])
             counter += 1
             # built_arcs.append((0,pending[0]))
-            pending.pop(0)
+            #pending.pop(0)
             continue
 
         for i in range(n):
@@ -658,7 +730,8 @@ def easy_first_prune(sentence, word2head, relations):
                 relations_in_order.append(find_corresponding_relation(labeled_arcs, (pending[i], pending[i + 1])))
                 counter += 1
                 # built_arcs.append((pending[i],pending[i+1]))
-                pending[i + 1] = -1
+                #pending[i + 1] = -1
+                pending.pop(i+1)
                 easy_first_actions.append(("left-attach", (i, i + 1)))
             elif (pending[i + 1], pending[i]) in true_arcs and precondition_inext:
                 built_arcs[counter] = (pending[i + 1], pending[i])
@@ -666,12 +739,13 @@ def easy_first_prune(sentence, word2head, relations):
 
                 counter += 1
                 # built_arcs.append((pending[i+1],pending[i]))
-                pending[i] = -1
+                #pending[i] = -1
+                pending.pop(i)
                 easy_first_actions.append(("right-attach", (i + 1, i)))
 
-        for item in pending:
-            if item == -1:
-                pending.remove(-1)
+        #for item in pending:
+        #    if item == -1:
+        #        pending.remove(-1)
 
     ordered_arcs = built_arcs.values()  # []
     have_inserted = [False] * len(built_arcs)
@@ -808,6 +882,8 @@ def build_easy_first(sentence, true_arcs):
 def build_hypergraph(ordered_arcs, n):
     derived_items = [(i, i, i) for i in range(n)]
     b_hypergraph = []
+    print(ordered_arcs)
+    jhjh
     for (u, v) in ordered_arcs:
         derived_items = sorted(derived_items, key=lambda x: x[2])
         item_l, item_r, new_item = None, None, None
@@ -871,8 +947,11 @@ def build_hypergraph_mh4(ordered_arcs, n):
 
     # derived_items.remove((n-1,n,n))
     b_hypergraph = []
+    heads = {u for (u,v) in ordered_arcs}
+
     while len(derived_items) > 0:
         item = derived_items.pop(0)
+
 
 
 
@@ -915,9 +994,6 @@ def build_hypergraph_eager(ordered_arcs, n):
                     #break
 
 
-
-    for item in derived_items.items(): print(item)
-    jhjh
     return b_hypergraph
 
 

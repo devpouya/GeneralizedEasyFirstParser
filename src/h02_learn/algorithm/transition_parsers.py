@@ -1,25 +1,61 @@
 import torch
 import torch.nn as nn
 from utils import constants
-
+import heapq
 
 # arc-standard shift reduce parser
+
+class Item(object):
+    def __init__(self,i,j,h,weight):
+        self.i = i
+        self.j = j
+        self.h = h
+        self.W = weight
+    def __lt__(self, other):
+        return self.W < other.W
+    def __eq__(self, other):
+        return self.i == other.i and self.j == other.j and self.h == other.h
+
+class PriorityQueue(object):
+    def __init__(self, priority):
+        self.priority = priority
+
+
 class ShiftReduceParser():
 
-    def __init__(self, sentence, embedding_size, transition_system):
+    def __init__(self, sentence, embedding_size, transition_system,easy_first):
         # data structures
         # data structures are buggyyy
         # regular lists do fine for now
         # self.stack = Stack()
         init_sent = []
         self.buffer = []
+        self.easy_first = easy_first
+        self.bucket = []
+        self.pending = []
+
+        self.n = len(sentence)
         #self.buffer.append((torch.rand_like(sentence[0]),0))
         for i, word in enumerate(sentence):
             self.buffer.append((word.clone(), i))
+            self.pending.append((word.clone(),i))
         self.stack = []
         self.arcs = []
         # self.buffer = Buffer(sentence)
         # self.arcs = Arcs()
+        self.pqueue = []
+        if transition_system == constants.arc_standard:
+            axioms = [Item(i, i, i,0) for i in range(self.n)]
+        elif transition_system == constants.arc_eager:
+            axioms = [Item(i, i + 1, 0,0) for i in range(self.n)]
+        elif transition_system == constants.hybrid:
+            axioms = [Item(i, i + 1, i + 1,0) for i in range(self.n)]
+        else:
+            # mh4
+            axioms = [Item(i,i+1,i+1,0) for i in range(self.n)]
+        for item in axioms:
+            heapq.heappush(self.pqueue,item)
+
 
         # hold the action history (embedding) and names (string)
         self.action_history_names = []
@@ -28,10 +64,91 @@ class ShiftReduceParser():
 
         # sentence to parse
         self.sentence = sentence
-        self.learned_repr = sentence
         self.embedding_size = embedding_size
 
+    def window(self,i):
+        if i - 2 >= 0 and i+3 <= len(self.pending):
+            return slice(i-2,i+3)
+        elif i-2 < 0:
+            lower_bound = 0
+            if i == 0:
+                upper_bound = min(5,len(self.pending))
+            else:
+                upper_bound = min(4,len(self.pending))
+            return slice(lower_bound,upper_bound)
+        else:
+            return slice(i-2,min(i+3,len(self.pending)))
 
+    def score_pending(self,mlp_u,mlp_l,emb_left,emb_right,pending_rep):
+        action_s = []
+        rel_s = []
+
+        # calculate score for every (action,label) pair in every position i
+        #scores = torch.zeros((len(self.pending),2,50)).to(device=constants.device)
+        """
+            have a history of actions, plus a stack-lstm representation of pending as input to mlp'ss
+        """
+        scores = []
+        for i in range(len(self.pending)):
+            window_trees = list(list(zip(*self.pending))[0][self.window(i)])
+            if len(window_trees) < 5:
+                while len(window_trees) < 5:
+                    window_trees.append(torch.zeros_like(window_trees[0]).to(device=constants.device))
+            window_trees_vec = torch.cat(window_trees,dim=0)
+            window_trees_left = torch.cat([window_trees_vec,emb_left,pending_rep.squeeze(0)],dim=0)
+            window_trees_right = torch.cat([window_trees_vec,emb_right,pending_rep.squeeze(0)],dim=0)
+            score_uil = mlp_u(window_trees_left)
+            score_uir = mlp_u(window_trees_right)
+            score_lil = mlp_l(window_trees_left)
+            score_lir = mlp_l(window_trees_right)
+            score_il = score_uil + torch.max(score_lil,dim=0)[0]
+            score_ir = score_uir + torch.max(score_lir,dim=0)[0]
+            scores.append(score_il)
+            scores.append(score_ir)
+            action_s.append(score_uil)
+            action_s.append(score_uir)
+            rel_s.append(score_lil)
+            rel_s.append(score_lir)
+        action_probabilities = nn.Softmax(dim=-1)(torch.stack(action_s))
+        best_i = torch.argmax(torch.stack(scores),dim=0)
+        if best_i%2 == 0:
+            direction = 1
+            index = int(best_i/2)
+        else:
+            direction = 0
+            index = int((best_i-1)/2)
+        rel_probabilities = nn.Softmax(dim=-1)(rel_s[best_i])
+        return action_probabilities, rel_probabilities, index, direction
+
+    def easy_first_action(self, index_head,index_mod,rel,rel_embed,linear):
+
+        self.arcs.append((self.pending[index_head][1], self.pending[index_mod][1], rel))
+        ret = self.subtree_rep_pending(index_head, self.pending[index_head], self.pending[index_mod], rel_embed, linear)
+        self.pending.pop(index_mod)
+        return ret
+
+    def next_item(self):
+        item = self.pqueue.pop()
+        not_found = item.l in self.bucket or item.r in self.bucket
+        while not_found:
+            item = self.pqueue.pop()
+            if item.l in self.bucket or item.r in self.bucket:
+                continue
+            else:
+                self.bucket[item.l] += 1
+                self.bucket[item.r] += 1
+                return item
+        return (0,self.n,0,0)
+
+    def subtree_rep_pending(self, i, head, mod, rel_embed,linear):
+
+        reprs = torch.cat([head[0], mod[0], rel_embed.reshape(self.embedding_size)],
+                          dim=-1)
+
+        c = nn.Tanh()(linear(reprs))
+        (_, ind) = self.pending[i]
+        self.pending[i] = (c, ind)
+        return c
     def subtree_rep(self, top, second, rel_embed,linear):
 
         reprs = torch.cat([top[0], second[0], rel_embed.reshape(self.embedding_size)],

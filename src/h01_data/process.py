@@ -7,7 +7,7 @@ import numpy as np
 sys.path.append('./src/')
 from h01_data import Vocab, save_vocabs, save_embeddings
 from h01_data.oracle import arc_standard_oracle, arc_eager_oracle, hybrid_oracle,easy_first_arc_standard,\
-    easy_first_hybrid,easy_first_arc_eager,easy_first_mh4,mh4_oracle
+    easy_first_hybrid,easy_first_arc_eager,easy_first_mh4,mh4_oracle,easy_first_pending
 from h01_data.oracle import is_projective, is_good
 from utils import utils
 from utils import constants
@@ -20,10 +20,10 @@ def get_args():
     parser.add_argument('--glove-file', type=str, required=False)
     parser.add_argument('--bert-model', type=str, default='bert-base-cased')
     parser.add_argument('--min-vocab-count', type=int, default=2)
-    parser.add_argument('--transition', type=str, choices=['arc-standard','arc-eager',
+    parser.add_argument('--transition', type=str, choices=['arc-standard','arc-eager','easy-first',
                                                            'hybrid','mh4','easy-first-std',
                                                            'easy-first-hybrid','easy-first-eager','easy-first-mh4'],
-                        default='easy-first-std')
+                        default='easy-first')
     return parser.parse_args()
 
 
@@ -251,6 +251,8 @@ def main():
         oracle = easy_first_arc_eager
     elif args.transition == 'easy-first-mh4':
         oracle = easy_first_mh4
+    elif args.transition == 'easy-first':
+        oracle = easy_first_pending
 
 
     process_data(in_fname, out_path, 'train', vocabs, oracle, args.transition)

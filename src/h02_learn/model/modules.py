@@ -3,13 +3,57 @@ import torch.nn as nn
 
 from utils import constants
 import torch.nn.functional as F
-
+import heapq
 
 def has_head(node, arcs):
     for (u, v, _) in arcs:
         if v == node:
             return True
     return False
+
+
+
+class PendingRNN():
+    def __init__(self, cell, initial_state, initial_hidden, dropout, p_empty_embedding=None):
+        super().__init__()
+        self.cell = cell
+        self.dropout = dropout
+        self.s = [initial_state]
+        # initial_hidden is a tuple (h,c)
+        # self.s = [(initial_state, initial_hidden)]
+        # self.s = [(initial_state, initial_hidden)]
+
+        self.empty = None
+        if p_empty_embedding is not None:
+            self.empty = p_empty_embedding
+
+    def replace(self, expr, ind):
+        out, hidden = self.cell(expr, self.s[ind])
+        self.s[ind] = (out, hidden)
+    def put_first(self, expr):
+        h, c = self.cell(expr, self.s[0])
+        self.s[0] = (h, c)
+
+    def push(self, expr):
+        h, c = self.cell(expr, self.s[-1])
+        self.s.append((h, c))
+
+    def pop(self, ind=-1):
+        return self.s.pop(ind)[1]
+
+    def embedding(self):
+        return self.s[-1][0] if len(self.s) > 1 else self.empty
+
+    def back_to_init(self):
+        while self.__len__() > 0:
+            self.pop()
+
+    def clear(self):
+        self.s.reverse()
+        self.back_to_init()
+
+    def __len__(self):
+        return len(self.s) - 1
 
 
 # adapted from stack-lstm-ner (https://github.com/clab/stack-lstm-ner)
