@@ -52,7 +52,7 @@ class AgendaParser(BertParser):
             nn.Linear(stack_lstm_size * 3, stack_lstm_size),
             nn.ReLU(),
             nn.Linear(stack_lstm_size, 1)
-        )
+        ).to(device=constants.device)
 
         self.mlp_l = nn.Sequential(
             nn.Linear(stack_lstm_size * 6 + self.action_embeddings_size, stack_lstm_size * 6),
@@ -66,7 +66,7 @@ class AgendaParser(BertParser):
             nn.Linear(stack_lstm_size * 3, stack_lstm_size),
             nn.ReLU(),
             nn.Linear(stack_lstm_size, self.num_rels)
-        )
+        ).to(device=constants.device)
 
         #self.mlp_u = nn.Linear(stack_lstm_size*6+self.action_embeddings_size,1).to(device=constants.device)
         #self.mlp_l = nn.Linear(stack_lstm_size*6+self.action_embeddings_size,self.num_rels).to(device=constants.device)
@@ -130,8 +130,10 @@ class AgendaParser(BertParser):
             parser.easy_first_action(index_head, index_mod, rel, rel_embed, self.linear_tree)
         else:
             ret = parser.easy_first_action(target_head,target_mod, rel, rel_embed, self.linear_tree)
-            self.pending.replace(ret.unsqueeze(0),target_head)
-            self.pending.pop(target_mod)
+            self.pending.back_to_init()
+            for tree in parser.pending:
+                self.pending.push(tree[0].unsqueeze(0))
+            #self.pending.pop(target_mod)
         return parser, (action_probabilities, rel_probabilities), (action_target, rel_target)
 
     def forward(self, x, transitions, relations, map, mode):
