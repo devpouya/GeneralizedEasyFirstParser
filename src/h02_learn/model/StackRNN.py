@@ -118,16 +118,32 @@ class AgendaParser(BertParser):
         rel_target = torch.tensor([rel], dtype=torch.long).to(device=constants.device)
         rel_embed = self.rel_embeddings(rel_target).to(device=constants.device)
         action_probabilities, rel_probabilities, index, dir,self.pending = parser.score_pending(self.mlp_u, self.mlp_l,self.pending,self.action_embeddings(torch.tensor(1, dtype=torch.long).to(device=constants.device)),
-                                                                                   self.action_embeddings(torch.tensor(0, dtype=torch.long).to(device=constants.device)))
+                                                                                     self.action_embeddings(torch.tensor(0, dtype=torch.long).to(device=constants.device)))
         if mode == 'eval':
             rel = torch.argmax(rel_probabilities,dim=-1)
             rel_embed = self.rel_embeddings(rel).to(device=constants.device)
             rel = rel.item()#+1
-            if dir == 1:
+            if index == 0:
+                if dir == 1:
+                    #left
+                    index_head = index+1
+                    index_mod = index
+                else:
+                    index_head = index
+                    index_mod = index+1
+            elif index == len(parser.pending)-1:
+                if dir == 1:
+                    #left
+                    index_head = index
+                    index_mod = index-1
+                else:
+                    index_head = index-1
+                    index_mod = index
+            elif dir == 1:
                 index_mod = index
-                index_head = index-1#max(0,index-1)
-            else:
-                index_mod = index+1#min(index+1,len(parser.pending)-1)
+                index_head = index-1
+            elif dir == 0:
+                index_mod = index+1
                 index_head = index
             parser.easy_first_action(index_head, index_mod, rel, rel_embed, self.linear_tree)
         else:

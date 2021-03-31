@@ -26,10 +26,7 @@ class PriorityQueue(object):
 class ShiftReduceParser():
 
     def __init__(self, sentence, embedding_size, transition_system,easy_first):
-        # data structures
-        # data structures are buggyyy
-        # regular lists do fine for now
-        # self.stack = Stack()
+
         init_sent = []
         self.buffer = []
         self.easy_first = easy_first
@@ -46,17 +43,17 @@ class ShiftReduceParser():
         # self.buffer = Buffer(sentence)
         # self.arcs = Arcs()
         self.pqueue = []
-        if transition_system == constants.arc_standard:
-            axioms = [Item(i, i, i,0) for i in range(self.n)]
-        elif transition_system == constants.arc_eager:
-            axioms = [Item(i, i + 1, 0,0) for i in range(self.n)]
-        elif transition_system == constants.hybrid:
-            axioms = [Item(i, i + 1, i + 1,0) for i in range(self.n)]
-        else:
-            # mh4
-            axioms = [Item(i,i+1,i+1,0) for i in range(self.n)]
-        for item in axioms:
-            heapq.heappush(self.pqueue,item)
+        #if transition_system == constants.arc_standard:
+        #    axioms = [Item(i, i, i,0) for i in range(self.n)]
+        #elif transition_system == constants.arc_eager:
+        #    axioms = [Item(i, i + 1, 0,0) for i in range(self.n)]
+        #elif transition_system == constants.hybrid:
+        #    axioms = [Item(i, i + 1, i + 1,0) for i in range(self.n)]
+        #else:
+        #    # mh4
+        #    axioms = [Item(i,i+1,i+1,0) for i in range(self.n)]
+        #for item in axioms:
+        #    heapq.heappush(self.pqueue,item)
 
 
         # hold the action history (embedding) and names (string)
@@ -126,7 +123,11 @@ class ShiftReduceParser():
         return action_probabilities, rel_probabilities, index, direction, lstm
 
     def easy_first_action(self, index_head,index_mod,rel,rel_embed,linear):
-
+        #print("77777")
+        #print("pending len {}".format(len(self.pending)))
+        #print("mod {}".format(index_mod))
+        #print("headd {}".format(index_head))
+        #print("77777")
         self.arcs.append((self.pending[index_head][1], self.pending[index_mod][1], rel))
         ret = self.subtree_rep_pending(index_head, self.pending[index_head], self.pending[index_mod], rel_embed, linear)
         self.pending.pop(index_mod)
@@ -154,6 +155,7 @@ class ShiftReduceParser():
         (_, ind) = self.pending[i]
         self.pending[i] = (c, ind)
         return c
+
     def subtree_rep(self, top, second, rel_embed,linear):
 
         reprs = torch.cat([top[0], second[0], rel_embed.reshape(self.embedding_size)],
@@ -196,7 +198,6 @@ class ShiftReduceParser():
         elif len(self.buffer) >= 1 and len(self.stack) >= 3:
             return [0,1,2,3,4,5,6]
 
-
     def shift(self):
         item = self.buffer.pop(0)
         self.stack.append(item)
@@ -234,6 +235,7 @@ class ShiftReduceParser():
         self.arcs.append((left[1], top[1],rel))
         c = self.subtree_rep_hybrid(left, top, rel_embed,linear)
         return c
+
     def left_arc_prime(self,rel,rel_embed,linear):
         top = self.stack[-1]
         second = self.stack[-2]
@@ -256,6 +258,7 @@ class ShiftReduceParser():
         self.stack.pop(-2)
         c = self.subtree_rep_hybrid(front, second, rel_embed, linear)
         return c
+
     def right_arc_2(self,rel,rel_embed,linear):
         third = self.stack[-3]
         top = self.stack[-1]
@@ -263,6 +266,7 @@ class ShiftReduceParser():
         self.stack.pop(-1)
         c = self.subtree_rep_prime(third, top, rel_embed, linear)
         return c
+
     def right_arc_eager(self,rel,rel_embed,linear):
         top = self.stack[-1]
         left = self.buffer[0]
@@ -271,9 +275,6 @@ class ShiftReduceParser():
         c = self.subtree_rep(top, left, rel_embed,linear)
         self.buffer.pop(0)
         return c
-
-
-
 
     def is_parse_complete(self, special_op=False):
         if special_op:
