@@ -16,7 +16,7 @@ def get_args():
     parser.add_argument('--batch-size', type=int, default=128)
     parser.add_argument('--name', type=str)
     parser.add_argument('--model', choices=['biaffine', 'mst', 'arc-standard',
-                                            'arc-eager', 'hybrid', 'non-projective'],
+                                            'arc-eager', 'hybrid', 'mh4'],
                         default='arc-standard')
     # Model
     parser.add_argument('--checkpoints-path', type=str, default='checkpoints/')
@@ -38,6 +38,8 @@ def main():
         transition_system = constants.arc_eager
     elif args.model == "hybrid":
         transition_system = constants.hybrid
+    elif args.model == "mh4":
+        transition_system = constants.mh4
 
     trainloader, devloader, testloader, _, _ = \
         get_data_loaders(args.data_path, args.language, args.batch_size,args.batch_size, args.model,
