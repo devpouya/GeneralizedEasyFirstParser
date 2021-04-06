@@ -7,7 +7,7 @@ import numpy as np
 sys.path.append('./src/')
 from h01_data import Vocab, save_vocabs, save_embeddings
 from h01_data.oracle import arc_standard_oracle, arc_eager_oracle, hybrid_oracle,easy_first_arc_standard,\
-    easy_first_hybrid,easy_first_arc_eager,easy_first_mh4,mh4_oracle,easy_first_pending
+    easy_first_hybrid,easy_first_arc_eager,easy_first_mh4,mh4_oracle,easy_first_pending, priority_queue_oracle
 from h01_data.oracle import is_projective, is_good
 from utils import utils
 from utils import constants
@@ -106,8 +106,8 @@ def process_data(in_fname_base, out_path, mode, vocabs, oracle=None, transition_
         for sentence in get_sentence(file):
             sent_processed, heads, relations,rel2id = process_sentence(sentence, vocabs)
             heads_proper = [0] + heads
-            #if len(sentence) > 6 or len(sentence) <= 2:
-            #    continue
+            if len(sentence) > 6 or len(sentence) <= 2:
+                continue
             # print(heads_proper)
             # print(relations)
             arc2label = {arc: rel for (arc, rel) in zip(list(range(len(heads))), relations)}

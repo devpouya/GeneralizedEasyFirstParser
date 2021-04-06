@@ -6,7 +6,7 @@ import torch.optim as optim
 sys.path.append('./src/')
 from h02_learn.dataset import get_data_loaders
 from h02_learn.model import BiaffineParser, MSTParser
-from h02_learn.model import NeuralTransitionParser, AgendaParser
+from h02_learn.model import NeuralTransitionParser, EasyFirstParser
 from h02_learn.train_info import TrainInfo
 from h02_learn.algorithm.mst import get_mst_batch
 from utils import constants
@@ -70,7 +70,7 @@ def get_model(vocabs,embeddings,args):
             transition_system=constants.arc_standard) \
             .to(device=constants.device)
     elif args.model == 'easy-first':
-        return AgendaParser(vocabs=vocabs, embedding_size=args.embedding_size,rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
+        return EasyFirstParser(vocabs=vocabs, embedding_size=args.embedding_size,rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
             dropout=args.dropout,
             transition_system=constants.easy_first) \
             .to(device=constants.device)
@@ -130,15 +130,15 @@ def _evaluate(evalloader, model):
         relations_in_order = relations_in_order.to(device=constants.device)
         loss, predicted_heads, predicted_rels = model((text, pos), transitions, relations_in_order,maps, mode='eval')
 
-        #print("çççççççççççççççççççççççççççççççç")
-        #print("predicted heads {}".format(predicted_heads))
-        #print("real heads {}".format(heads))
-        #print(torch.all(torch.eq(heads, predicted_heads)))
-        #print("--------------------------------")
-        #print("predicted rels {}".format(predicted_rels.shape))
-        #print("real rels {}".format(rels.shape))
-        #print(torch.all(torch.eq(predicted_rels, rels)))
-        #print("çççççççççççççççççççççççççççççççç")
+        print("EEEEEEVAAAAAAALLLLLLLLLLEVAAAAALLLLLLLLLEVALLLL")
+        print("predicted heads {}".format(predicted_heads))
+        print("real heads {}".format(heads))
+        print(torch.all(torch.eq(heads, predicted_heads)))
+        print("--------------------------------")
+        print("predicted rels {}".format(predicted_rels.shape))
+        print("real rels {}".format(rels.shape))
+        print(torch.all(torch.eq(predicted_rels, rels)))
+        print("EEEEEEVAAAAAAALLLLLLLLLLEVAAAAALLLLLLLLLEVALLLL")
         # loss = model.loss(h_logits, l_logits, heads, rels)
         lengths = (text != 0).sum(-1)
         # heads_tgt = get_mst_batch(h_logits, lengths)
@@ -169,15 +169,15 @@ def train_batch(text, pos, heads, rels, transitions, relations_in_order, maps,mo
     relations_in_order = relations_in_order.to(device=constants.device)
 
     loss, pred_h, pred_rel = model((text, pos), transitions, relations_in_order,maps, mode='train')
-    #print("çççççççççççççççççççççççççççççççç")
-    ##print(pred_h)
-    ##print(heads)
-    #print(torch.all(torch.eq(heads,pred_h)))
-    #print("--------------------------------")
+    print("çççççççççççççççççççççççççççççççç")
+    #print(pred_h)
+    #print(heads)
+    print(torch.all(torch.eq(heads,pred_h)))
+    print("--------------------------------")
     #print(pred_rel)
     #print(rels)
-    #print(torch.all(torch.eq(pred_rel,rels)))
-    #print("çççççççççççççççççççççççççççççççç")
+    print(torch.all(torch.eq(pred_rel,rels)))
+    print("çççççççççççççççççççççççççççççççç")
 
     loss.backward()
     optimizer.step()

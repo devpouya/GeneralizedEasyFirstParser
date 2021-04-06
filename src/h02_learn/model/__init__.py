@@ -1,3 +1,3 @@
 from .biaffine import BiaffineParser
 from .mst import MSTParser
-from .StackRNN import NeuralTransitionParser, AgendaParser
+from .StackRNN import NeuralTransitionParser, EasyFirstParser

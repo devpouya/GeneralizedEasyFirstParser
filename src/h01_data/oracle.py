@@ -611,6 +611,9 @@ def test_oracle_easy_first(action_history, sentence, true_arcs):
 
     return set(arcs) == set(true_arcs)
 
+
+
+
 def easy_first_pending(sentence, word2head, relations):
     stack = []  # BaseStack()
     pending = sentence.copy()  # BaseBuffer(sentence)
@@ -883,7 +886,6 @@ def build_hypergraph(ordered_arcs, n):
     derived_items = [(i, i, i) for i in range(n)]
     b_hypergraph = []
     print(ordered_arcs)
-    jhjh
     for (u, v) in ordered_arcs:
         derived_items = sorted(derived_items, key=lambda x: x[2])
         item_l, item_r, new_item = None, None, None
@@ -909,6 +911,9 @@ def build_hypergraph(ordered_arcs, n):
         derived_items.remove(item_l)
         derived_items.remove(item_r)
     return b_hypergraph
+
+
+
 
 
 def build_hypergraph_hybrid(ordered_arcs, n):
@@ -1023,6 +1028,21 @@ def prepare_easy_first(sentence, word2head, relations, mode):
 
     sorted_b_hypergraph = sort_hypergraph(b_hypergraph, axioms)
     return sorted_b_hypergraph, labeled_arcs, ordered_arcs, true_arcs
+
+
+def priority_queue_oracle(sentence, word2head, relations):
+    derivation_hyperpath = []
+    axioms = []
+    n = len(sentence)
+    true_arcs = get_arcs(word2head)
+    ordered_arcs = build_easy_first(sentence,true_arcs)
+    hypergraph = build_hypergraph(ordered_arcs,n)
+    labeled_arcs = []
+    arcs_sorted = sorted(true_arcs, key=lambda tup: tup[1])[1:]
+    for i, (u, v) in enumerate(arcs_sorted):
+        labeled_arcs.append((u, v, relations[i]))
+
+    print(hypergraph)
 
 
 def easy_first_arc_standard(sentence, word2head, relations):

@@ -6,10 +6,101 @@ import torch.nn.functional as F
 from utils import constants
 from .base import BertParser
 from ..algorithm.transition_parsers import ShiftReduceParser
-from .modules import StackCell, SoftmaxActions, PendingRNN
+from .modules import StackCell, SoftmaxActions, PendingRNN, Agenda, Chart
+from .hypergraph import LazyArcStandard, LazyArcEager, LazyHybrid, LazyMH4
+from collections import defaultdict
 
 
-class AgendaParser(BertParser):
+class ChartParser(BertParser):
+    def __init__(self, vocabs, embedding_size, rel_embedding_size, batch_size, hypergraph,
+                 dropout=0.33, beam_size=10, easy_first=False):
+        super().__init__(vocabs, embedding_size, rel_embedding_size, batch_size, dropout=dropout,
+                         beam_size=beam_size)
+
+        self.hypergraph = hypergraph
+        self.weight_function = None
+
+        self.prune = easy_first
+
+    def cky_inference(self, chart, sentence):
+        pass
+
+    def item_prob(self):
+        pass
+
+    def init_weights(self, sentence):
+        pass
+
+    def forward(self, x, transitions, relations, map, mode):
+        sent_lens = (x[0] != 0).sum(-1).to(device=constants.device)
+        max_sent_len = max(sent_lens)
+        transit_lens = (transitions != -1).sum(-1).to(device=constants.device)
+        tags = self.tag_embeddings(x[1].to(device=constants.device))
+        # average of last 4 hidden layers
+        with torch.no_grad():
+            out = self.bert(x[0].to(device=constants.device))[2]
+            x_emb = torch.stack(out[-8:]).mean(0)
+        num_actions = (max_sent_len - 1) * 2
+        probs_action_batch = torch.ones((x_emb.shape[0], transitions.shape[1], num_actions), dtype=torch.float).to(
+            device=constants.device)
+        probs_rel_batch = torch.ones((x_emb.shape[0], transitions.shape[1], self.num_rels), dtype=torch.float).to(
+            device=constants.device)
+        targets_action_batch = torch.ones((x_emb.shape[0], transitions.shape[1], 1), dtype=torch.long).to(
+            device=constants.device)
+        targets_rel_batch = torch.ones((x_emb.shape[0], transitions.shape[1], 1), dtype=torch.long).to(
+            device=constants.device)
+
+        heads_batch = torch.ones((x_emb.shape[0], tags.shape[1])).to(device=constants.device)
+        rels_batch = torch.ones((x_emb.shape[0], tags.shape[1])).to(device=constants.device)
+        heads_batch *= -1
+        rels_batch *= -1
+        probs_rel_batch *= -1
+        probs_action_batch *= -1
+        targets_rel_batch *= -1
+        targets_action_batch *= -1
+
+        for i, sentence in enumerate(x_emb):
+            # initialize a parser
+            mapping = map[i, map[i] != -1]
+            tag = self.tag_embeddings(x[1][i][x[1][i] != 0].to(device=constants.device))
+
+            s = self.get_bert_embeddings(mapping, sentence, tag)
+            curr_sentence_length = s.shape[0]
+            s = s[:curr_sentence_length, :]
+
+            chart = Chart()
+            w = self.init_weights(s)
+            hypergraph = self.hypergraph(curr_sentence_length, chart, w)
+            bucket = defaultdict(lambda: 0)
+            pops = 0
+            popped = defaultdict(lambda: 0)
+            agenda = Agenda()
+
+            while not agenda.empty():
+                # for step in range(len(labeled_transitions)):
+                item = agenda.pop()
+                if self.prune:
+                    if item.l in bucket or item.r in bucket:
+                        # pruned
+                        continue
+                    bucket[item.l] += 1
+                    bucket[item.r] += 1
+                chart[item] = item
+                popped[(item.i, item.j, item.h)] = item
+                pops += 1
+                for item_new in hypergraph.outgoing(item):
+                    agenda[(item_new.i, item_new.j, item_new.h)] = item_new
+
+            tree, probs = self.cky_inference(chart,sentence)
+
+        batch_loss = self.loss(tree,probs)
+        return batch_loss, heads_batch, rels_batch
+
+    def loss(self,tree,probs):
+        pass
+
+
+class EasyFirstParser(BertParser):
     def __init__(self, vocabs, embedding_size, rel_embedding_size, batch_size,
                  dropout=0.33, beam_size=10, transition_system=None, is_easy_first=True):
         super().__init__(vocabs, embedding_size, rel_embedding_size, batch_size,
@@ -22,7 +113,6 @@ class AgendaParser(BertParser):
         self.buffer_lstm = nn.LSTMCell(stack_lstm_size, stack_lstm_size).to(device=constants.device)
         self.action_lstm = nn.LSTMCell(self.action_embeddings_size, self.action_embeddings_size).to(
             device=constants.device)
-
 
         input_init = torch.zeros((1, stack_lstm_size)).to(
             device=constants.device)
@@ -42,11 +132,11 @@ class AgendaParser(BertParser):
         self.empty_initial_act = nn.Parameter(torch.zeros(1, self.action_embeddings_size)).to(device=constants.device)
 
         self.mlp_u = nn.Sequential(
-            nn.Linear(stack_lstm_size*6+self.action_embeddings_size, stack_lstm_size*6),
+            nn.Linear(stack_lstm_size * 6 + self.action_embeddings_size, stack_lstm_size * 6),
             nn.ReLU(),
-            nn.Linear(stack_lstm_size*6, stack_lstm_size*5),
+            nn.Linear(stack_lstm_size * 6, stack_lstm_size * 5),
             nn.ReLU(),
-            nn.Linear(stack_lstm_size*5, stack_lstm_size*4),
+            nn.Linear(stack_lstm_size * 5, stack_lstm_size * 4),
             nn.ReLU(),
             nn.Linear(stack_lstm_size * 4, stack_lstm_size * 3),
             nn.ReLU(),
@@ -69,35 +159,33 @@ class AgendaParser(BertParser):
             nn.Linear(stack_lstm_size, self.num_rels)
         ).to(device=constants.device)
 
-        #self.mlp_u = nn.Linear(stack_lstm_size*6+self.action_embeddings_size,1).to(device=constants.device)
-        #self.mlp_l = nn.Linear(stack_lstm_size*6+self.action_embeddings_size,self.num_rels).to(device=constants.device)
-        #torch.nn.init.xavier_uniform_(self.mlp_u.weight)
-        #torch.nn.init.xavier_uniform_(self.mlp_l.weight)
+        # self.mlp_u = nn.Linear(stack_lstm_size*6+self.action_embeddings_size,1).to(device=constants.device)
+        # self.mlp_l = nn.Linear(stack_lstm_size*6+self.action_embeddings_size,self.num_rels).to(device=constants.device)
+        # torch.nn.init.xavier_uniform_(self.mlp_u.weight)
+        # torch.nn.init.xavier_uniform_(self.mlp_l.weight)
 
         self.linear_tree = nn.Linear(self.rel_embedding_size + 2 * stack_lstm_size, stack_lstm_size).to(
             device=constants.device)
         torch.nn.init.xavier_uniform_(self.linear_tree.weight)
 
-
-
-        #self.stack = StackCell(self.stack_lstm, self.lstm_init_state, self.lstm_init_state, self.dropout,
+        # self.stack = StackCell(self.stack_lstm, self.lstm_init_state, self.lstm_init_state, self.dropout,
         #                      self.empty_initial)
-        #self.pending = PendingRNN(self.buffer_lstm, self.lstm_init_state, self.lstm_init_state, self.dropout,
+        # self.pending = PendingRNN(self.buffer_lstm, self.lstm_init_state, self.lstm_init_state, self.dropout,
         #                       self.empty_initial)
         self.pending = nn.LSTM(stack_lstm_size, stack_lstm_size)
-        #self.action = StackCell(self.action_lstm, self.lstm_init_state_actions, self.lstm_init_state_actions,
+        # self.action = StackCell(self.action_lstm, self.lstm_init_state_actions, self.lstm_init_state_actions,
         #                       self.dropout,
         #                       self.empty_initial_act)
 
         # self.transform_weight = nn.GRU(input_size=stack_lstm_size,hidden_size=max_sent_len)
 
-    def easy_first_labeled_transitions(self,transitions,relations):
+    def easy_first_labeled_transitions(self, transitions, relations):
         labeled_actions = []
         relations = relations.tolist()
 
-        for i in range(0,len(transitions)-1,2):
+        for i in range(0, len(transitions) - 1, 2):
             head = transitions[i]
-            mod = transitions[i+1]
+            mod = transitions[i + 1]
             if head > mod:
                 direction = 1
             else:
@@ -105,8 +193,9 @@ class AgendaParser(BertParser):
             labeled_actions.append(((head, mod, direction), relations.pop(0)))
 
         return labeled_actions
+
     def parse_step_easy_first(self, parser, labeled_transitions, mode):
-        #item = parser.next_item()
+        # item = parser.next_item()
 
         (target_head, target_mod, target_direction) = labeled_transitions[0]
         rel = labeled_transitions[1]
@@ -117,37 +206,45 @@ class AgendaParser(BertParser):
         action_target = torch.tensor([best_action], dtype=torch.long).to(device=constants.device)
         rel_target = torch.tensor([rel], dtype=torch.long).to(device=constants.device)
         rel_embed = self.rel_embeddings(rel_target).to(device=constants.device)
-        action_probabilities, rel_probabilities, index, dir,self.pending = parser.score_pending(self.mlp_u, self.mlp_l,self.pending,self.action_embeddings(torch.tensor(1, dtype=torch.long).to(device=constants.device)),
-                                                                                     self.action_embeddings(torch.tensor(0, dtype=torch.long).to(device=constants.device)))
+        action_probabilities, rel_probabilities, index, dir, self.pending = parser.score_pending(self.mlp_u, self.mlp_l,
+                                                                                                 self.pending,
+                                                                                                 self.action_embeddings(
+                                                                                                     torch.tensor(1,
+                                                                                                                  dtype=torch.long).to(
+                                                                                                         device=constants.device)),
+                                                                                                 self.action_embeddings(
+                                                                                                     torch.tensor(0,
+                                                                                                                  dtype=torch.long).to(
+                                                                                                         device=constants.device)))
         if mode == 'eval':
-            rel = torch.argmax(rel_probabilities,dim=-1)
+            rel = torch.argmax(rel_probabilities, dim=-1)
             rel_embed = self.rel_embeddings(rel).to(device=constants.device)
-            rel = rel.item()#+1
+            rel = rel.item()  # +1
             if index == 0:
                 if dir == 1:
-                    #left
-                    index_head = index+1
+                    # left
+                    index_head = index + 1
                     index_mod = index
                 else:
                     index_head = index
-                    index_mod = index+1
-            elif index == len(parser.pending)-1:
+                    index_mod = index + 1
+            elif index == len(parser.pending) - 1:
                 if dir == 1:
-                    #left
+                    # left
                     index_head = index
-                    index_mod = index-1
+                    index_mod = index - 1
                 else:
-                    index_head = index-1
+                    index_head = index - 1
                     index_mod = index
             elif dir == 1:
                 index_mod = index
-                index_head = index-1
+                index_head = index - 1
             elif dir == 0:
-                index_mod = index+1
+                index_mod = index + 1
                 index_head = index
             parser.easy_first_action(index_head, index_mod, rel, rel_embed, self.linear_tree)
         else:
-            parser.easy_first_action(target_head,target_mod, rel, rel_embed, self.linear_tree)
+            parser.easy_first_action(target_head, target_mod, rel, rel_embed, self.linear_tree)
 
         return parser, (action_probabilities, rel_probabilities), (action_target, rel_target)
 
@@ -161,7 +258,7 @@ class AgendaParser(BertParser):
         with torch.no_grad():
             out = self.bert(x[0].to(device=constants.device))[2]
             x_emb = torch.stack(out[-8:]).mean(0)
-        num_actions = (max_sent_len-1)*2
+        num_actions = (max_sent_len - 1) * 2
         probs_action_batch = torch.ones((x_emb.shape[0], transitions.shape[1], num_actions), dtype=torch.float).to(
             device=constants.device)
         probs_rel_batch = torch.ones((x_emb.shape[0], transitions.shape[1], self.num_rels), dtype=torch.float).to(
@@ -191,29 +288,29 @@ class AgendaParser(BertParser):
             s = s[:curr_sentence_length, :]
             # n * embedding_size ---> n*n
             labeled_transitions = self.easy_first_labeled_transitions(transitions[i, :curr_transition_length],
-                                                            relations[i, :curr_sentence_length])
-            parser = ShiftReduceParser(s, self.rel_embedding_size, self.transition_system, easy_first=True)
+                                                                      relations[i, :curr_sentence_length])
+            parser = ShiftReduceParser(s, self.rel_embedding_size, self.transition_system)
             self.pending(s.unsqueeze(1))
             step = 0
-            while len(parser.pending)>1:
-            #for step in range(len(labeled_transitions)):
+            while len(parser.pending) > 1:
+                # for step in range(len(labeled_transitions)):
                 parser, probs, target = self.parse_step(parser,
                                                         labeled_transitions[step],
                                                         mode)
-                step+=1
+                step += 1
 
                 (action_probs, rel_probs) = probs
                 (action_target, rel_target) = target
-                probs_action_batch[i, step, :action_probs.shape[0]] = action_probs.transpose(1,0)
+                probs_action_batch[i, step, :action_probs.shape[0]] = action_probs.transpose(1, 0)
                 probs_rel_batch[i, step, :] = rel_probs
                 targets_action_batch[i, step, :] = action_target
                 targets_rel_batch[i, step, :] = rel_target
 
             heads_batch[i, :curr_sentence_length] = parser.heads_from_arcs()[0]
             rels_batch[i, :curr_sentence_length] = parser.heads_from_arcs()[1]
-            #self.stack.back_to_init()
-            #self.pending.back_to_init()
-            #self.action.back_to_init()
+            # self.stack.back_to_init()
+            # self.pending.back_to_init()
+            # self.action.back_to_init()
 
         batch_loss = self.loss(probs_action_batch, targets_action_batch, probs_rel_batch, targets_rel_batch)
         return batch_loss, heads_batch, rels_batch
