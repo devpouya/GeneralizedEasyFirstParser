@@ -79,15 +79,15 @@ class BertParser(BaseParser):
 
         # transition system
         self.transition_system = transition_system
-        # print(self.transition_system)©
-        self.actions = transition_system[0]  # [shift, reduce_l, reduce_r]
-        self.num_actions = len(self.actions)
-        non_labeling_actions = 0
-        for act in self.actions:
-            if act == constants.shift or act == constants.reduce:
-                non_labeling_actions += 1
-
-        self.action2id = {act: i for i, act in enumerate(self.actions)}
+        # print(self.transition_system)
+        if transition_system is not None:
+            self.actions = transition_system[0]  # [shift, reduce_l, reduce_r]
+            self.num_actions = len(self.actions)
+            non_labeling_actions = 0
+            for act in self.actions:
+                if act == constants.shift or act == constants.reduce:
+                    non_labeling_actions += 1
+            self.action2id = {act: i for i, act in enumerate(self.actions)}
         if self.transition_system == constants.arc_standard:
             self.parse_step = self.parse_step_arc_standard
             self.arc_actions = [1, 2]
@@ -109,25 +109,30 @@ class BertParser(BaseParser):
             self.arc_actions = [0,1]
             self.non_arc_actions = []
         else:
-            raise Exception("A transition system needs to be satisfied")
+            print("Using a chart parser")
         _, _, rels = vocabs
 
         self.num_rels = rels.size
-        self.num_total_actions = non_labeling_actions + (self.num_actions - non_labeling_actions) * self.num_rels
-        self.action_embeddings_size = self.embedding_size
         self.rel_embedding_size = rel_embedding_size
+        if transition_system is not None:
+            self.num_total_actions = non_labeling_actions + (self.num_actions - non_labeling_actions) * self.num_rels
+            self.action_embeddings_size = self.embedding_size
+            self.tag_embeddings, self.action_embeddings, self.rel_embeddings = self.create_embeddings(vocabs)
+        else:
+            self.tag_embeddings, self.rel_embeddings = self.create_embeddings(vocabs,no_action=True)
 
-        self.tag_embeddings, self.action_embeddings, self.rel_embeddings = self.create_embeddings(vocabs)
-
-    def create_embeddings(self, vocabs):
+    def create_embeddings(self, vocabs,no_action=False):
         words, tags, rels = vocabs
         # word_embeddings = WordEmbedding(words, self.embedding_size, pretrained=pretrained)
         tag_embeddings = nn.Embedding(tags.size, self.rel_embedding_size)
         rel_embeddings = nn.Embedding(self.num_rels, self.rel_embedding_size, scale_grad_by_freq=True)
 
         # learned_embeddings = nn.Embedding(words.size, self.rel_embedding_size)
-        action_embedding = nn.Embedding(self.num_actions, self.action_embeddings_size, scale_grad_by_freq=True)
-        return tag_embeddings, action_embedding, rel_embeddings
+        if not no_action:
+            action_embedding = nn.Embedding(self.num_actions, self.action_embeddings_size, scale_grad_by_freq=True)
+            return tag_embeddings, action_embedding, rel_embeddings
+        else:
+            return tag_embeddings, rel_embeddings
 
     def pairwise(self, iterable):
         a = iter(iterable)
@@ -142,6 +147,10 @@ class BertParser(BaseParser):
 
         # self.tag_embeddings()
         return torch.cat([s, tags], dim=-1).to(device=constants.device)
+
+    def batch_bert_embeddings(self, mapping, sentence, tags):
+        s = []
+
 
     def labeled_action_pairs(self, actions, relations):
         labeled_acts = []

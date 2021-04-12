@@ -4,60 +4,112 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from utils import constants
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from .base import BertParser
 from ..algorithm.transition_parsers import ShiftReduceParser
-from .modules import StackCell, SoftmaxActions, PendingRNN, Agenda, Chart
+from .modules import StackCell, SoftmaxActions, PendingRNN, Agenda, Chart, Item
+from .modules import Biaffine, Bilinear
 from .hypergraph import LazyArcStandard, LazyArcEager, LazyHybrid, LazyMH4
 from collections import defaultdict
 
 
 class ChartParser(BertParser):
     def __init__(self, vocabs, embedding_size, rel_embedding_size, batch_size, hypergraph,
-                 dropout=0.33, beam_size=10, easy_first=False):
+                 dropout=0.33, beam_size=10, max_sent_len=190, easy_first=False):
         super().__init__(vocabs, embedding_size, rel_embedding_size, batch_size, dropout=dropout,
                          beam_size=beam_size)
 
         self.hypergraph = hypergraph
-        self.weight_function = None
+        weight_encoder_layer = nn.TransformerEncoderLayer(d_model=embedding_size, nhead=8)
+        self.weight_encoder = nn.TransformerEncoder(weight_encoder_layer, num_layers=2)
+        self.prune = True  # easy_first
+        self.lstm = nn.LSTM(
+            embedding_size + 100, 100, 1, dropout=(dropout if 1 > 1 else 0),
+            batch_first=True, bidirectional=True)
+        self.dropout = nn.Dropout(dropout)
+        self.mlp = nn.Linear(self.embedding_size * 2 + 200, 1)
 
-        self.prune = easy_first
+        self.max_size = max_sent_len
+        self.linear_dep = nn.Linear(868, 500)
+        self.linear_head = nn.Linear(868, 500)
+        self.biaffine = Biaffine(500, 500)
 
-    def cky_inference(self, chart, sentence):
+        self.linear_labels_dep = nn.Linear(868, 100)
+        self.linear_labels_head = nn.Linear(868, 100)
+        self.bilinear_label = Bilinear(100, 100, self.num_rels)
+
+        self.weight_matrix = nn.MultiheadAttention(868, num_heads=1, dropout=dropout)
+        self.root_selector = nn.LSTM(
+            868, 1, 1, dropout=(dropout if 1 > 1 else 0),
+            batch_first=True, bidirectional=False)
+
+    def calculate_weights(self, sentence, agenda, heads):
+        n = len(sentence)
+        sentence = sentence.unsqueeze(1)
+        atn_out, _ = self.weight_matrix(sentence, sentence, sentence)
+        # s = torch.cat([sentence, torch.zeros(1, sentence.shape[1])], dim=0)
+        pred_dep = self.linear_dep(atn_out)
+        pred_head = self.linear_head(atn_out)
+        h_logits = self.biaffine(pred_head.permute(1, 0, 2), pred_dep.permute(1, 0, 2))
+        h_logits = h_logits.squeeze(0)
+
+        l_logits = self.get_label_logits(atn_out, heads)
+        w = h_logits
+        w = w.squeeze(0)
+        root_scores, _ = self.root_selector(sentence)
+        root_scores = root_scores.squeeze(1)
+        w = torch.cat([w, root_scores], dim=-1)
+        bottom_row = torch.ones((w.shape[1], 1))
+        bottom_row[:-1, :] = root_scores * -1
+        w = torch.cat([w, bottom_row.transpose(1, 0)], dim=0)
+        w = torch.exp(w)
+        for i in range(n):
+            k, j, h = i, i + 1, i
+            agenda[(k, j, h)] = Item(k, j, h, w[j, k], k, k)
+
+        return w, h_logits, l_logits, agenda
+
+    def run_lstm(self, x, sent_lens):
+        # lstm_in = pack_padded_sequence(x, sent_lens, batch_first=True, enforce_sorted=False)
+        # print(lstm_in)
+        lstm_out, _ = self.lstm(x)
+        # h_t, _ = pad_packed_sequence(lstm_out, batch_first=True)
+        h_t = self.dropout(lstm_out).contiguous()
+        return h_t
+
+    def get_head_logits(self, h_t, sent_lens):
+        h_dep = self.dropout(F.relu(self.linear_arc_dep(h_t)))
+        h_arc = self.dropout(F.relu(self.linear_arc_head(h_t)))
+
+        h_logits = self.biaffine(h_arc, h_dep)
+
+        # Zero logits for items after sentence length
+        for i, sent_len in enumerate(sent_lens):
+            h_logits[i, sent_len:, :] = 0
+            h_logits[i, :, sent_len:] = 0
+
+        return h_logits
+
+    def decode_weights(self, smt):
         pass
 
-    def item_prob(self):
-        pass
-
-    def init_weights(self, sentence):
-        pass
-
-    def forward(self, x, transitions, relations, map, mode):
+    def forward(self, x, map, heads=None, rels=None):
         sent_lens = (x[0] != 0).sum(-1).to(device=constants.device)
-        max_sent_len = max(sent_lens)
-        transit_lens = (transitions != -1).sum(-1).to(device=constants.device)
         tags = self.tag_embeddings(x[1].to(device=constants.device))
         # average of last 4 hidden layers
         with torch.no_grad():
             out = self.bert(x[0].to(device=constants.device))[2]
             x_emb = torch.stack(out[-8:]).mean(0)
-        num_actions = (max_sent_len - 1) * 2
-        probs_action_batch = torch.ones((x_emb.shape[0], transitions.shape[1], num_actions), dtype=torch.float).to(
-            device=constants.device)
-        probs_rel_batch = torch.ones((x_emb.shape[0], transitions.shape[1], self.num_rels), dtype=torch.float).to(
-            device=constants.device)
-        targets_action_batch = torch.ones((x_emb.shape[0], transitions.shape[1], 1), dtype=torch.long).to(
-            device=constants.device)
-        targets_rel_batch = torch.ones((x_emb.shape[0], transitions.shape[1], 1), dtype=torch.long).to(
-            device=constants.device)
 
-        heads_batch = torch.ones((x_emb.shape[0], tags.shape[1])).to(device=constants.device)
-        rels_batch = torch.ones((x_emb.shape[0], tags.shape[1])).to(device=constants.device)
+        heads_batch = torch.ones((x_emb.shape[0], heads.shape[1], heads.shape[1])).to(device=constants.device)
+        tree_batch = torch.ones((x_emb.shape[0], heads.shape[1])).to(device=constants.device)
+        rels_batch = torch.ones((x_emb.shape[0], heads.shape[1], self.num_rels)).to(device=constants.device)
         heads_batch *= -1
         rels_batch *= -1
-        probs_rel_batch *= -1
-        probs_action_batch *= -1
-        targets_rel_batch *= -1
-        targets_action_batch *= -1
+        # print(x_emb.shape)
+        # print(sent_lens)
+        # x_emb = x_emb.permute(1,0,2)
+        # print(h_t.shape)
 
         for i, sentence in enumerate(x_emb):
             # initialize a parser
@@ -67,15 +119,16 @@ class ChartParser(BertParser):
             s = self.get_bert_embeddings(mapping, sentence, tag)
             curr_sentence_length = s.shape[0]
             s = s[:curr_sentence_length, :]
-
+            # s = torch.cat([s,torch.zeros(1,s.shape[1])],dim=0)
             chart = Chart()
-            w = self.init_weights(s)
-            hypergraph = self.hypergraph(curr_sentence_length, chart, w)
+            agenda = Agenda()
+            w, h_logits, l_logits, agenda = self.calculate_weights(s, agenda, heads)
+            heads_batch[i, :curr_sentence_length, :curr_sentence_length] = h_logits
+            rels_batch[i, :curr_sentence_length, :] = l_logits
+            hypergraph = self.hypergraph(curr_sentence_length, chart, w, self.mlp, s)
             bucket = defaultdict(lambda: 0)
             pops = 0
             popped = defaultdict(lambda: 0)
-            agenda = Agenda()
-
             while not agenda.empty():
                 # for step in range(len(labeled_transitions)):
                 item = agenda.pop()
@@ -90,14 +143,27 @@ class ChartParser(BertParser):
                 pops += 1
                 for item_new in hypergraph.outgoing(item):
                     agenda[(item_new.i, item_new.j, item_new.h)] = item_new
+            tree_batch[i,:curr_sentence_length] = hypergraph.best_path()
+        batch_loss = self.loss(heads_batch, rels_batch, heads, rels)
+        rels_batch = torch.argmax(rels_batch,dim=-1)
+        return batch_loss, tree_batch, rels_batch
 
-            tree, probs = self.cky_inference(chart,sentence)
+    def get_label_logits(self, h_t, head):
+        l_dep = self.dropout(F.relu(self.linear_labels_dep(h_t)))
+        l_head = self.dropout(F.relu(self.linear_labels_head(h_t)))
+        if self.training:
+            assert head is not None, 'During training head should not be None'
 
-        batch_loss = self.loss(tree,probs)
-        return batch_loss, heads_batch, rels_batch
+        # l_head = l_head.gather(dim=1, index=head.unsqueeze(2).expand(l_head.size()))
+        l_logits = self.bilinear_label(l_dep.permute(1, 0, 2), l_head.permute(1, 0, 2))
+        return l_logits
 
-    def loss(self,tree,probs):
-        pass
+    def loss(self, h_logits, l_logits, heads, rels):
+        criterion_h = nn.CrossEntropyLoss(ignore_index=-1).to(device=constants.device)
+        criterion_l = nn.CrossEntropyLoss(ignore_index=0).to(device=constants.device)
+        loss = criterion_h(h_logits.reshape(-1, h_logits.shape[-1]), heads.reshape(-1))
+        loss += criterion_l(l_logits.reshape(-1, l_logits.shape[-1]), rels.reshape(-1))
+        return loss
 
 
 class EasyFirstParser(BertParser):

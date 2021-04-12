@@ -51,8 +51,10 @@ class BiaffineParser(BaseParser):
 
         sent_lens = (x[0] != 0).sum(-1)
         h_t = self.run_lstm(x_emb, sent_lens)
+        print(h_t.shape)
         h_logits = self.get_head_logits(h_t, sent_lens)
-
+        print(h_logits.shape)
+        jk
         if head is None:
             head = h_logits.argmax(-1)
 

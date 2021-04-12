@@ -6,19 +6,21 @@ from utils import constants
 
 
 class SyntaxDataset(Dataset):
-    def __init__(self, fname, transition_file, transition_system, tokenizer):
+    def __init__(self, fname, transition_file=None, transition_system=None, tokenizer=None):
         self.fname = fname
         self.max_rel = 0
         self.model = transition_system
         self.transition_file = transition_file
         self.transition_system = {act: i for (act, i) in zip(transition_system[0], transition_system[1])}
         # self.transition_system[None] = -2
-        self.tokenizer = tokenizer
-        self.max_sent_len = 0
         self.act_counts = {self.transition_system[act]:0 for act in self.transition_system.keys()}
 
+        self.tokenizer = tokenizer
+        self.max_sent_len = 0
         self.load_data(fname, transition_file)
+
         self.n_instances = len(self.words)
+
 
     def load_data(self, fname, transition_file):
         self.words, self.word_st, self.pos, self.heads, self.rels = [], [], [], [], []
@@ -74,7 +76,6 @@ class SyntaxDataset(Dataset):
             token_mapping.append(tokenout[0])
             token_mapping.append(tokenout[-1])
             token_mapping2.append(tokenout)
-
 
 
         return encoded['input_ids'].squeeze(0), torch.LongTensor(token_mapping).to(device=constants.device)

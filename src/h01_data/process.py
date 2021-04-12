@@ -106,8 +106,8 @@ def process_data(in_fname_base, out_path, mode, vocabs, oracle=None, transition_
         for sentence in get_sentence(file):
             sent_processed, heads, relations,rel2id = process_sentence(sentence, vocabs)
             heads_proper = [0] + heads
-            if len(sentence) > 6 or len(sentence) <= 2:
-                continue
+            #if len(sentence) > 6 or len(sentence) <= 2:
+            #    continue
             # print(heads_proper)
             # print(relations)
             arc2label = {arc: rel for (arc, rel) in zip(list(range(len(heads))), relations)}

@@ -63,16 +63,9 @@ def generate_batch(batch):
 
 
 def get_data_loader(fname, transitions_file, transition_system, tokenizer, batch_size, shuffle):
-    #print(transitions_file)
     dataset = SyntaxDataset(fname, transitions_file, transition_system, tokenizer)
-    #print("action distribution {}".format(dataset.act_counts))
-    #tot = 0
-    #for item in dataset.act_counts.values(): tot+=item
-    #print("Total {}".format(tot))
-    #print("% {}".format([a/tot for a in dataset.act_counts.values()]))
     return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle,
-                      collate_fn=generate_batch)
-
+                      collate_fn=generate_batch),dataset.max_sent_len
 
 def get_data_loaders(data_path, language, batch_size, batch_size_eval, transitions=None, transition_system=None,
                      bert_model=None):
@@ -86,11 +79,11 @@ def get_data_loaders(data_path, language, batch_size, batch_size_eval, transitio
     vocabs = load_vocabs(src_path)
     embeddings = load_embeddings(src_path)
     tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
-    trainloader = get_data_loader(fname_train, transitions_train, transition_system, tokenizer, batch_size,
+    trainloader,max_sent_len_train = get_data_loader(fname_train, transitions_train, transition_system, tokenizer, batch_size,
                                   shuffle=True)
-    devloader = get_data_loader(fname_dev, transitions_dev, transition_system, tokenizer, batch_size_eval,
+    devloader,max_sent_len_dev = get_data_loader(fname_dev, transitions_dev, transition_system, tokenizer, batch_size_eval,
                                 shuffle=False)
-    testloader = get_data_loader(fname_test, transitions_test, transition_system, tokenizer, batch_size_eval,
+    testloader,max_sent_len_test = get_data_loader(fname_test, transitions_test, transition_system, tokenizer, batch_size_eval,
                                  shuffle=False)
-
-    return trainloader, devloader, testloader,vocabs,embeddings
+    max_sent_len = max(max_sent_len_dev,max_sent_len_test,max_sent_len_train)
+    return trainloader, devloader, testloader,vocabs,embeddings, max_sent_len

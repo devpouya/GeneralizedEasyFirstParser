@@ -19,6 +19,8 @@ class Item(object):
         self.l = item_l
         self.r = item_r
         self.w = w
+        self.subtrees = {}
+        self.arcs = []
 
     def __str__(self):
         return "Item:\t" + str((self.i, self.j, self.h))
@@ -305,6 +307,7 @@ class StackLSTM(nn.Module):
         return out
 
 
+
 class Biaffine(nn.Module):
     # pylint: disable=arguments-differ
     def __init__(self, dim_left, dim_right):
@@ -326,6 +329,7 @@ class Biaffine(nn.Module):
 
     def forward(self, x_l, x_r):
         # x shape [batch, length_l, length_r]
+        print("form {}".format(x_l.shape))
         x = torch.matmul(x_l, self.matrix)
         x = torch.bmm(x, x_r.transpose(1, 2)) + self.bias
 
