@@ -329,7 +329,6 @@ class Biaffine(nn.Module):
 
     def forward(self, x_l, x_r):
         # x shape [batch, length_l, length_r]
-        print("form {}".format(x_l.shape))
         x = torch.matmul(x_l, self.matrix)
         x = torch.bmm(x, x_r.transpose(1, 2)) + self.bias
 

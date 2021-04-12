@@ -52,7 +52,8 @@ class ChartParser(BertParser):
         pred_head = self.linear_head(atn_out)
         h_logits = self.biaffine(pred_head.permute(1, 0, 2), pred_dep.permute(1, 0, 2))
         h_logits = h_logits.squeeze(0)
-
+        if not self.training:
+            heads = h_logits.argmax(-1)
         l_logits = self.get_label_logits(atn_out, heads)
         w = h_logits
         w = w.squeeze(0)

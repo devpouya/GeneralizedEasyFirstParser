@@ -54,7 +54,6 @@ class BiaffineParser(BaseParser):
         print(h_t.shape)
         h_logits = self.get_head_logits(h_t, sent_lens)
         print(h_logits.shape)
-        jk
         if head is None:
             head = h_logits.argmax(-1)
 

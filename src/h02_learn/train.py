@@ -256,7 +256,7 @@ def train_chart(trainloader, devloader, model, eval_batches, wait_iterations, op
             loss = train_batch_chart(text,pos, heads, rels, maps, model, optimizer)
             train_info.new_batch(loss)
             if train_info.eval:
-                dev_results = evaluate(devloader, model)
+                dev_results = evaluate_chart(devloader, model)
                 if train_info.is_best(dev_results):
                     model.set_best()
                     if save_batch:
@@ -283,7 +283,7 @@ def _evaluate_chart(evalloader, model):
         maps = maps.to(device=constants.device)
         text, pos = text.to(device=constants.device), pos.to(device=constants.device)
         heads, rels = heads.to(device=constants.device), rels.to(device=constants.device)
-        loss, predicted_heads, predicted_rels = model((text, pos), maps,rels)
+        loss, predicted_heads, predicted_rels = model((text, pos), maps, heads, rels) # model((text, pos), maps,rels)
 
         #print("EEEEEEVAAAAAAALLLLLLLLLLEVAAAAALLLLLLLLLEVALLLL")
         #print("predicted heads {}".format(predicted_heads))
