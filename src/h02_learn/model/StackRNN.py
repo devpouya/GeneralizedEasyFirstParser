@@ -30,18 +30,18 @@ class ChartParser(BertParser):
         self.mlp = nn.Linear(self.embedding_size * 2 + 200, 1)
 
         self.max_size = max_sent_len
-        self.linear_dep = nn.Linear(868, 500)
-        self.linear_head = nn.Linear(868, 500)
+        self.linear_dep = nn.Linear(868, 500).to(device=constants.device)
+        self.linear_head = nn.Linear(868, 500).to(device=constants.device)
         self.biaffine = Biaffine(500, 500)
 
-        self.linear_labels_dep = nn.Linear(868, 100)
-        self.linear_labels_head = nn.Linear(868, 100)
+        self.linear_labels_dep = nn.Linear(868, 100).to(device=constants.device)
+        self.linear_labels_head = nn.Linear(868, 100).to(device=constants.device)
         self.bilinear_label = Bilinear(100, 100, self.num_rels)
 
-        self.weight_matrix = nn.MultiheadAttention(868, num_heads=1, dropout=dropout)
+        self.weight_matrix = nn.MultiheadAttention(868, num_heads=1, dropout=dropout).to(device=constants.device)
         self.root_selector = nn.LSTM(
             868, 1, 1, dropout=(dropout if 1 > 1 else 0),
-            batch_first=True, bidirectional=False)
+            batch_first=True, bidirectional=False).to(device=constants.device)
 
     def calculate_weights(self, sentence, agenda, heads):
         n = len(sentence)
@@ -59,7 +59,7 @@ class ChartParser(BertParser):
         root_scores, _ = self.root_selector(sentence)
         root_scores = root_scores.squeeze(1)
         w = torch.cat([w, root_scores], dim=-1)
-        bottom_row = torch.ones((w.shape[1], 1))
+        bottom_row = torch.ones((w.shape[1], 1)).to(device=constants.device)
         bottom_row[:-1, :] = root_scores * -1
         w = torch.cat([w, bottom_row.transpose(1, 0)], dim=0)
         w = torch.exp(w)
