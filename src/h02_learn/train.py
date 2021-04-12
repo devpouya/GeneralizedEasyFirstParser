@@ -102,24 +102,15 @@ def get_model(vocabs,embeddings,args,max_sent_len):
             nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings) \
             .to(device=constants.device)
 
-def calculate_attachment_score_2(heads_tgt, heads, predicted_rels, rels):
+def calculate_attachment_score(heads_tgt, heads, predicted_rels, rels):
+
     acc_h = (heads_tgt == heads)[heads != -1]
-    predicted_rels = predicted_rels[predicted_rels != -1]
-    rels = rels[rels != 0]
-
-    acc_l = (predicted_rels == rels)
-
-    uas = acc_h.float().mean().item()
-    las = (acc_h & acc_l).float().mean().item()
-    return las, uas
-
-def calculate_attachment_score(heads_pred, l_logits, heads, rels):
-    acc_h = (heads_pred == heads)[heads != -1]
-    acc_l = (l_logits.argmax(-1) == rels)[heads != -1]
+    #predicted_rels = predicted_rels[predicted_rels != -1]
+    #rels = rels[rels != -1]
+    acc_l = (predicted_rels == rels)[heads != -1]
 
     uas = acc_h.float().mean().item()
     las = (acc_h & acc_l).float().mean().item()
-
     return las, uas
 
 def simple_attachment_scores(predicted_heads, heads, lengths):
