@@ -48,6 +48,7 @@ class ChartParser(BertParser):
         sentence = sentence.unsqueeze(1)
         atn_out, _ = self.weight_matrix(sentence, sentence, sentence)
         # s = torch.cat([sentence, torch.zeros(1, sentence.shape[1])], dim=0)
+        # probability of predicting the correct parse from the predicted scores
         pred_dep = self.linear_dep(atn_out)
         pred_head = self.linear_head(atn_out)
         h_logits = self.biaffine(pred_head.permute(1, 0, 2), pred_dep.permute(1, 0, 2))
@@ -63,12 +64,13 @@ class ChartParser(BertParser):
         bottom_row = torch.ones((w.shape[1], 1)).to(device=constants.device)
         bottom_row[:-1, :] = root_scores * -1
         w = torch.cat([w, bottom_row.transpose(1, 0)], dim=0)
-        w = torch.exp(w)
+        w = nn.Softmax()(w,dim=-1)
+        #w = torch.exp(w)
         for i in range(n):
             k, j, h = i, i + 1, i
             agenda[(k, j, h)] = Item(k, j, h, w[j, k], k, k)
 
-        return w, h_logits, l_logits, agenda
+        return w, nn.Softmax()(h_logits,dim=-1), l_logits, agenda
 
     def run_lstm(self, x, sent_lens):
         # lstm_in = pack_padded_sequence(x, sent_lens, batch_first=True, enforce_sorted=False)
@@ -111,7 +113,7 @@ class ChartParser(BertParser):
         # print(sent_lens)
         # x_emb = x_emb.permute(1,0,2)
         # print(h_t.shape)
-
+        prob_sum = 0
         for i, sentence in enumerate(x_emb):
             # initialize a parser
             mapping = map[i, map[i] != -1]
@@ -144,7 +146,9 @@ class ChartParser(BertParser):
                 pops += 1
                 for item_new in hypergraph.outgoing(item):
                     agenda[(item_new.i, item_new.j, item_new.h)] = item_new
+
             tree_batch[i,:curr_sentence_length] = hypergraph.best_path()
+
         batch_loss = self.loss(heads_batch, rels_batch, heads, rels)
         rels_batch = torch.argmax(rels_batch,dim=-1)
         return batch_loss, tree_batch, rels_batch

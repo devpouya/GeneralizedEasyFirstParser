@@ -49,6 +49,7 @@ class Hypergraph(object):
                 item.arcs = item.l.arcs + item.r.arcs + [(h, item.l.h)]
 
         return item
+
     def traverse_up(self, item_l, item_r, path):
         path.append(item_l)
         path.append(item_r)
@@ -63,21 +64,55 @@ class Hypergraph(object):
         for item in self.chart:
             i, j, h = item.i, item.j, item.h
         pass
-
-    def partition(self, r):
+    def check_laplacian(self, L):
+        return torch.all(torch.diag(L)>= 0.0) and torch.all(L-torch.diag(L) <= 0.0)
+    def partition(self):
         # G = complete graph on self.n
-        A = self.W
-        A = torch.exp(A)
-        A = A * (1 - torch.eye(self.n, self.n))
+        A = torch.exp(self.W)
+        A = A - torch.diag(A)
         col_sum = torch.diag(torch.sum(A, dim=0))
-        L = col_sum - A
-        L[0, :] = r
+        L = -1 * A + col_sum
+        #A = torch.exp(A)
+        #A = torch.narrow(A, 0, 0, self.n)
+        #A = torch.narrow(A,-1,0,self.n)
+        #B = A * (1 - torch.eye(self.n+1, self.n+1))
+        #col_sum = torch.diag(torch.sum(B, dim=-1))
+        #L = col_sum - A
+        indices = list(range(self.n+1))
+        indices.remove(1)
+        L = L[indices,:]
+        L = L[:,indices]
+        print(L)
+        #L = torch.narrow(L,0,1,self.n)
+        #L = torch.narrow(L,-1,1,self.n)
+        print("XUYUYUYUYUYU {}".format(self.check_laplacian(L)))
+
+        #L[0, :] = r[:-1]
         Z = L.det()
         return Z
 
+    def probability(self, heads):
+        heads_proper = [0] + heads.tolist()
+
+        sentence_proper = list(range(len(heads_proper)))
+        word2head = {w: h for (w, h) in zip(sentence_proper, heads_proper)}
+        arcs = []
+        for word in word2head:
+            arcs.append((word2head[word], word))
+        psum = 0
+        for (u, v) in arcs:
+            if u == 0:
+                root = v
+                continue
+            psum += self.W[u, v]
+        root_selection = self.W[root,:]
+        psum = torch.exp(torch.sum(torch.tensor(psum).to(device=constants.device)))
+        Z = self.partition()
+        return psum/Z#self.partition(root_selection)
+
     def best_path(self):
         for item in self.chart:
-            #print(item)
+            # print(item)
             if item[0] == 0 and item[1] == self.n:
                 goal = (0, self.n, item[2])
                 break
@@ -88,29 +123,29 @@ class Hypergraph(object):
         path = [goal_item]
 
         path = self.traverse_up(goal_item.l, goal_item.r, path)
-        #print(path)
+        # print(path)
         arcs = set(goal_item.arcs)
         path_arcs = set([])
         for item in path:
             if item != goal_item:
                 path_arcs = path_arcs.union(set(item.arcs))
 
-        #print(path_arcs)
-        #print(arcs)
+        # print(path_arcs)
+        # print(arcs)
         arcs = arcs.intersection(path_arcs)
         # do in order
 
-        #scores = [self.chart[item].w for item in reversed(path)]
+        # scores = [self.chart[item].w for item in reversed(path)]
         # print(scores)
 
-        #tot_sum = sum(scores)
-        #cumsum = torch.cumsum(torch.tensor(scores), dim=-1)
-        #probs = cumsum  # /tot_sum
+        # tot_sum = sum(scores)
+        # cumsum = torch.cumsum(torch.tensor(scores), dim=-1)
+        # probs = cumsum  # /tot_sum
 
         arcs = set(arcs)
         heads = torch.zeros(self.n)
-        for (u,v) in arcs:
-            heads[v-1] = u
+        for (u, v) in arcs:
+            heads[v - 1] = u
         return heads
 
     def siblings(self):
@@ -152,8 +187,7 @@ class LazyArcStandard(Hypergraph):
                 if (k, i, g) in self.chart:
                     item_l = self.chart[(k, i, g)]
                     # lw = self.score(item_l)
-                    self.arc(item_l)
-                    item_l = item_l = self.chart[(k, i, g)]
+                    item_l = self.arc(item_l)
                     p = item_l.w * item.w
                     # p = lw * w  # item_l.w * item.w
                     # attach left arc
