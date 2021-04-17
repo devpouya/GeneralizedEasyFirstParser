@@ -154,7 +154,7 @@ def find_corresponding_relation(labeled_arcs, arc):
 def arc_standard_oracle(sentence, word2head, relations):
     # (head,tail)
     # heads[a] == b --> (b,a)
-
+    print(word2head)
     stack = []  # BaseStack()
     buffer = sentence.copy()  # BaseBuffer(sentence)
     # true_arcs_no_label = get_arcs(word2head)

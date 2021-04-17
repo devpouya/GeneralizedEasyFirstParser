@@ -1,3 +1,87 @@
+
+class BaseItem(object):
+
+    def __init__(self, i, j, h,item_l, item_r):
+        self.i, self.j, self.h = i, j, h
+        self.l = item_l
+        self.r = item_r
+        self.subtrees = {}
+        self.arcs = []
+
+    def __str__(self):
+        return "BaseItem:\t" + str((self.i, self.j, self.h))
+
+    def __repr__(self):
+        return "BaseItem:\t" + str((self.i, self.j, self.h))
+
+    def __hash__(self):
+        return hash((self.i, self.j, self.h))
+
+
+class Chart(object):
+
+    def __init__(self):
+        self.chart = {}
+
+    def __getitem__(self, key):
+        if isinstance(key, BaseItem):
+            return self.chart[(key.i, key.j, key.h)]
+        else:
+            return self.chart[key]
+
+    def __setitem__(self, key, item):
+        if isinstance(key, BaseItem):
+            self.chart[(key.i, key.j, key.h)] = item
+        else:
+            self.chart[key] = item
+
+    def __iter__(self):
+        return iter(self.chart)
+
+
+class BaseAgenda(object):
+
+    def __init__(self):
+        self.locator = {}
+        self.Q = []
+
+    def pop(self):
+        """ super slow ! """
+        tmp = self.Q[0]
+        self.Q = self.Q[1:]
+        return tmp
+
+    def empty(self):
+        return True if len(self.Q) == 0 else False
+
+    def locate(self, item):
+        pass
+
+    def percolate(self):
+        pass
+
+    def __len__(self):
+        return len(self.Q)
+
+    def __iter__(self):
+        return iter(self.locator)
+
+    def __getitem__(self, key):
+        return self.locator[key]
+
+    def __setitem__(self, key, item):
+        """ super slow ! """
+        if (item.i, item.j, item.h) not in self:
+            self.locator[(item.i, item.j, item.h)] = item
+            self.Q.append(item)
+            #self.Q.sort(key=lambda x: -x.w)
+        else:
+            self.locator[key] = item
+            #self.Q.sort(key=lambda x: -x.w)
+
+
+
+
 class BaseStack:
 
     def __init__(self):

@@ -6,11 +6,13 @@ import numpy as np
 
 sys.path.append('./src/')
 from h01_data import Vocab, save_vocabs, save_embeddings
-from h01_data.oracle import arc_standard_oracle, arc_eager_oracle, hybrid_oracle,easy_first_arc_standard,\
-    easy_first_hybrid,easy_first_arc_eager,easy_first_mh4,mh4_oracle,easy_first_pending, priority_queue_oracle
+from h01_data.oracle import arc_standard_oracle, arc_eager_oracle, hybrid_oracle, easy_first_arc_standard, \
+    easy_first_hybrid, easy_first_arc_eager, easy_first_mh4, mh4_oracle, easy_first_pending, priority_queue_oracle
 from h01_data.oracle import is_projective, is_good
 from utils import utils
 from utils import constants
+from h01_data.item_oracle import item_arc_standard_oracle
+
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -20,10 +22,11 @@ def get_args():
     parser.add_argument('--glove-file', type=str, required=False)
     parser.add_argument('--bert-model', type=str, default='bert-base-cased')
     parser.add_argument('--min-vocab-count', type=int, default=2)
-    parser.add_argument('--transition', type=str, choices=['arc-standard','arc-eager','easy-first',
-                                                           'hybrid','mh4','easy-first-std',
-                                                           'easy-first-hybrid','easy-first-eager','easy-first-mh4'],
-                        default='easy-first')
+    parser.add_argument('--transition', type=str, choices=['arc-standard', 'arc-eager', 'easy-first',
+                                                           'hybrid', 'mh4', 'easy-first-std',
+                                                           'easy-first-hybrid', 'easy-first-eager', 'easy-first-mh4',
+                                                           'agenda-std'],
+                        default='arc-standard')
     return parser.parse_args()
 
 
@@ -75,19 +78,20 @@ def process_sentence(sentence, vocabs):
 
     return processed, heads, relations, rel2id
 
-def labeled_action_pairs(actions,relations):
+
+def labeled_action_pairs(actions, relations):
     labeled_acts = []
     tmp_rels = relations.copy()
 
     for act in actions:
         if act == constants.shift or act is None:
-            labeled_acts.append((act,-1))
+            labeled_acts.append((act, -1))
         elif act is not None:
-            labeled_acts.append((act,tmp_rels[0]))
+            labeled_acts.append((act, tmp_rels[0]))
             tmp_rels.pop(0)
 
-
     return labeled_acts
+
 
 def process_data(in_fname_base, out_path, mode, vocabs, oracle=None, transition_name=None):
     in_fname = in_fname_base % mode
@@ -104,42 +108,58 @@ def process_data(in_fname_base, out_path, mode, vocabs, oracle=None, transition_
     faileds = []
     with open(in_fname, 'r') as file:
         for sentence in get_sentence(file):
-            sent_processed, heads, relations,rel2id = process_sentence(sentence, vocabs)
+            sent_processed, heads, relations, rel2id = process_sentence(sentence, vocabs)
             heads_proper = [0] + heads
-            #if len(sentence) > 6 or len(sentence) <= 2:
+            # if len(sentence) > 6 or len(sentence) <= 2:
             #    continue
             # print(heads_proper)
             # print(relations)
             arc2label = {arc: rel for (arc, rel) in zip(list(range(len(heads))), relations)}
-            #relations = ['root'] + relations
+            # relations = ['root'] + relations
             # print(len(heads_proper))
             # print(len(relations))
             sentence_proper = list(range(len(heads_proper)))
-            #word2headrels = {w: (h, r) for (w, h, r) in zip(sentence_proper, heads_proper, relations)}
+            # word2headrels = {w: (h, r) for (w, h, r) in zip(sentence_proper, heads_proper, relations)}
             # print(word2headrels)
             word2head = {w: h for (w, h) in zip(sentence_proper, heads_proper)}
-            if is_projective(word2head) or transition_name == 'mh4' or transition_name == 'easy-first-mh4':
-                step+=1
-                actions,relations_order,good = oracle(sentence_proper, word2head,relations)
+            if transition_name == 'agenda-std':
+                if is_projective(word2head):
+                    step += 1
+                    hypergraph, good = oracle(sentence_proper, word2head)
+                    relation_ids = [rel2id[rel] for rel in relations]
+                    if good:
+                        right += 1
+                    else:
+                        faileds.append(step)
+                        wrong += 1
+                    actions_processed = {'transition':hypergraph, 'relations':relation_ids}
+                    # actions_processed = {'transition': actions, 'relations':relation_ids,}
+                    utils.append_json(out_fname_history, actions_processed)
+                    utils.append_json(out_fname, sent_processed)
+                else:
+                    continue
+            elif is_projective(word2head) or transition_name == 'mh4' or transition_name == 'easy-first-mh4':
+                step += 1
+                actions, relations_order, good = oracle(sentence_proper, word2head, relations)
                 relation_ids = [rel2id[rel] for rel in relations_order]
                 if good:
                     right += 1
                 else:
                     faileds.append(step)
                     wrong += 1
-                #labeled_actions = labeled_action_pairs(actions,relation_ids.copy())
-                #actions_processed = {'transition': actions, 'relations':relation_ids,'labeled_actions':labeled_actions}
-                actions_processed = {'transition': actions, 'relations':relation_ids,}
+                labeled_actions = labeled_action_pairs(actions,relation_ids.copy())
+                actions_processed = {'transition': actions, 'relations':relation_ids,'labeled_actions':labeled_actions}
+                # actions_processed = {'transition': actions, 'relations':relation_ids,}
                 utils.append_json(out_fname_history, actions_processed)
                 utils.append_json(out_fname, sent_processed)
 
             else:
                 continue
 
-
     print("GOOD {}".format(right))
     print("BAD {}".format(wrong))
     print("fails {}".format(faileds))
+
 
 def add_sentence_vocab(sentence, words, tags, rels):
     for token in sentence:
@@ -159,12 +179,12 @@ def add_embedding_vocab(embeddings, words):
     for word in embeddings.keys():
         words.add_pretrained(word)
 
-def add_tokenizer_vocab(tokenizer,words):
 
+def add_tokenizer_vocab(tokenizer, words):
     pass
 
 
-def get_vocabs(in_fname_base, out_path, min_count, embeddings=None,tokenizer=None):
+def get_vocabs(in_fname_base, out_path, min_count, embeddings=None, tokenizer=None):
     in_fname = in_fname_base % 'train'
     words, tags, rels = Vocab(min_count), Vocab(min_count), Vocab(min_count)
     print('Getting vocabs: %s' % in_fname)
@@ -176,8 +196,7 @@ def get_vocabs(in_fname_base, out_path, min_count, embeddings=None,tokenizer=Non
     if embeddings is not None:
         add_embedding_vocab(embeddings, words)
     elif tokenizer is not None:
-        add_tokenizer_vocab(tokenizer,words)
-
+        add_tokenizer_vocab(tokenizer, words)
 
     process_vocabs(words, tags, rels)
     save_vocabs(out_path, words, tags, rels)
@@ -196,11 +215,10 @@ def read_embeddings(fname):
                 continue
 
             tokens = line.split()
-            #print("88888888888")
-            #print(embedd_dim)
-            #print(len(tokens))
-            #print("88888888888")
-
+            # print("88888888888")
+            # print(embedd_dim)
+            # print(len(tokens))
+            # print("88888888888")
 
             if embedd_dim < 0:
                 embedd_dim = len(tokens) - 1
@@ -209,7 +227,7 @@ def read_embeddings(fname):
                 continue
             else:
                 continue
-                #assert embedd_dim + 1 == len(tokens), 'Dimension of embeddings should be consistent'
+                # assert embedd_dim + 1 == len(tokens), 'Dimension of embeddings should be consistent'
 
             embedd = np.empty([1, embedd_dim], dtype=np.float32)
             embedd[:] = tokens[1:]
@@ -231,8 +249,8 @@ def main():
     out_path = path.join(args.save_path, constants.UD_PATH_PROCESSED, args.language)
     utils.mkdir(out_path)
 
-    #embeddings = process_embeddings(args.glove_file, out_path)
-    tokenizer = None#BertTokenizer.from_pretrained(args.bert_model)
+    # embeddings = process_embeddings(args.glove_file, out_path)
+    tokenizer = None  # BertTokenizer.from_pretrained(args.bert_model)
     vocabs = get_vocabs(in_fname, out_path, min_count=args.min_vocab_count, tokenizer=tokenizer)
     oracle = None
     if args.transition == 'arc-standard':
@@ -243,6 +261,8 @@ def main():
         oracle = hybrid_oracle
     elif args.transition == 'mh4':
         oracle = mh4_oracle
+    elif args.transition == 'agenda-std':
+        oracle = item_arc_standard_oracle
     elif args.transition == "easy-first-std":
         oracle = easy_first_arc_standard
     elif args.transition == "easy-first-hybrid":
@@ -253,7 +273,6 @@ def main():
         oracle = easy_first_mh4
     elif args.transition == 'easy-first':
         oracle = easy_first_pending
-
 
     process_data(in_fname, out_path, 'train', vocabs, oracle, args.transition)
     process_data(in_fname, out_path, 'dev', vocabs, oracle, args.transition)

@@ -14,11 +14,10 @@ def has_head(node, arcs):
 
 class Item(object):
 
-    def __init__(self, i, j, h, w, item_l, item_r):
+    def __init__(self, i, j, h, item_l, item_r):
         self.i, self.j, self.h = i, j, h
         self.l = item_l
         self.r = item_r
-        self.w = w
         self.subtrees = {}
         self.arcs = []
 
@@ -51,6 +50,9 @@ class Chart(object):
 
     def __iter__(self):
         return iter(self.chart)
+
+    def __delitem__(self, key):
+        del self.chart[key]
 
 
 class Agenda(object):

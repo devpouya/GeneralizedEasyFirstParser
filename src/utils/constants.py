@@ -153,3 +153,6 @@ mh4 = ([shift, left_arc_eager, reduce_r, left_arc_prime, right_arc_prime,left_ar
 # hybrid_actions = {0: fshift, 1: fleft_arc, 2: freduce_r}
 
 easy_first = ([left_attach,right_attach],list(range(2)))
+
+agenda_std = (["LEFT","RIGHT"],list(range(2)))
+agenda = "AGENDA-PARSER"

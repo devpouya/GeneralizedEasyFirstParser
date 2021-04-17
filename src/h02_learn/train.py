@@ -27,8 +27,8 @@ def get_args():
     parser.add_argument('--dropout', type=float, default=.33)
     parser.add_argument('--weight-decay', type=float, default=0.01)
     parser.add_argument('--model', choices=['easy-first','easy-first-hybrid','biaffine', 'mst', 'arc-standard',
-                                            'arc-eager', 'hybrid', 'mh4','easy-first-mh4','chart'],
-                        default='chart')
+                                            'arc-eager', 'hybrid', 'mh4','easy-first-mh4','chart','agenda-std'],
+                        default='agenda-std')
     parser.add_argument('--bert-model',type=str,default='bert-base-cased')
     # Optimization
     parser.add_argument('--optim', choices=['adam', 'adamw', 'sgd'], default='adamw')
@@ -96,6 +96,9 @@ def get_model(vocabs,embeddings,args,max_sent_len):
             dropout=args.dropout,
             transition_system=constants.mh4) \
             .to(device=constants.device)
+    elif args.model == 'agenda-std':
+        return ChartParser(vocabs=vocabs, embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
+                           hypergraph=LazyArcStandard,dropout=0.33, beam_size=10,max_sent_len=max_sent_len, easy_first=False).to(device=constants.device)
     else:
         return BiaffineParser(
             vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size,
@@ -131,8 +134,7 @@ def _evaluate(evalloader, model):
         heads, rels = heads.to(device=constants.device), rels.to(device=constants.device)
         transitions = transitions.to(device=constants.device)
         relations_in_order = relations_in_order.to(device=constants.device)
-        loss, predicted_heads, predicted_rels = model((text, pos), transitions, relations_in_order,maps, mode='eval')
-
+        loss, predicted_heads, predicted_rels = model((text, pos), transitions, relations_in_order,maps,heads=heads,rels=rels)
         #print("EEEEEEVAAAAAAALLLLLLLLLLEVAAAAALLLLLLLLLEVALLLL")
         #print("predicted heads {}".format(predicted_heads))
         #print("real heads {}".format(heads))
@@ -171,7 +173,7 @@ def train_batch(text, pos, heads, rels, transitions, relations_in_order, maps,mo
     transitions = transitions.to(device=constants.device)
     relations_in_order = relations_in_order.to(device=constants.device)
 
-    loss, pred_h, pred_rel = model((text, pos), transitions, relations_in_order,maps, mode='train')
+    loss, pred_h, pred_rel = model((text, pos), transitions, relations_in_order,maps,heads=heads,rels=rels)
     #("çççççççççççççççççççççççççççççççç")
     #t(pred_h)
     #t(heads)
@@ -251,7 +253,9 @@ def train_chart(trainloader, devloader, model, eval_batches, wait_iterations, op
     train_info = TrainInfo(wait_iterations,eval_batches)
     while not train_info.finish:
         step = 0
-        for (text, pos), (heads, rels),_, maps in trainloader:
+        for (text, pos), (heads, rels),(hypergraph,relation_in_order), maps in trainloader:
+            print(hypergraph.shape)
+            print(hypergraph)
             loss = train_batch_chart(text,pos, heads, rels, maps, model, optimizer)
             train_info.new_batch(loss)
             if train_info.eval:
@@ -327,7 +331,7 @@ def main():
     elif args.model == "mh4" or args.model == 'easy-first-mh4':
         transition_system = constants.mh4
     else:
-        transition_system = constants.arc_standard
+        transition_system = constants.agenda
 
     if args.model == 'chart':
         fname = "arc-standard"
@@ -340,23 +344,21 @@ def main():
           (len(trainloader.dataset), len(devloader.dataset), len(testloader.dataset)))
 
     model = get_model(vocabs, embeddings, args,max_sent_len)
-    if args.model != 'chart':
-
-        train(trainloader, devloader, model, args.eval_batches, args.wait_iterations,
-              args.optim, args.lr_decay, args.weight_decay, args.save_path, args.save_periodically)
-        model.save(args.save_path)
-        train_loss, train_las, train_uas = evaluate(trainloader, model)
-        dev_loss, dev_las, dev_uas = evaluate(devloader, model)
-        test_loss, test_las, test_uas = evaluate(testloader, model)
-    else:
-
-        model = get_model(vocabs, embeddings, args,max_sent_len)
-        train_chart(trainloader, devloader, model, args.eval_batches, args.wait_iterations,
-              args.optim, args.lr_decay, args.weight_decay, args.save_path, args.save_periodically)
-        model.save(args.save_path)
-        train_loss, train_las, train_uas = evaluate_chart(trainloader, model)
-        dev_loss, dev_las, dev_uas = evaluate_chart(devloader, model)
-        test_loss, test_las, test_uas = evaluate_chart(testloader, model)
+    #if args.model != 'agenda-std':
+    train(trainloader, devloader, model, args.eval_batches, args.wait_iterations,
+          args.optim, args.lr_decay, args.weight_decay, args.save_path, args.save_periodically)
+    model.save(args.save_path)
+    train_loss, train_las, train_uas = evaluate(trainloader, model)
+    dev_loss, dev_las, dev_uas = evaluate(devloader, model)
+    test_loss, test_las, test_uas = evaluate(testloader, model)
+    #else:
+    #    model = get_model(vocabs, embeddings, args,max_sent_len)
+    #    train_chart(trainloader, devloader, model, args.eval_batches, args.wait_iterations,
+    #          args.optim, args.lr_decay, args.weight_decay, args.save_path, args.save_periodically)
+    #    model.save(args.save_path)
+    #    train_loss, train_las, train_uas = evaluate_chart(trainloader, model)
+    #    dev_loss, dev_las, dev_uas = evaluate_chart(devloader, model)
+    #    test_loss, test_las, test_uas = evaluate_chart(testloader, model)
 
     print('Final Training loss: %.4f Dev loss: %.4f Test loss: %.4f' %
           (train_loss, dev_loss, test_loss))
