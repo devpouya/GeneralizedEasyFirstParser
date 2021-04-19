@@ -329,7 +329,7 @@ class ChartParser(BertParser):
                 h_tree = self.linear_head(trees)
                 d_tree = self.linear_dep(trees)
                 scores = self.biaffine(h_tree,d_tree)
-                scores_orig = scores.squeeze(0)
+                scores_orig = scores[i]
                 all_picks = []
                 for en, item in enumerate(pending):
                     picks = hypergraph.new_trees(item)
@@ -363,12 +363,12 @@ class ChartParser(BertParser):
 
                 # make tree and replace in trees_matrix
                 # ----> TODO
-                label = self.linear_label(torch.cat([trees[:,made_arc[0],:],trees[:,made_arc[1],:]],dim=-1)
+                label = self.linear_label(torch.cat([trees[i,made_arc[0],:],trees[i,made_arc[1],:]],dim=-1)
                                           .to(device=constants.device))
-                new_rep = self.tree_representation(trees[:,made_arc[0],:],trees[:,made_arc[1],:],label)
+                new_rep = self.tree_representation(trees[i,made_arc[0],:],trees[i,made_arc[1],:],label)
                 trees = trees.clone().detach()
-                trees[:,made_arc[0],:] = new_rep
-                trees[:,made_arc[1],:] = torch.zeros(1,1,trees.shape[2]).to(device=constants.device)
+                trees[i,made_arc[0],:] = new_rep
+                trees[i,made_arc[1],:] = torch.zeros(1,1,trees.shape[2]).to(device=constants.device)
                 # need to update chart and hypergraph accordingly (done in take_step)
                 ##print(colored("timen tensor {}".format(item_to_make), "green"))
                 history[(item_to_make.i, item_to_make.j, item_to_make.h)] = item_to_make
