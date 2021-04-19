@@ -334,8 +334,8 @@ class ChartParser(BertParser):
         return batch_loss, heads_batch, rels_batch
 
     def get_label_logits(self, h_t, head):
-        print(h_t.shape)
-        print(head.shape)
+        #print(h_t.shape)
+        #print(head.shape)
         l_dep = self.dropout(F.relu(self.linear_labels_dep(h_t)))
         l_head = self.dropout(F.relu(self.linear_labels_head(h_t)))
         if self.training:
