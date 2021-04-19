@@ -98,7 +98,7 @@ class ChartParser(BertParser):
 
     def run_lstm(self, x, sent_lens):
         # lstm_in = pack_padded_sequence(x, sent_lens, batch_first=True, enforce_sorted=False)
-        # #print(lstm_in)
+        # ##print(lstm_in)
         lstm_out, _ = self.lstm(x)
         # h_t, _ = pad_packed_sequence(lstm_out, batch_first=True)
         h_t = self.dropout(lstm_out).contiguous()
@@ -124,19 +124,19 @@ class ChartParser(BertParser):
         all_options = []
         all_items = []
         arcs = []
-        ##print("pending len {}".format(len(pending)))
+        #print("pending len {}".format(len(pending)))
         item_index2_pending_index = {}
 
         counter_all_items = 0
         for iter, item in enumerate(pending):
             if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
-                ##print(colored("PRUNE {}".format(item),"red"))
+                ###print(colored("PRUNE {}".format(item),"red"))
                 continue
-            ##print(colored(item, "blue"))
+            ###print(colored(item, "blue"))
             hypergraph = hypergraph.update_chart(item)
-            # #print(colored("Item {} should be added".format(item),"red"))
+            # ##print(colored("Item {} should be added".format(item),"red"))
             # for tang in hypergraph.chart:
-            #    #print(colored(tang,"red"))
+            #    ##print(colored(tang,"red"))
             possible_arcs = hypergraph.outgoing(item)
             for tree in possible_arcs:
                 item_index2_pending_index[counter_all_items] = iter
@@ -150,9 +150,9 @@ class ChartParser(BertParser):
                 arcs.append((tree.h, tree.r.h if tree.r.h != tree.h else tree.l.h))
             if not hypergraph.axiom(item):
                 hypergraph = hypergraph.delete_from_chart(item)
-            # #print(colored("Item {} should be deleted".format(item), "blue"))
+            ##print(colored("Item {} should be deleted".format(item), "blue"))
             # for tang in hypergraph.chart:
-            #    #print(colored(tang, "blue"))
+            #    ##print(colored(tang, "blue"))
 
         triples = torch.stack(all_options)
         scores = []
@@ -234,9 +234,9 @@ class ChartParser(BertParser):
                                                                                       derived[1].item(),
                                                                                       derived[2].item(),
                                                                                       left_item, right_item)
-        # #print("cherry pies")
+        # ##print("cherry pies")
         # for item in pending.values():
-        #    #print(item)
+        #    ##print(item)
         return pending
 
     def margin_loss_step(self, words, oracle_action, score_incorrect):
@@ -260,20 +260,21 @@ class ChartParser(BertParser):
     def forward(self, x, transitions, relations, map, heads, rels):
         sent_lens = (x[0] != 0).sum(-1).to(device=constants.device)
         tags = self.tag_embeddings(x[1].to(device=constants.device))
+        transit_lens = (transitions != -1)#.sum(-1).to(device=constants.device)
         # average of last 4 hidden layers
         with torch.no_grad():
             out = self.bert(x[0].to(device=constants.device))[2]
             x_emb = torch.stack(out[-8:]).mean(0)
-        # #print(transitions)
+        # ##print(transitions)
         heads_batch = torch.ones((x_emb.shape[0], heads.shape[1])).to(device=constants.device)
         tree_batch = torch.ones((x_emb.shape[0], heads.shape[1])).to(device=constants.device)
         rels_batch = torch.ones((x_emb.shape[0], heads.shape[1], self.num_rels)).to(device=constants.device)
         # heads_batch *= -1
         # rels_batch *= -1
-        # #print(x_emb.shape)
-        # #print(sent_lens)
+        # ##print(x_emb.shape)
+        # ##print(sent_lens)
         # x_emb = x_emb.permute(1,0,2)
-        # #print(h_t.shape)
+        # ##print(h_t.shape)
         prob_sum = 0
         batch_loss = 0
         h_t = torch.zeros((x_emb.shape[0], heads.shape[1], 868)).to(device=constants.device)
@@ -286,6 +287,7 @@ class ChartParser(BertParser):
             curr_sentence_length = s.shape[0]
             s = s[:curr_sentence_length, :]
             oracle_hypergraph = transitions[i]
+            oracle_hypergraph = oracle_hypergraph[oracle_hypergraph[:,0,0]!=-1,:,:]
             oracle_agenda = self.init_agenda_oracle(oracle_hypergraph)
 
             # s = torch.cat([s,torch.zeros(1,s.shape[1])],dim=0)
@@ -296,7 +298,7 @@ class ChartParser(BertParser):
 
             atn_out, w, pending = self.calculate_weights(s, pending)
             h_t[i, :curr_sentence_length, :] = atn_out.squeeze(1)
-            # #print(atn_out.shape)
+            # ##print(atn_out.shape)
             # heads_batch[i, :curr_sentence_length, :curr_sentence_length] = h_logits
             # rels_batch[i, :curr_sentence_length, :] = l_logits
             hypergraph = self.hypergraph(curr_sentence_length, chart, self.mlp, s)
@@ -334,21 +336,21 @@ class ChartParser(BertParser):
         return batch_loss, heads_batch, rels_batch
 
     def get_label_logits(self, h_t, head):
-        #print(h_t.shape)
-        #print(head.shape)
+        ##print(h_t.shape)
+        ##print(head.shape)
         l_dep = self.dropout(F.relu(self.linear_labels_dep(h_t)))
         l_head = self.dropout(F.relu(self.linear_labels_head(h_t)))
         if self.training:
             assert head is not None, 'During training head should not be None'
         #l_head = l_head.gather(dim=1, index=head.unsqueeze(2).expand(l_head.size()))
 
-        #print(l_dep.shape)
-        #print(l_head.shape)
+        ##print(l_dep.shape)
+        ##print(l_head.shape)
         ghead = torch.tensor(head,dtype=torch.int64).to(device=constants.device)
-        l_head = l_head.gather(dim=1, index=ghead.unsqueeze(2).expand(l_head.size()))
-        #print("came ")
+        #l_head = l_head.gather(dim=1, index=ghead.unsqueeze(2).expand(l_head.size()))
+        ##print("came ")
         l_logits = self.bilinear_label(l_dep, l_head)
-        #print("settled")
+        ##print("settled")
 
         return l_logits
 
@@ -510,7 +512,7 @@ class EasyFirstParser(BertParser):
         sent_lens = (x[0] != 0).sum(-1).to(device=constants.device)
         max_sent_len = max(sent_lens)
         transit_lens = (transitions != -1).sum(-1).to(device=constants.device)
-        # #print(x[1])
+        # ##print(x[1])
         tags = self.tag_embeddings(x[1].to(device=constants.device))
         # average of last 4 hidden layers
         with torch.no_grad():
@@ -802,7 +804,7 @@ class NeuralTransitionParser(BertParser):
     def forward(self, x, transitions, relations, map, mode):
         # sent_lens = (x[0] != 0).sum(-1).to(device=constants.device)
         transit_lens = (transitions != -1).sum(-1).to(device=constants.device)
-        # #print(x[1])
+        # ##print(x[1])
         tags = self.tag_embeddings(x[1].to(device=constants.device))
         # average of last 4 hidden layers
         with torch.no_grad():
