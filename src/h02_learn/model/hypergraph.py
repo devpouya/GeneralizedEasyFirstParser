@@ -1,4 +1,4 @@
-from .modules import Item
+from .modules import Item, Chart
 import torch
 import torch.nn as nn
 
@@ -134,8 +134,8 @@ class Hypergraph(object):
             if item != goal_item:
                 path_arcs = path_arcs.union(set(item.arcs))
 
-        #print(path_arcs)
-        #print(arcs)
+        # print(path_arcs)
+        # print(arcs)
 
         arcs = arcs.intersection(path_arcs)
         # do in order
@@ -170,13 +170,17 @@ class LazyArcStandard(Hypergraph):
 
     def __init__(self, n, chart, mlp, sentence):
         super().__init__(n, chart, mlp, sentence)
-        for i in range(n+1):
-            item = Item(i,i+1,i,i,i)
-            self.chart[item] = item
+        for i in range(n + 1):
+            item = Item(i, i + 1, i, i, i)
+            self.chart[item] =  item
+        self.locator = Chart()#defaultdict(lambda : 0)
+        self.trees = Chart()
+        self.linear_tree_left = nn.Linear(300, 100)
+        self.linear_tree_right = nn.Linear(300, 100)
 
     def axiom(self, item):
-        i,j,h = item.i,item.j,item.h
-        return i+1 == j and i == h and h+1 == j
+        i, j, h = item.i, item.j, item.h
+        return i + 1 == j and i == h and h + 1 == j
 
     def is_axiom(self, item):
         i, j, h = item.i, item.j, item.h
@@ -190,9 +194,9 @@ class LazyArcStandard(Hypergraph):
         return self
 
     def delete_from_chart(self, item):
-        i,j,h = item.i, item.j, item.h
-        del self.chart[(i,j,h)]
-        #self.chart.chart.pop(item,None)
+        i, j, h = item.i, item.j, item.h
+        del self.chart[(i, j, h)]
+        # self.chart.chart.pop(item,None)
         return self
 
     def add_bucket(self, item):
@@ -200,21 +204,77 @@ class LazyArcStandard(Hypergraph):
         self.bucket[item.r] += 1
         return self
 
+    def compute_trees(self, item, label):
+        i, j, h = item.i, item.j, item.h
+        item_l = item.l
+        item_r = item.r
+        il, jl, hl = item_l.i, item_l.j, item_l.h
+        ir, jr, hr = item_r.i, item_r.j, item_r.h
+
+        tl = self.trees[(il, jl, hl)]
+        tr = self.trees[(ir, jr, hr)]
+        repr_l = torch.cat([tl, tr, label], dim=-1)
+        repr_r = torch.cat([tr, tl, label], dim=-1)
+        c_l = nn.Tanh()(self.linear_tree_left(repr_l))
+        c_r = nn.Tanh()(self.linear_tree_right(repr_r))
+        self.trees[(i, j, hl)] = c_l
+        self.trees[(i, j, hr)] = c_r
+
+    def chart_to_matrix(self, left_trees, right_trees):
+
+        pass
+
+    def make_legal(self, x, picks):
+        scores = torch.ones_like(x)
+        scores *= -float('inf')
+        for (u,v) in picks:
+            scores[u,v] = x[u,v]
+            scores[v,u] = x[v,u]
+        return scores
+
+    def new_trees(self, item):
+        i, j, h = item.i, item.j, item.h
+        picks_left = []
+        picks_right = []
+        picks = []
+        for k in range(0, i + 1):
+            for g in range(k, i):
+                if (k, i, g) in self.chart:
+                    picks.append((g,h))
+                    item_l = self.chart[(k, i, g)]
+                    self.locator[(g,h)] = Item(k, j, g, item_l, item)
+                    self.locator[(h,g)] = Item(k, j, h, item_l, item)
+                    #kjg = torch.tensor([[k, i, g], [i, j, h], [k, j, g]], dtype=torch.int).to(device=constants.device)
+                    #kjh = torch.tensor([[k, i, g], [i, j, h], [k, j, h]], dtype=torch.int).to(device=constants.device)
+                    #picks_left.append(kjg)
+                    #picks_right.append(kjh)
+        for k in range(j, self.n + 1):
+            for g in range(j, k):
+                if (j, k, g) in self.chart:
+                    item_r = self.chart[(j, k, g)]
+                    picks.append((h,g))
+                    self.locator[(h, g)] = Item(i, k, h, item, item_r)
+                    self.locator[(g, h)] = Item(i, k, g, item, item_r)
+                    #ikh = torch.tensor([[i, j, h], [j, k, g], [i, k, h]], dtype=torch.int).to(device=constants.device)
+                    #ikg = torch.tensor([[i, j, h], [j, k, g], [i, k, g]], dtype=torch.int).to(device=constants.device)
+                    #picks_left.append(ikh)
+                    #picks_right.append(ikg)
+        return picks
 
     def outgoing(self, item):
         """ Lazily Expand the Hypergraph """
         i, j, h = item.i, item.j, item.h
         # items to the left
         # w = self.score(item)
-        #self.arc(item)
+        # self.arc(item)
         all_arcs = []
         for k in range(0, i + 1):
             for g in range(k, i):
                 if (k, i, g) in self.chart:
                     item_l = self.chart[(k, i, g)]
-                    #if (k,j,g) != (i,j,h):
+                    # if (k,j,g) != (i,j,h):
                     all_arcs.append(Item(k, j, g, item_l, item))
-                    #if (k,j,h) != (i,j,h):
+                    # if (k,j,h) != (i,j,h):
                     all_arcs.append(Item(k, j, h, item_l, item))
 
         # items to the right
@@ -222,9 +282,9 @@ class LazyArcStandard(Hypergraph):
             for g in range(j, k):
                 if (j, k, g) in self.chart:
                     item_r = self.chart[(j, k, g)]
-                    #if (i,k,h) != (i,j,h):
+                    # if (i,k,h) != (i,j,h):
                     all_arcs.append(Item(i, k, h, item, item_r))
-                    #if (i,k,g) != (i,j,h):
+                    # if (i,k,g) != (i,j,h):
                     all_arcs.append(Item(i, k, g, item, item_r))
 
         return all_arcs

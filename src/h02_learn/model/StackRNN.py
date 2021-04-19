@@ -32,6 +32,8 @@ class ChartParser(BertParser):
         self.dropout = nn.Dropout(dropout)
         self.mlp = nn.Linear(self.embedding_size * 2 + 200, 1)
 
+        self.linear_tree = nn.Linear(self.embedding_size*2+self.rel_embedding_size+200,self.embedding_size+100)
+        self.linear_label = nn.Linear(self.embedding_size*2+200,self.rel_embedding_size)
         self.max_size = max_sent_len
         self.linear_dep = nn.Linear(868, 500).to(device=constants.device)
         self.linear_head = nn.Linear(868, 500).to(device=constants.device)
@@ -119,6 +121,19 @@ class ChartParser(BertParser):
 
     def decode_weights(self, smt):
         pass
+
+    def tree_representation(self, head, modifier, label):
+        reprs = torch.cat([head, modifier, label],
+                          dim=-1)
+
+        c = nn.Tanh()(self.linear_tree(reprs))
+        return c
+
+    def pick_best(self, scores, hypergraph, pending):
+        for item in pending:
+            left_branches, right_branches = hypergraph.new_trees(item)
+        pass
+
 
     def possible_arcs(self, words, pending, hypergraph, history):
         all_options = []
@@ -246,9 +261,10 @@ class ChartParser(BertParser):
         derived = oracle_action[2]
         correct_head = derived[2]
         correct_mod = right[2] if right[2] != derived[2] else left[2]
-
+        score_incorrect = nn.Softmax(dim=-1)(score_incorrect)
         score_correct = self.mlp(
             torch.cat([words[correct_head], words[correct_mod]], dim=-1).to(device=constants.device))
+
         return nn.ReLU()(1 - score_correct + torch.max(score_incorrect))
 
     def heads_from_arcs(self, arcs, sent_len):
@@ -302,7 +318,7 @@ class ChartParser(BertParser):
             # heads_batch[i, :curr_sentence_length, :curr_sentence_length] = h_logits
             # rels_batch[i, :curr_sentence_length, :] = l_logits
             hypergraph = self.hypergraph(curr_sentence_length, chart, self.mlp, s)
-
+            trees = h_t
             arcs = []
             history = defaultdict(lambda: 0)
             loss = 0
@@ -310,14 +326,56 @@ class ChartParser(BertParser):
                 ##print(colored("HYPERGRAPH CHART", "yellow"))
                 #for item in hypergraph.chart:
                 #    #print(colored("ITEM {}".format(item), "yellow"))
-                item_tensor, item_to_make, arc_made, scores, pending = self.possible_arcs(s, pending, hypergraph,
-                                                                                          history)
+                h_tree = self.linear_head(trees)
+                d_tree = self.linear_dep(trees)
+                scores = self.biaffine(h_tree,d_tree)
+                scores_orig = scores.squeeze(0)
+                all_picks = []
+                for en, item in enumerate(pending):
+                    picks = hypergraph.new_trees(item)
+                    all_picks.append(picks)
+                    #scores = hypergraph.make_legal(scores,picks)
+                    #print(colored("{}".format(scores),"blue"))
+                picks = [item for sublist in all_picks for item in sublist]
+                scores = hypergraph.make_legal(scores_orig,picks)
+                mx = torch.amax(scores,(0,1))
+                mx_ind = (torch.eq(scores,mx)).nonzero(as_tuple=True)
+                # this index to items
+                if len(mx_ind[0])>1 or len(mx_ind[1])>1:
+                    ind_x = mx_ind[0][0].item()
+                    ind_y = mx_ind[1][0].item()
+                    select = 1
+                    while ind_x == 0 and ind_y == 0:
+                        ind_x = mx_ind[0][select].item()
+                        ind_y = mx_ind[1][select].item()
+                        select+=1
+                else:
+                    ind_x = mx_ind[0].item()
+                    ind_y = mx_ind[1].item()
+                key = (ind_x,ind_y)
+                item_to_make = hypergraph.locator[key]
+
+                # either make this or score this
+                hypergraph, made_arc, pending = self.take_step(oracle_hypergraph[step], hypergraph, oracle_agenda,
+                                                               item_to_make, pending)
+                #item_tensor, item_to_make, arc_made, scores, pending = self.possible_arcs(s, pending, hypergraph,
+                #                                                                          history)
+
+                # make tree and replace in trees_matrix
+                # ----> TODO
+                label = self.linear_label(torch.cat([trees[:,made_arc[0],:],trees[:,made_arc[1],:]],dim=-1)
+                                          .to(device=constants.device))
+                new_rep = self.tree_representation(trees[:,made_arc[0],:],trees[:,made_arc[1],:],label)
+                trees = trees.clone().detach()
+                trees[:,made_arc[0],:] = new_rep
+                trees[:,made_arc[1],:] = torch.zeros(1,1,trees.shape[2]).to(device=constants.device)
+                # need to update chart and hypergraph accordingly (done in take_step)
                 ##print(colored("timen tensor {}".format(item_to_make), "green"))
                 history[(item_to_make.i, item_to_make.j, item_to_make.h)] = item_to_make
-                hypergraph, made_arc,pending = self.take_step(oracle_hypergraph[step], hypergraph, oracle_agenda,
-                                                              item_to_make,pending)
+                #hypergraph, made_arc,pending = self.take_step(oracle_hypergraph[step], hypergraph, oracle_agenda,
+                #                                              item_to_make,pending)
 
-                loss += self.margin_loss_step(s, oracle_hypergraph[step], scores)
+                loss += self.margin_loss_step(s, oracle_hypergraph[step], scores_orig)
                 arcs.append(made_arc)
             pred_heads = self.heads_from_arcs(arcs, curr_sentence_length)
             ##print("predheads {}".format(pred_heads))
@@ -334,6 +392,7 @@ class ChartParser(BertParser):
         batch_loss += self.loss(batch_loss, l_logits, rels)
 
         return batch_loss, heads_batch, rels_batch
+
 
     def get_label_logits(self, h_t, head):
         ##print(h_t.shape)
