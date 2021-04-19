@@ -106,7 +106,7 @@ def get_model(vocabs,embeddings,args,max_sent_len):
             .to(device=constants.device)
 
 def calculate_attachment_score(heads_tgt, heads, predicted_rels, rels):
-
+    predicted_rels = predicted_rels.permute(1,0)
     acc_h = (heads_tgt == heads)[heads != -1]
     #predicted_rels = predicted_rels[predicted_rels != -1]
     #rels = rels[rels != -1]
@@ -138,12 +138,14 @@ def _evaluate(evalloader, model):
         #print("EEEEEEVAAAAAAALLLLLLLLLLEVAAAAALLLLLLLLLEVALLLL")
         #print("predicted heads {}".format(predicted_heads))
         #print("real heads {}".format(heads))
-        #print(torch.all(torch.eq(heads, predicted_heads)))
+        ##print(torch.all(torch.eq(heads, predicted_heads)))
         #print("--------------------------------")
-        #print("predicted rels {}".format(predicted_rels.shape))
-        #print("real rels {}".format(rels.shape))
-        #print(torch.all(torch.eq(predicted_rels, rels)))
+        #print("predicted rels {}".format(predicted_rels))
+        #print("real rels {}".format(rels))
+        ##print(torch.all(torch.eq(predicted_rels, rels)))
         #print("EEEEEEVAAAAAAALLLLLLLLLLEVAAAAALLLLLLLLLEVALLLL")
+
+        #jhjh
         # loss = model.loss(h_logits, l_logits, heads, rels)
         lengths = (text != 0).sum(-1)
         # heads_tgt = get_mst_batch(h_logits, lengths)
@@ -174,15 +176,15 @@ def train_batch(text, pos, heads, rels, transitions, relations_in_order, maps,mo
     relations_in_order = relations_in_order.to(device=constants.device)
 
     loss, pred_h, pred_rel = model((text, pos), transitions, relations_in_order,maps,heads=heads,rels=rels)
-    #("çççççççççççççççççççççççççççççççç")
-    #t(pred_h)
-    #t(heads)
-    #(torch.all(torch.eq(heads,pred_h)))
-    #("--------------------------------")
-    #t(pred_rel)
-    #t(rels)
-    #(torch.all(torch.eq(pred_rel,rels)))
-    #("çççççççççççççççççççççççççççççççç")
+    #print("çççççççççççççççççççççççççççççççç")
+    #print(pred_h)
+    #print(heads)
+    ##(torch.all(torch.eq(heads,pred_h)))
+    #print("--------------------------------")
+    #print(pred_rel)
+    #print(rels)
+    ##(torch.all(torch.eq(pred_rel,rels)))
+    #print("çççççççççççççççççççççççççççççççç")
 
     loss.backward()
     optimizer.step()

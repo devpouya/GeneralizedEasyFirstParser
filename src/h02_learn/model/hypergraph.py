@@ -170,9 +170,13 @@ class LazyArcStandard(Hypergraph):
 
     def __init__(self, n, chart, mlp, sentence):
         super().__init__(n, chart, mlp, sentence)
+        for i in range(n+1):
+            item = Item(i,i+1,i,i,i)
+            self.chart[item] = item
 
-    def axiom(self, i):
-        return i, i + 1, i
+    def axiom(self, item):
+        i,j,h = item.i,item.j,item.h
+        return i+1 == j and i == h and h+1 == j
 
     def is_axiom(self, item):
         i, j, h = item.i, item.j, item.h
@@ -186,7 +190,9 @@ class LazyArcStandard(Hypergraph):
         return self
 
     def delete_from_chart(self, item):
-        self.chart.chart.pop(item,None)
+        i,j,h = item.i, item.j, item.h
+        del self.chart[(i,j,h)]
+        #self.chart.chart.pop(item,None)
         return self
 
     def add_bucket(self, item):
@@ -200,57 +206,27 @@ class LazyArcStandard(Hypergraph):
         i, j, h = item.i, item.j, item.h
         # items to the left
         # w = self.score(item)
-        item = self.arc(item)
+        #self.arc(item)
         all_arcs = []
         for k in range(0, i + 1):
             for g in range(k, i):
                 if (k, i, g) in self.chart:
                     item_l = self.chart[(k, i, g)]
-                    # lw = self.score(item_l)
-                    item_l = self.arc(item_l)
-                    #p = item_l.w * item.w
-                    # p = lw * w  # item_l.w * item.w
-                    # attach left arc
-                    # yield Item(k, j, g, p * self.W[h, g], item_l, item)
+                    #if (k,j,g) != (i,j,h):
                     all_arcs.append(Item(k, j, g, item_l, item))
-                    #all_arcs.append(
-                    #    (item_l, item,
-                    #     Item(k, j, g, p * self.W[h, g], item_l, item)
-                    #     )
-                    #)
-                    # attach right arc
-                    # yield Item(k, j, h, p * self.W[g, h], item_l, item)
+                    #if (k,j,h) != (i,j,h):
                     all_arcs.append(Item(k, j, h, item_l, item))
-                    #all_arcs.append(
-                    #    (item_l, item,
-                    #     Item(k, j, h, p * self.W[g, h], item_l, item)
-                    #     )
-                    #)
 
         # items to the right
         for k in range(j, self.n + 1):
             for g in range(j, k):
                 if (j, k, g) in self.chart:
                     item_r = self.chart[(j, k, g)]
-                    item_r = self.arc(item_r)
-                    # rw = self.score(item_r)
-                    # p = rw * w  # item.w * item_r.w
-                    # attach left arc
-                    # yield Item(i, k, h, p * self.W[g, h], item, item_r)
+                    #if (i,k,h) != (i,j,h):
                     all_arcs.append(Item(i, k, h, item, item_r))
-                    #all_arcs.append(
-                    #    (item, item_r,
-                    #     Item(i, k, h, p * self.W[g, h], item, item_r)
-                    #     )
-                    #)
-                    # attach right arc
-                    # yield Item(i, k, g, p * self.W[h, g], item, item_r)
+                    #if (i,k,g) != (i,j,h):
                     all_arcs.append(Item(i, k, g, item, item_r))
-                    #all_arcs.append((
-                    #    item,item_r,
-                    #    Item(i, k, g, p * self.W[h, g], item, item_r)
-                    #     )
-                    #)
+
         return all_arcs
 
 
