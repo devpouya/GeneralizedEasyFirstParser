@@ -324,7 +324,7 @@ class ChartParser(BertParser):
 
             # 1. compute tree
             gold_tree = self.compute_tree(s, heads[i, :curr_sentence_length], rels[i, :curr_sentence_length])
-
+            s_wrong = s.clone().detach()
             for step in range(len(oracle_hypergraph)):
                 # print(s_ind)
                 # good luck with this lol
@@ -396,10 +396,22 @@ class ChartParser(BertParser):
                 h = made_arc[0].item()
                 # m = ind_map[made_arc[1].item()]
                 m = made_arc[1].item()
+                h_w = item_to_make.h
+                m_w = item_to_make.i if item_to_make.i != item_to_make.h else item_to_make.j
+
                 label = self.linear_label(torch.cat([s[h, :], s[m, :]], dim=-1)
                                           .to(device=constants.device))
+
                 new_rep = self.tree_representation(s[h, :].to(device=constants.device), s[m, :]
                                                    .to(device=constants.device), label.to(device=constants.device))
+
+                if h_w < curr_sentence_length and m_w < curr_sentence_length:
+                    label_wrong = self.linear_label(torch.cat([s_wrong[h_w, :], s_wrong[m_w, :]], dim=-1)
+                                                    .to(device=constants.device))
+                    new_rep_wrong = self.tree_representation(s_wrong[h_w, :].to(device=constants.device), s_wrong[m_w, :]
+                                                       .to(device=constants.device), label_wrong.to(device=constants.device))
+                    s_wrong[h_w, :] = new_rep_wrong.unsqueeze(0)
+
                 s = s.clone().to(device=constants.device)
                 s[h, :] = new_rep.unsqueeze(0)
                 # tmp1 = s.clone().detach().to(device=constants.device)
@@ -421,7 +433,8 @@ class ChartParser(BertParser):
             # print(gold_tree.shape)
             # print(s.shape)
             # print(made_tree.shape)
-            tree_loss += nn.MSELoss()(gold_tree, s)  # self.tree_loss(gold_tree,made_tree)
+            #tree_loss += nn.MSELoss()(gold_tree, s_wrong)  # self.tree_loss(gold_tree,made_tree)
+            tree_loss += nn.CosineEmbeddingLoss(margin=1.0)(gold_tree, s_wrong,torch.ones(gold_tree.shape[0]).to(device=constants.device))  # self.tree_loss(gold_tree,made_tree)
             pred_heads = self.heads_from_arcs(arcs, curr_sentence_length)
             heads_batch[i, :curr_sentence_length] = pred_heads
             loss /= len(oracle_hypergraph)
@@ -432,7 +445,8 @@ class ChartParser(BertParser):
         l_logits = self.get_label_logits(h_t, heads)
         rels_batch = torch.argmax(l_logits, dim=-1)
         rels_batch = rels_batch.permute(1, 0)
-        batch_loss += self.loss(batch_loss, l_logits, rels) + tree_loss
+        #batch_loss += self.loss(batch_loss, l_logits, rels) + tree_loss
+        batch_loss += tree_loss
 
         return batch_loss, heads_batch, rels_batch
 
