@@ -4,6 +4,8 @@ import torch.nn as nn
 from utils import constants
 import torch.nn.functional as F
 import heapq
+from termcolor import colored
+
 
 def has_head(node, arcs):
     for (u, v, _) in arcs:
@@ -329,23 +331,30 @@ class BiaffineChart(nn.Module):
         nn.init.constant_(self.bias, 0.)
         nn.init.xavier_uniform_(self.matrix)
 
-    def forward(self, x_l, x_r, legal_pairs, hypergraph):
+    def forward(self, x_l, x_r, legal_pairs, hypergraph,s_ind):
         # x shape [batch, length_l, length_r]
         x = torch.matmul(x_l, self.matrix)
         x = torch.bmm(x, x_r.transpose(1, 2)) + self.bias
 
         # x shape [batch, length_l, 1] and [batch, 1, length_r]
         x += self.linear_l(x_l) + self.linear_r(x_r).transpose(1, 2)
-        x = torch.exp(x)
+        x = nn.ReLU()(x)
         x = x.squeeze(0)
         scores = torch.zeros_like(x)
         # scores *= -float('inf')
+        legal_pairs = list(set(legal_pairs))
         for (u, v) in legal_pairs:
             item = hypergraph.locator[(u,v)]
             if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
+                #print(colored("PRUNE","red"))
                 continue
-            scores[u, v] = x[u, v]
-            scores[v, u] = x[v, u]
+            scores[s_ind[u], s_ind[v]] = x[s_ind[u], s_ind[v]]
+
+            item2 = hypergraph.locator[(v, u)]
+            if item2.l in hypergraph.bucket or item2.r in hypergraph.bucket:
+                #print(colored("PRUNE","red"))
+                continue
+            scores[s_ind[v], s_ind[u]] = x[s_ind[v], s_ind[u]]
         return scores, x
 
 

@@ -257,8 +257,6 @@ def train_chart(trainloader, devloader, model, eval_batches, wait_iterations, op
     while not train_info.finish:
         step = 0
         for (text, pos), (heads, rels),(hypergraph,relation_in_order), maps in trainloader:
-            print(hypergraph.shape)
-            print(hypergraph)
             loss = train_batch_chart(text,pos, heads, rels, maps, model, optimizer)
             train_info.new_batch(loss)
             if train_info.eval:

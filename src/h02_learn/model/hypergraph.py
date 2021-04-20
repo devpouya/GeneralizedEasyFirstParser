@@ -229,29 +229,35 @@ class LazyArcStandard(Hypergraph):
             scores[v,u] = x[v,u]
         return scores
 
-    def new_trees(self, item):
+    def new_trees(self, item, popped):
         i, j, h = item.i, item.j, item.h
         picks_left = []
         picks_right = []
         picks = []
         for k in range(0, i + 1):
             for g in range(k, i):
-                if (k, i, g) in self.chart:
-                    picks.append((g,h))
+                if (k, i, g) in self.chart and g not in popped:
                     item_l = self.chart[(k, i, g)]
-                    self.locator[(g,h)] = Item(k, j, g, item_l, item)
-                    self.locator[(h,g)] = Item(k, j, h, item_l, item)
+                    if g not in popped and h not in popped:
+                        picks.append((g, h))
+                        self.locator[(g,h)] = Item(k, j, g, item_l, item)
+                    if h not in popped and g not in popped:
+                        picks.append((g, h))
+                        self.locator[(h,g)] = Item(k, j, h, item_l, item)
                     #kjg = torch.tensor([[k, i, g], [i, j, h], [k, j, g]], dtype=torch.int).to(device=constants.device)
                     #kjh = torch.tensor([[k, i, g], [i, j, h], [k, j, h]], dtype=torch.int).to(device=constants.device)
                     #picks_left.append(kjg)
                     #picks_right.append(kjh)
-        for k in range(j, self.n + 1):
+        for k in range(j, self.n+1):
             for g in range(j, k):
                 if (j, k, g) in self.chart:
                     item_r = self.chart[(j, k, g)]
-                    picks.append((h,g))
-                    self.locator[(h, g)] = Item(i, k, h, item, item_r)
-                    self.locator[(g, h)] = Item(i, k, g, item, item_r)
+                    if h not in popped and g not in popped:
+                        picks.append((h, g))
+                        self.locator[(h, g)] = Item(i, k, h, item, item_r)
+                    if g not in popped and h not in popped:
+                        picks.append((h, g))
+                        self.locator[(g, h)] = Item(i, k, g, item, item_r)
                     #ikh = torch.tensor([[i, j, h], [j, k, g], [i, k, h]], dtype=torch.int).to(device=constants.device)
                     #ikg = torch.tensor([[i, j, h], [j, k, g], [i, k, g]], dtype=torch.int).to(device=constants.device)
                     #picks_left.append(ikh)
