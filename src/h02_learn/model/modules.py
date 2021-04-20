@@ -348,13 +348,15 @@ class BiaffineChart(nn.Module):
             if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
                 #print(colored("PRUNE","red"))
                 continue
-            scores[s_ind[u], s_ind[v]] = x[s_ind[u], s_ind[v]]
+            #scores[s_ind[u], s_ind[v]] = x[s_ind[u], s_ind[v]]
+            scores[u, v] = x[u, v]
 
             item2 = hypergraph.locator[(v, u)]
             if item2.l in hypergraph.bucket or item2.r in hypergraph.bucket:
                 #print(colored("PRUNE","red"))
                 continue
-            scores[s_ind[v], s_ind[u]] = x[s_ind[v], s_ind[u]]
+            #scores[s_ind[v], s_ind[u]] = x[s_ind[v], s_ind[u]]
+            scores[v, u] = x[v, u]
         return scores, x
 
 

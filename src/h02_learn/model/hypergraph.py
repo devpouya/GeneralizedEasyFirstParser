@@ -235,6 +235,9 @@ class LazyArcStandard(Hypergraph):
         # print(colored("IN hypergraph chart {}".format(len(self.chart.chart)), "red"))
 
         i, j, h = item.i, item.j, item.h
+        if item.l in self.bucket or item.r in self.bucket:
+            #print(colored("whole squad","blue"))
+            return []
         picks_left = []
         picks_right = []
         picks = []
