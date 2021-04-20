@@ -346,7 +346,7 @@ class BiaffineChart(nn.Module):
                 continue
             scores[u, v] = x[u, v]
             scores[v, u] = x[v, u]
-        return scores
+        return scores, x
 
 
 class Biaffine(nn.Module):

@@ -190,7 +190,21 @@ class ChartParser(BertParser):
         #    ##print(item)
         return pending
 
-    def margin_loss_step(self, words, oracle_action, score_incorrect):
+    def margin_loss_step(self, oracle_action, scores):
+        left = oracle_action[0]
+        right = oracle_action[1]
+        derived = oracle_action[2]
+        correct_head = derived[2]
+        correct_mod = right[2] if right[2] != derived[2] else left[2]
+
+        score_correct = scores[correct_mod,correct_head]
+
+        score_incorrect = torch.max(scores)
+        loss = nn.ReLU()(1-score_correct+score_incorrect)
+        #print(loss)
+        return loss
+
+    def margin_loss_stehhhp(self, words, oracle_action, score_incorrect):
         # correct action is the oracle action for now
         left = oracle_action[0]
         right = oracle_action[1]
@@ -272,7 +286,7 @@ class ChartParser(BertParser):
                     # scores = hypergraph.make_legal(scores,picks)
                     # print(colored("{}".format(scores),"blue"))
                 picks = [item for sublist in all_picks for item in sublist]
-                scores = self.biaffineChart(h_tree, d_tree, picks,hypergraph)
+                scores,scores_all = self.biaffineChart(h_tree, d_tree, picks,hypergraph)
                 # scores = hypergraph.make_legal(scores_orig,picks)
 
                 #print(scores)
@@ -320,20 +334,16 @@ class ChartParser(BertParser):
                 # hypergraph, made_arc,pending = self.take_step(oracle_hypergraph[step], hypergraph, oracle_agenda,
                 #                                              item_to_make,pending)
                 # make loss be the cross entropy between the scores and the actual item from oracle
-                # loss += self.margin_loss_step(s, oracle_hypergraph[step], scores_orig)
-                loss += self.item_oracle_loss_single_step(scores, oracle_hypergraph[step])
+                loss += self.margin_loss_step(oracle_hypergraph[step], scores_all)
+                #loss += self.item_oracle_loss_single_step(scores, oracle_hypergraph[step])
+                #print("is training {} and {}".format(self.training, loss))
                 arcs.append(made_arc)
-            pred_heads = self.heads_from_arcs(arcs, curr_sentence_length)
-            ##print("predheads {}".format(pred_heads))
-            ##print("realheads {}".format(heads))
-            #print(curr_sentence_length)
-            #print(pred_heads.shape)
 
+            pred_heads = self.heads_from_arcs(arcs, curr_sentence_length)
             heads_batch[i, :curr_sentence_length] = pred_heads
             loss /= len(oracle_hypergraph)
             batch_loss += loss
 
-        #if not self.training:
         heads = heads_batch
         l_logits = self.get_label_logits(h_t, heads)
         rels_batch = torch.argmax(l_logits, dim=-1)
@@ -357,22 +367,26 @@ class ChartParser(BertParser):
         # one loss for picking the correct rules
         #print(scores[mod].shape)
         #print(head.shape)
-        head_t = torch.zeros(1,dtype=torch.long).to(device=constants.device)
-        head_t[0] = head
+        mod_t = torch.zeros(1,dtype=torch.long).to(device=constants.device)
+        mod_t[0] = mod
         left_t = torch.zeros(1,dtype=torch.long).to(device=constants.device)
         left_t[0] = left[0]
         right_t = torch.zeros(1,dtype=torch.long).to(device=constants.device)
         right_t[0] = right[1]
 
-        loss = criterion_head(scores[mod].unsqueeze(0),head_t)
-        #which_to_pick_0 = torch.sum(nn.Softmax(dim=0)(scores),dim=-1).unsqueeze(0)
-        #which_to_pick_1 = torch.sum(nn.Softmax(dim=-1)(scores),dim=0).unsqueeze(0)
-        ##print(which_to_pick_0.shape)
-        ##print(which_to_pick_0)
-        ##print(which_to_pick_1.shape)
-        ##print(which_to_pick_1)
-        #loss += criterion_pick(which_to_pick_0,left_t)
-        #loss += criterion_pick(which_to_pick_1,right_t)
+
+        loss = criterion_head(scores[head].unsqueeze(0),mod_t)
+
+        which_to_pick_0 = torch.sum(nn.Softmax(dim=0)(scores),dim=-1).unsqueeze(0)
+        which_to_pick_1 = torch.sum(nn.Softmax(dim=-1)(scores),dim=0).unsqueeze(0)
+
+        print(which_to_pick_0)
+        print(which_to_pick_0.shape)
+        print(which_to_pick_1)
+        print(which_to_pick_1.shape)
+
+        loss += criterion_pick(which_to_pick_0,left_t)
+        loss += criterion_pick(which_to_pick_1,right_t)
         return loss
 
     def get_head_logits(self, h_t, sent_lens):
