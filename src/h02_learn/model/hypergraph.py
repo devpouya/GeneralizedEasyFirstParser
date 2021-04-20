@@ -6,6 +6,7 @@ from utils import constants
 import numpy as np
 from collections import defaultdict
 
+from termcolor import colored
 
 class Hypergraph(object):
 
@@ -230,6 +231,9 @@ class LazyArcStandard(Hypergraph):
         return scores
 
     def new_trees(self, item, popped):
+
+        # print(colored("IN hypergraph chart {}".format(len(self.chart.chart)), "red"))
+
         i, j, h = item.i, item.j, item.h
         picks_left = []
         picks_right = []

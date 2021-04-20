@@ -290,8 +290,8 @@ class ChartParser(BertParser):
                 # good luck with this lol
                 ind_map = {ind:i for i,ind in enumerate(s_ind)}
                 map_ind = {i:ind for i, ind in enumerate(s_ind)}
-                h_tree = self.linear_head(s.unsqueeze(0))
-                d_tree = self.linear_dep(s.unsqueeze(0))
+                h_tree = self.linear_head(s.unsqueeze(0).to(device=constants.device))
+                d_tree = self.linear_dep(s.unsqueeze(0).to(device=constants.device))
                 # trees = torch.exp(self.biaffine(h_tree,d_tree))
                 # trees = trees.squeeze(0)
                 # scores_orig = trees
@@ -333,6 +333,10 @@ class ChartParser(BertParser):
                 ##print(colored("oracle hyp{}".format(oracle_hypergraph[step]), "green"))
                 hypergraph, made_arc, pending = self.take_step(oracle_hypergraph[step], hypergraph, oracle_agenda,
                                                                item_to_make, pending)
+                #print(colored("IN chartparser.py, hypergraph chart {}".format(len(hypergraph.chart.chart)),"blue"))
+                #print(colored("IN chartparser.py, hypergraph bucket {}".format(len(hypergraph.bucket)),"blue"))
+                #print(colored("IN chartparser.py, pending {}".format(len(pending)),"blue"))
+
                 ##print(colored(made_arc,"yellow"))
                 ##print(colored(item_to_make,"red"))
                 ##print(colored("TRAINING {}".format(self.training),"green"))
@@ -349,11 +353,12 @@ class ChartParser(BertParser):
                 m = ind_map[made_arc[1].item()]
                 label = self.linear_label(torch.cat([s[h, :], s[m, :]], dim=-1)
                                           .to(device=constants.device))
-                new_rep = self.tree_representation(s[h, :], s[m, :], label)
-                tmp1 = s.clone().detach()
-                tmp1[h, :] = new_rep
+                new_rep = self.tree_representation(s[h, :].to(device=constants.device), s[m, :]
+                                                   .to(device=constants.device), label.to(device=constants.device))
+                tmp1 = s.clone().detach().to(device=constants.device)
+                tmp1[h, :] = new_rep.to(device=constants.device)
                 s_ind.remove(made_arc[1].item())
-                tmp = torch.zeros((s.shape[0]-1,s.shape[1]))
+                tmp = torch.zeros((s.shape[0]-1,s.shape[1])).to(device=constants.device)
                 tmp[:m,:] = tmp1[:m,:]
                 tmp[m:,:] = tmp1[m+1:,:]
                 s = tmp
