@@ -172,6 +172,7 @@ def train_batch(text, pos, heads, rels, transitions, relations_in_order, maps,mo
     maps = maps.to(device=constants.device)
     text, pos = text.to(device=constants.device), pos.to(device=constants.device)
     heads, rels = heads.to(device=constants.device), rels.to(device=constants.device)
+
     transitions = transitions.to(device=constants.device)
     relations_in_order = relations_in_order.to(device=constants.device)
 

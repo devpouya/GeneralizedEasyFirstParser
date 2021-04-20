@@ -9,18 +9,15 @@ from collections import defaultdict
 
 class Hypergraph(object):
 
-    def __init__(self, n, chart, mlp, sentence):
+    def __init__(self, n, chart):
         self.n = n
         self.chart = chart
 
-        self.mlp = mlp
         self.spans = []
         self.scores = {}
 
         self.bucket = defaultdict(lambda: 0)
 
-        for word in sentence:
-            self.spans.append(word.clone())
 
     def subtrees_(self, item):
         i, j, h = item.i, item.j, item.h
@@ -168,8 +165,8 @@ class Hypergraph(object):
 
 class LazyArcStandard(Hypergraph):
 
-    def __init__(self, n, chart, mlp, sentence):
-        super().__init__(n, chart, mlp, sentence)
+    def __init__(self, n, chart):
+        super().__init__(n, chart)
         for i in range(n + 1):
             item = Item(i, i + 1, i, i, i)
             self.chart[item] =  item
