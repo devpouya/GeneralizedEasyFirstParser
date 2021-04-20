@@ -35,18 +35,18 @@ class ChartParser(BertParser):
         self.linear_tree = nn.Linear(self.embedding_size*2+self.rel_embedding_size+200,self.embedding_size+100)
         self.linear_label = nn.Linear(self.embedding_size*2+200,self.rel_embedding_size)
         self.max_size = max_sent_len
-        self.linear_dep = nn.Linear(868, 500).to(device=constants.device)
-        self.linear_head = nn.Linear(868, 500).to(device=constants.device)
-        self.biaffine = Biaffine(500, 500)
+        self.linear_dep = nn.Linear(868, 100).to(device=constants.device)
+        self.linear_head = nn.Linear(868, 100).to(device=constants.device)
+        self.biaffine = Biaffine(100, 100)
 
         self.linear_labels_dep = nn.Linear(868, 100).to(device=constants.device)
         self.linear_labels_head = nn.Linear(868, 100).to(device=constants.device)
         self.bilinear_label = Bilinear(100, 100, self.num_rels)
 
         self.weight_matrix = nn.MultiheadAttention(868, num_heads=1, dropout=dropout).to(device=constants.device)
-        self.root_selector = nn.LSTM(
-            868, 1, 1, dropout=(dropout if 1 > 1 else 0),
-            batch_first=True, bidirectional=False).to(device=constants.device)
+        #self.root_selector = nn.LSTM(
+        #    868, 1, 1, dropout=(dropout if 1 > 1 else 0),
+        #    batch_first=True, bidirectional=False).to(device=constants.device)
 
     def calculate_weights_cook(self, sentence, pending, heads):
         n = len(sentence)
