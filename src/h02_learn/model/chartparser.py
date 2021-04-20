@@ -199,16 +199,16 @@ class ChartParser(BertParser):
         correct_mod = right[2] if right[2] != derived[2] else left[2]
         score_incorrect = torch.max(scores)
 
-        try:
-            correct_head = map[correct_head.item()]
-        except:
-            # correct head already has a head itself (bottom up parsing)
-            return nn.ReLU()(1-score_incorrect)
-        try:
-            correct_mod = map[correct_mod.item()]
-        except:
-            # mod already has a head
-            return nn.ReLU()(1-score_incorrect)
+        #try:
+        correct_head = map[correct_head.item()]
+        #except:
+        #    # correct head already has a head itself (bottom up parsing)
+        #    return nn.ReLU()(1-score_incorrect)
+        #try:
+        correct_mod = map[correct_mod.item()]
+        #except:
+        #    # mod already has a head
+        #    return nn.ReLU()(1-score_incorrect)
         score_correct = scores[correct_head,correct_mod]
 
         loss = nn.ReLU()(1-score_correct+score_incorrect)
@@ -340,7 +340,8 @@ class ChartParser(BertParser):
                 ##print(colored(made_arc,"yellow"))
                 ##print(colored(item_to_make,"red"))
                 ##print(colored("TRAINING {}".format(self.training),"green"))
-                loss += self.margin_loss_step(oracle_hypergraph[step], scores_all,ind_map)
+                if self.training:
+                    loss += self.margin_loss_step(oracle_hypergraph[step], scores_all,ind_map)
 
                 # item_tensor, item_to_make, arc_made, scores, pending = self.possible_arcs(s, pending, hypergraph,
                 #                                                                          history)
