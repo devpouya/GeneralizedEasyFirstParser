@@ -56,7 +56,7 @@ class ChartParser(BertParser):
         return pending
 
     def run_lstm(self, x, sent_lens):
-        lstm_in = pack_padded_sequence(x, sent_lens, batch_first=True, enforce_sorted=False)
+        lstm_in = pack_padded_sequence(x, sent_lens.to(device=torch.device("cpu")), batch_first=True, enforce_sorted=False)
         # ##print(lstm_in)
         lstm_out, _ = self.lstm(lstm_in)
         h_t, _ = pad_packed_sequence(lstm_out, batch_first=True)
