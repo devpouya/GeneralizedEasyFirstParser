@@ -37,7 +37,7 @@ class ChartParser(BertParser):
                  dropout=0.33, beam_size=10, max_sent_len=190, easy_first=False):
         super().__init__(vocabs, embedding_size, rel_embedding_size, batch_size, dropout=dropout,
                          beam_size=beam_size)
-
+        hidden_size = 200
         self.hypergraph = hypergraph
         weight_encoder_layer = nn.TransformerEncoderLayer(d_model=embedding_size, nhead=8)
         self.weight_encoder = nn.TransformerEncoder(weight_encoder_layer, num_layers=2)
@@ -45,21 +45,21 @@ class ChartParser(BertParser):
         self.dropout = nn.Dropout(dropout)
         layers = []
         #self.mlp = nn.Linear(500 * 3, 1)
-        l1 = nn.Linear(500 * 3, 500)
-        l2 = nn.Linear(500,1)
+        l1 = nn.Linear(hidden_size * 3, hidden_size)
+        l2 = nn.Linear(hidden_size,1)
         layers = [l1,nn.ReLU(),l2]
         self.mlp = nn.Sequential(*layers)
 
-        self.linear_tree = nn.Linear(500 * 2, 500)
-        self.linear_label = nn.Linear(500 * 2, self.rel_embedding_size)
+        self.linear_tree = nn.Linear(hidden_size * 2, hidden_size)
+        self.linear_label = nn.Linear(hidden_size * 2, self.rel_embedding_size)
         self.max_size = max_sent_len
-        self.linear_dep = nn.Linear(500, 100).to(device=constants.device)
-        self.linear_head = nn.Linear(500, 100).to(device=constants.device)
+        self.linear_dep = nn.Linear(hidden_size, 100).to(device=constants.device)
+        self.linear_head = nn.Linear(hidden_size, 100).to(device=constants.device)
         self.biaffine = Biaffine(100, 100)
         self.biaffineChart = BiaffineChart(100, 100)
 
-        self.linear_labels_dep = nn.Linear(500, 100).to(device=constants.device)
-        self.linear_labels_head = nn.Linear(500, 100).to(device=constants.device)
+        self.linear_labels_dep = nn.Linear(hidden_size, 100).to(device=constants.device)
+        self.linear_labels_head = nn.Linear(hidden_size, 100).to(device=constants.device)
         self.bilinear_label = Bilinear(100, 100, self.num_rels)
 
         self.weight_matrix = nn.MultiheadAttention(868, num_heads=1, dropout=dropout).to(device=constants.device)
@@ -67,8 +67,8 @@ class ChartParser(BertParser):
             868, 1, 1, dropout=(dropout if 1 > 1 else 0),
             batch_first=True, bidirectional=False).to(device=constants.device)
 
-        self.lstm = nn.LSTM(868, 500, 2, batch_first=True, bidirectional=False).to(device=constants.device)
-        self.lstm_tree = nn.LSTM(500, 500, 1, batch_first=False, bidirectional=False).to(device=constants.device)
+        self.lstm = nn.LSTM(868, hidden_size, 2, batch_first=True, bidirectional=False).to(device=constants.device)
+        self.lstm_tree = nn.LSTM(hidden_size, hidden_size, 1, batch_first=False, bidirectional=False).to(device=constants.device)
 
     def init_pending(self, n):
         pending = []
@@ -104,6 +104,7 @@ class ChartParser(BertParser):
             s_n = self.mlp(n_head)
             scores.append(s_i)
             scores.append(s_n)
+
 
 
     def possible_arcs(self, words, pending,popped, hypergraph, history, oracle_arc):
@@ -473,7 +474,7 @@ class ChartParser(BertParser):
 
                 hypergraph, made_arc, pending = self.take_step(oracle_hypergraph[step], hypergraph, oracle_agenda,
                                                                item_to_make, pending)
-                loss += nn.CrossEntropyLoss()(scores.unsqueeze(0),gold_index)
+                loss += 0.5*nn.CrossEntropyLoss()(scores.unsqueeze(0),gold_index)+ 0.5*nn.ReLU()(1-scores[gold_index]+torch.max(scores))
                 #loss += self.margin_loss_step(oracle_hypergraph[step], scores)
                 # loss += self.item_oracle_loss_single_step(scores_all, oracle_hypergraph[step])
 
@@ -520,7 +521,7 @@ class ChartParser(BertParser):
                 # tmp[m:, :] = tmp1[m + 1:, :]
                 # s = tmp
                 popped.append(m)
-                remaining.remove(m)
+                #remaining.remove(m)
                 # s[made_arc[1],:] = torch.zeros(1,1,trees.shape[2]).to(device=constants.device)
 
                 # loss += self.item_oracle_loss_single_step(scores, oracle_hypergraph[step])
@@ -544,7 +545,7 @@ class ChartParser(BertParser):
         # tree_loss /= x_emb.shape[0]
         l_logits = self.get_label_logits(h_t, heads)
         rels_batch = torch.argmax(l_logits, dim=-1)
-        rels_batch = rels_batch.permute(1, 0)
+        #rels_batch = rels_batch.permute(1, 0)
         batch_loss += self.loss(batch_loss, l_logits, rels)
         # batch_loss += tree_loss
 
