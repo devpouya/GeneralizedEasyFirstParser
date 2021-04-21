@@ -43,7 +43,12 @@ class ChartParser(BertParser):
         self.weight_encoder = nn.TransformerEncoder(weight_encoder_layer, num_layers=2)
         self.prune = True  # easy_first
         self.dropout = nn.Dropout(dropout)
-        self.mlp = nn.Linear(500 * 2, 1)
+        layers = []
+        #self.mlp = nn.Linear(500 * 3, 1)
+        l1 = nn.Linear(500 * 3, 500)
+        l2 = nn.Linear(500,1)
+        layers = [l1,nn.ReLU(),l2]
+        self.mlp = nn.Sequential(*layers)
 
         self.linear_tree = nn.Linear(500 * 2, 500)
         self.linear_label = nn.Linear(500 * 2, self.rel_embedding_size)
@@ -88,6 +93,19 @@ class ChartParser(BertParser):
         c = nn.Tanh()(self.linear_tree(reprs))
         return c
 
+
+    def possible_arcs9(self, words, pending, popped,remaining, hypergraph, oracle_arcs):
+        scores = []
+        for i in range(len(remaining)-1):
+            pair = (remaining[i],remaining[i+1])
+            i_head = torch.cat([words[pair[0],:],words[pair[1],:]],dim=-1).to(device=constants.device)
+            n_head = torch.cat([words[pair[1],:],words[pair[0],:]],dim=-1).to(device=constants.device)
+            s_i = self.mlp(i_head)
+            s_n = self.mlp(n_head)
+            scores.append(s_i)
+            scores.append(s_n)
+
+
     def possible_arcs(self, words, pending,popped, hypergraph, history, oracle_arc):
         all_options = []
         all_items = []
@@ -107,8 +125,8 @@ class ChartParser(BertParser):
             for tree in possible_arcs:
                 item_index2_pending_index[counter_all_items] = iter
                 counter_all_items += 1
-                if (tree.i, tree.j, tree.h) in history:
-                    continue
+                #if (tree.i, tree.j, tree.h) in history:
+                #    continue
                 all_items.append(tree)
                 all_options.append(torch.tensor(
                     [[tree.l.i, tree.l.j, tree.l.h], [tree.r.i, tree.r.j, tree.r.h], [tree.i, tree.j, tree.h]]
@@ -119,16 +137,40 @@ class ChartParser(BertParser):
             ###print(colored("Item {} should be deleted".format(item), "blue"))
             # for tang in hypergraph.chart:
             #    ###print(colored(tang, "blue"))
+        #print_red(len(arcs))
+        #print_blue(len(list(set(arcs))))
 
         triples = torch.stack(all_options)
         scores = []
         gold_index = 0
+        for item in all_items:
+            i,j,h = item.i, item.j, item.h
+            if isinstance(item.l,Item):
+                l_score = item.l.score
+            else:
+                l_score = 1
+            if isinstance(item.r,Item):
+                r_score = item.r.score
+            else:
+                r_score = 1
+            if item in hypergraph.scored_items:
+                score = item.score
+            else:
+                if j >=len(words):
+                    j = len(words)-1
+                features_derived = torch.cat([words[i,:],words[j,:],words[h,:]],dim=-1).to(device=constants.device)
+                score = self.mlp(features_derived)*l_score*r_score
+                item.update_score(score)
+                hypergraph.score_item(item)
+            #print_green(item.score)
+            scores.append(score)
+
         for i, (u, v) in enumerate(arcs):
             if (u, v) == oracle_arc:
                 gold_index = i
-            w = torch.cat([words[u], words[v]], dim=-1).to(device=constants.device)
-            s = self.mlp(w)
-            scores.append(s)
+        #    w = torch.cat([words[u], words[v]], dim=-1).to(device=constants.device)
+        #    s = self.mlp(w)
+        #    scores.append(s)
         scores = torch.tensor(scores).to(device=constants.device)
         winner = torch.argmax(scores)
         # pending.pop(item_index2_pending_index[winner.item()])
@@ -136,7 +178,8 @@ class ChartParser(BertParser):
         # if not self.training:
         #    pending.append(winner_item)
         return triples[winner], winner_item, arcs[winner], scores, pending, torch.tensor([gold_index],dtype=torch.long)\
-            .to(device=constants.device)
+            .to(device=constants.device), hypergraph
+
     def take_step(self, transitions, hypergraph, oracle_agenda, pred_item, pending):
         if self.training:
             left = transitions[0]
@@ -369,6 +412,7 @@ class ChartParser(BertParser):
 
             right_children = {i: [i] for i in range(curr_sentence_length)}
             left_children = {i: [i] for i in range(curr_sentence_length)}
+            remaining = list(range(curr_sentence_length))
             current_representations = s.clone()
             h_tree = self.linear_head(s.unsqueeze(0).to(device=constants.device))
             d_tree = self.linear_dep(s.unsqueeze(0).to(device=constants.device))
@@ -420,8 +464,9 @@ class ChartParser(BertParser):
                 # key = (ind_x, ind_y)
                 # item_to_make = hypergraph.locator[key]
                 item_tensor, item_to_make, arc_made, \
-                scores, pending, gold_index = self.possible_arcs(current_representations, pending,popped, hypergraph,
+                scores, pending, gold_index,hypergraph = self.possible_arcs(current_representations, pending,popped, hypergraph,
                                                                  history, oracle_hypergraph[step])
+                #print_green(curr_sentence_length)
                 #print_blue(scores.shape)
                 #print_green(scores)
                 history[(item_to_make.i, item_to_make.j, item_to_make.h)] = item_to_make
@@ -475,6 +520,7 @@ class ChartParser(BertParser):
                 # tmp[m:, :] = tmp1[m + 1:, :]
                 # s = tmp
                 popped.append(m)
+                remaining.remove(m)
                 # s[made_arc[1],:] = torch.zeros(1,1,trees.shape[2]).to(device=constants.device)
 
                 # loss += self.item_oracle_loss_single_step(scores, oracle_hypergraph[step])

@@ -175,6 +175,10 @@ class LazyArcStandard(Hypergraph):
         self.trees = Chart()
         self.linear_tree_left = nn.Linear(300, 100)
         self.linear_tree_right = nn.Linear(300, 100)
+        self.scored_items = {}
+
+    def score_item(self, item):
+        self.scored_items[item] = item
 
     def axiom(self, item):
         i, j, h = item.i, item.j, item.h
@@ -283,10 +287,10 @@ class LazyArcStandard(Hypergraph):
                 if (k, i, g) in self.chart:
                     item_l = self.chart[(k, i, g)]
                     # if (k,j,g) != (i,j,h):
-                    if g not in popped and h not in popped:
+                    if g not in popped:
                         all_arcs.append(Item(k, j, g, item_l, item))
-                        # if (k,j,h) != (i,j,h):
-                        #if h not in popped:
+                    # if (k,j,h) != (i,j,h):
+                    if h not in popped:
                         all_arcs.append(Item(k, j, h, item_l, item))
 
         # items to the right
@@ -295,10 +299,10 @@ class LazyArcStandard(Hypergraph):
                 if (j, k, g) in self.chart:
                     item_r = self.chart[(j, k, g)]
                     # if (i,k,h) != (i,j,h):
-                    if h not in popped and g not in popped:
+                    if h not in popped:
                         all_arcs.append(Item(i, k, h, item, item_r))
-                        ## if (i,k,g) != (i,j,h):
-                        #if g not in popped:
+                    # if (i,k,g) != (i,j,h):
+                    if g not in popped:
                         all_arcs.append(Item(i, k, g, item, item_r))
 
         return all_arcs

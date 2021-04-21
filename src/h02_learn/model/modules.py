@@ -22,6 +22,10 @@ class Item(object):
         self.r = item_r
         self.subtrees = {}
         self.arcs = []
+        self.score = 1
+
+    def update_score(self, s):
+        self.score = s
 
     def __str__(self):
         return "Item:\t" + str((self.i, self.j, self.h))
