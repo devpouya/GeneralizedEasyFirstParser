@@ -271,7 +271,7 @@ class LazyArcStandard(Hypergraph):
                     #picks_right.append(ikg)
         return picks
 
-    def outgoing(self, item):
+    def outgoing(self, item,popped):
         """ Lazily Expand the Hypergraph """
         i, j, h = item.i, item.j, item.h
         # items to the left
@@ -283,9 +283,11 @@ class LazyArcStandard(Hypergraph):
                 if (k, i, g) in self.chart:
                     item_l = self.chart[(k, i, g)]
                     # if (k,j,g) != (i,j,h):
-                    all_arcs.append(Item(k, j, g, item_l, item))
+                    if g not in popped:
+                        all_arcs.append(Item(k, j, g, item_l, item))
                     # if (k,j,h) != (i,j,h):
-                    all_arcs.append(Item(k, j, h, item_l, item))
+                    if h not in popped:
+                        all_arcs.append(Item(k, j, h, item_l, item))
 
         # items to the right
         for k in range(j, self.n + 1):
@@ -293,9 +295,11 @@ class LazyArcStandard(Hypergraph):
                 if (j, k, g) in self.chart:
                     item_r = self.chart[(j, k, g)]
                     # if (i,k,h) != (i,j,h):
-                    all_arcs.append(Item(i, k, h, item, item_r))
+                    if h not in popped:
+                        all_arcs.append(Item(i, k, h, item, item_r))
                     # if (i,k,g) != (i,j,h):
-                    all_arcs.append(Item(i, k, g, item, item_r))
+                    if g not in popped:
+                        all_arcs.append(Item(i, k, g, item, item_r))
 
         return all_arcs
 
