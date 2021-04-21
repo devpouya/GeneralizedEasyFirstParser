@@ -536,7 +536,8 @@ class ChartParser(BertParser):
                 #loss += self.margin_loss_step(oracle_hypergraph[step], scores)
                 # loss += self.item_oracle_loss_single_step(scores_all, oracle_hypergraph[step])
                 if self.training:
-                    loss += nn.CrossEntropyLoss()(scores.unsqueeze(0),oracle_score)
+                    #loss += nn.CrossEntropyLoss()(scores.unsqueeze(0),oracle_score)
+                    loss += nn.ReLU()(1-scores[oracle_score]+torch.max(scores))
                 # h = ind_map[made_arc[0].item()]
                 h = made_arc[0].item()
                 m = made_arc[1].item()
