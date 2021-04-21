@@ -46,10 +46,11 @@ class ChartParser(BertParser):
         layers = []
         #self.mlp = nn.Linear(500 * 3, 1)
         l1 = nn.Linear(hidden_size * 3, hidden_size)
+        l11 = nn.Linear(hidden_size * 4, hidden_size)
         l2 = nn.Linear(hidden_size,1)
         l22 = nn.Linear(hidden_size,2)
-        layers = [l1,nn.ReLU(),l2]
-        layers2 = [l1,nn.ReLU(),l22]
+        layers = [l1,nn.ReLU(),l2,nn.ReLU()]
+        layers2 = [l11,nn.ReLU(),l22,nn.ReLU()]
         self.mlp = nn.Sequential(*layers)
         self.mlp2 = nn.Sequential(*layers2)
 
@@ -106,26 +107,59 @@ class ChartParser(BertParser):
         else:
             return [None,i,i+1,None]
 
-    def possible_arcs9(self, words, pending, popped,remaining, hypergraph, oracle_arcs):
+    def possible_arcs_simple(self, words,remaining,oracle_arc):
         scores = []
         z = torch.zeros_like(words[0,:]).to(device=constants.device)
         n = len(remaining)
         arcs = []
+        oracle_ind = 0
+        left = oracle_arc[0]
+        right = oracle_arc[1]
+        derived = oracle_arc[2]
+        # print(colored("oracle {}".format(di),"yellow"))
+        if derived[2] != right[2]:
+            # right is child and is popped
+            gold = (derived[2], right[2])
+        else:
+            gold = (derived[2], left[2])
         for i in range(n-1):
             window = self.window(i, n)
             rep = torch.cat([words[i,:] if i is not None else z for i in window],dim=-1).to(device=constants.device)
-            pair = (remaining[i],remaining[i+1])
+            pair1 = (remaining[i],remaining[i+1])
+            pair2 = (remaining[i+1],remaining[i])
+            if pair1 == gold:
+                oracle_ind = i
+            if pair2 == gold:
+                oracle_ind = i+1
             score = self.mlp2(rep)
+            print_red(score)
             scores.append(score[0])
             scores.append(score[1])
             arcs.append((remaining[i],remaining[i+1]))
             arcs.append((remaining[i+1],remaining[i]))
         #scores = torch.stack(scores,dim=-1)
         scores = torch.tensor(scores).to(device=constants.device)
-        best_score_ind = torch.argmax(scores,dim=-1)
-        return scores, best_score_ind, arcs[best_score_ind]
+        best_score_ind = torch.argmax(scores,dim=0)
+        return scores, torch.tensor([oracle_ind],dtype=torch.long).to(device=constants.device), arcs[best_score_ind]
 
+    def take_action_simple(self, predicted_arc, oracle_arc, remaining):
+        if self.training:
+            left = oracle_arc[0]
+            right = oracle_arc[1]
+            derived = oracle_arc[2]
+            # print(colored("oracle {}".format(di),"yellow"))
+            if derived[2] != right[2]:
+                # right is child and is popped
+                made_arc = (derived[2], right[2])
+            else:
+                made_arc = (derived[2], left[2])
 
+            remaining.remove(made_arc[1])
+
+            return remaining, made_arc
+        else:
+            remaining.remove(predicted_arc[1])
+            return remaining, (torch.tensor(predicted_arc[0]),torch.tensor(predicted_arc[1]))
 
 
     def possible_arcs(self, words, pending,popped, hypergraph, history, oracle_arc):
@@ -444,7 +478,7 @@ class ChartParser(BertParser):
             for step in range(len(oracle_hypergraph)):
                 # print(s_ind)
                 # good luck with this lol
-                ind_map = {ind: i for i, ind in enumerate(s_ind)}
+                # ind_map = {ind: i for i, ind in enumerate(s_ind)}
                 # map_ind = {i: ind for i, ind in enumerate(s_ind)}
                 # h_tree = self.linear_head(s.unsqueeze(0).to(device=constants.device))
                 # d_tree = self.linear_dep(s.unsqueeze(0).to(device=constants.device))
@@ -485,23 +519,30 @@ class ChartParser(BertParser):
                 #    ind_y = mx_ind[1].item()
                 # key = (ind_x, ind_y)
                 # item_to_make = hypergraph.locator[key]
-                item_tensor, item_to_make, arc_made, \
-                scores, pending, gold_index,hypergraph = self.possible_arcs(current_representations, pending,popped, hypergraph,
-                                                                 history, oracle_hypergraph[step])
+                #item_tensor, item_to_make, arc_made, \
+                #scores, pending, gold_index,hypergraph = self.possible_arcs(current_representations, pending,popped, hypergraph,
+                #                                                history, oracle_hypergraph[step])
                 #print_green(curr_sentence_length)
                 #print_blue(scores.shape)
                 #print_green(scores)
-                history[(item_to_make.i, item_to_make.j, item_to_make.h)] = item_to_make
+                scores, oracle_score, predicted_arc = self.possible_arcs_simple(current_representations,
+                                                                                remaining,oracle_hypergraph[step])
+                remaining, made_arc = self.take_action_simple(predicted_arc,oracle_hypergraph[step],remaining)
+                #history[(item_to_make.i, item_to_make.j, item_to_make.h)] = item_to_make
 
-                hypergraph, made_arc, pending = self.take_step(oracle_hypergraph[step], hypergraph, oracle_agenda,
-                                                               item_to_make, pending)
-                loss += 0.5*nn.CrossEntropyLoss()(scores.unsqueeze(0),gold_index)+ 0.5*nn.ReLU()(1-scores[gold_index]+torch.max(scores))
+                #hypergraph, made_arc, pending = self.take_step(oracle_hypergraph[step], hypergraph, oracle_agenda,
+                #                                               item_to_make, pending)
+                #loss += 0.5*nn.CrossEntropyLoss()(scores.unsqueeze(0),gold_index)+ 0.5*nn.ReLU()(1-scores[gold_index]+torch.max(scores))
                 #loss += self.margin_loss_step(oracle_hypergraph[step], scores)
                 # loss += self.item_oracle_loss_single_step(scores_all, oracle_hypergraph[step])
-
+                if self.training:
+                    loss += nn.CrossEntropyLoss()(scores.unsqueeze(0),oracle_score)
                 # h = ind_map[made_arc[0].item()]
                 h = made_arc[0].item()
                 m = made_arc[1].item()
+                #else:
+                #    h = made_arc[0]
+                #    m = made_arc[1]
                 # print_blue(made_arc)
                 if h < m:
                     # m is a right child
