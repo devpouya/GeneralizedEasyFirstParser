@@ -47,8 +47,11 @@ class ChartParser(BertParser):
         #self.mlp = nn.Linear(500 * 3, 1)
         l1 = nn.Linear(hidden_size * 3, hidden_size)
         l2 = nn.Linear(hidden_size,1)
+        l22 = nn.Linear(hidden_size,2)
         layers = [l1,nn.ReLU(),l2]
+        layers2 = [l1,nn.ReLU(),l22]
         self.mlp = nn.Sequential(*layers)
+        self.mlp2 = nn.Sequential(*layers2)
 
         self.linear_tree = nn.Linear(hidden_size * 2, hidden_size)
         self.linear_label = nn.Linear(hidden_size * 2, self.rel_embedding_size)
@@ -93,17 +96,35 @@ class ChartParser(BertParser):
         c = nn.Tanh()(self.linear_tree(reprs))
         return c
 
+    def window(self,i,n):
+        if i-1 >= 0 and i+2 < n:
+            return [i-1,i,i+1,i+2]
+        elif i-1 < 0 and i+2 < n:
+            return [None,i, i+1, i+2]
+        elif i-1 >= 0 and i+2>n:
+            return [i-1,i,i+1,None]
+        else:
+            return [None,i,i+1,None]
 
     def possible_arcs9(self, words, pending, popped,remaining, hypergraph, oracle_arcs):
         scores = []
-        for i in range(len(remaining)-1):
+        z = torch.zeros_like(words[0,:]).to(device=constants.device)
+        n = len(remaining)
+        arcs = []
+        for i in range(n-1):
+            window = self.window(i, n)
+            rep = torch.cat([words[i,:] if i is not None else z for i in window],dim=-1).to(device=constants.device)
             pair = (remaining[i],remaining[i+1])
-            i_head = torch.cat([words[pair[0],:],words[pair[1],:]],dim=-1).to(device=constants.device)
-            n_head = torch.cat([words[pair[1],:],words[pair[0],:]],dim=-1).to(device=constants.device)
-            s_i = self.mlp(i_head)
-            s_n = self.mlp(n_head)
-            scores.append(s_i)
-            scores.append(s_n)
+            score = self.mlp2(rep)
+            scores.append(score[0])
+            scores.append(score[1])
+            arcs.append((remaining[i],remaining[i+1]))
+            arcs.append((remaining[i+1],remaining[i]))
+        #scores = torch.stack(scores,dim=-1)
+        scores = torch.tensor(scores).to(device=constants.device)
+        best_score_ind = torch.argmax(scores,dim=-1)
+        return scores, best_score_ind, arcs[best_score_ind]
+
 
 
 
