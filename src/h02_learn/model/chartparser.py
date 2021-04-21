@@ -48,9 +48,9 @@ class ChartParser(BertParser):
         l1 = nn.Linear(hidden_size * 3, hidden_size)
         l11 = nn.Linear(hidden_size * 4, hidden_size)
         l2 = nn.Linear(hidden_size,1)
-        l22 = nn.Linear(hidden_size,2)
+        l22 = nn.Linear(hidden_size,1)
         layers = [l1,nn.ReLU(),l2,nn.Sigmoid()]
-        layers2 = [l11,nn.ReLU(),l22,nn.ReLU()]
+        layers2 = [l11,nn.ReLU(),l22,nn.Sigmoid()]
         self.mlp = nn.Sequential(*layers)
         self.mlp2 = nn.Sequential(*layers2)
 
@@ -98,6 +98,23 @@ class ChartParser(BertParser):
         return c
 
     def window(self,i,n):
+        if i >= n:
+            return [n-1,None,None,None]
+        elif i-1 >= 0 and i+1 < n and i+2 < n:
+            return [i - 1, i, i + 1, i + 2]
+        elif i-1 < 0 and i+1 < n and i+2 < n:
+            return [None, i, i + 1, i + 2]
+        elif i-1 >= 0 and i+1 < n and i+2>n:
+            return [i-1,i,i+1,None]
+        elif i-1 >= 0 and i+1 > n:
+            return [i-1,i,None,None]
+        else:
+            return [None,i,None,None]
+
+    def window2(self,i,n):
+
+        if i >= n:
+            i = n-2
         if i-1 >= 0 and i+2 < n:
             return [i-1,i,i+1,i+2]
         elif i-1 < 0 and i+2 < n:
@@ -168,7 +185,8 @@ class ChartParser(BertParser):
         arcs = []
         # #print("pending len {}".format(len(pending)))
         item_index2_pending_index = {}
-
+        n = len(words)
+        z = torch.zeros_like(words[0,:]).to(device=constants.device)
         counter_all_items = 0
         left = oracle_arc[0]
         right = oracle_arc[1]
@@ -219,8 +237,11 @@ class ChartParser(BertParser):
             else:
                 if j >=len(words):
                     j = len(words)-1
-                features_derived = torch.cat([words[i,:],words[j,:],words[h,:]],dim=-1).to(device=constants.device)
-                score = self.mlp(features_derived)*l_score*r_score
+                #features_derived = torch.cat([words[i,:],words[j,:],words[h,:]],dim=-1).to(device=constants.device)
+                window = self.window(h, n)
+                features_derived = torch.cat([words[h, :] if h is not None else z for h in window], dim=-1).to(
+                    device=constants.device)
+                score = self.mlp2(features_derived)*l_score*r_score
                 #score = torch.exp(score)
                 #print_blue(score)
                 item.update_score(score)
