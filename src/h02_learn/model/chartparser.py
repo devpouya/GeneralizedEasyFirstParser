@@ -132,7 +132,7 @@ class ChartParser(BertParser):
             if pair2 == gold:
                 oracle_ind = i+1
             score = self.mlp2(rep)
-            print_red(score)
+            #print_red(score)
             scores.append(score[0])
             scores.append(score[1])
             arcs.append((remaining[i],remaining[i+1]))
