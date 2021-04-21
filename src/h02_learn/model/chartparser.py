@@ -387,9 +387,9 @@ class ChartParser(BertParser):
     def tree_lstm(self, x, left_children, right_children):
         # print_blue(left_children)
         # print_blue(right_children)
-        left_reps = x[list(left_children), :]#.unsqueeze(1)
+        left_reps = x[list(left_children), :].unsqueeze(1)
         right_reps = x[list(right_children), :].unsqueeze(1)
-        left_reps = torch.flip(left_reps, dims=[0, 1]).unsqueeze(1)
+        #left_reps = torch.flip(left_reps, dims=[0, 1]).unsqueeze(1)
         # print_green(left_reps.shape)
         # print_green(right_reps.shape)
         _, (lh, _) = self.lstm_tree(left_reps)
