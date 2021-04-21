@@ -189,7 +189,9 @@ def train_batch(text, pos, heads, rels, transitions, relations_in_order, maps,mo
     #print(rels)
     ##(torch.all(torch.eq(pred_rel,rels)))
     #print("çççççççççççççççççççççççççççççççç")
-
+    las, uas = calculate_attachment_score(pred_h, heads, pred_rel, rels)
+    #print("LAAAS {}".format(las))
+    #print("uas {}".format(uas))
     loss.backward()
     optimizer.step()
 
