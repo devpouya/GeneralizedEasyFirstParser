@@ -58,8 +58,14 @@ class ChartParser(BertParser):
         self.linear_label = nn.Linear(hidden_size * 2, self.rel_embedding_size)
         self.max_size = max_sent_len
         self.linear_dep = nn.Linear(hidden_size, 100).to(device=constants.device)
+        self.linear_h11 = nn.Linear(hidden_size, 100).to(device=constants.device)
+        self.linear_h12 = nn.Linear(hidden_size, 100).to(device=constants.device)
+        self.linear_h21 = nn.Linear(hidden_size, 100).to(device=constants.device)
+        self.linear_h22 = nn.Linear(hidden_size, 100).to(device=constants.device)
         self.linear_head = nn.Linear(hidden_size, 100).to(device=constants.device)
+        self.biaffine_item = Biaffine(100, 100)
         self.biaffine = Biaffine(100, 100)
+        self.biaffine_h = Biaffine(100, 100)
         self.biaffineChart = BiaffineChart(100, 100)
 
         self.linear_labels_dep = nn.Linear(hidden_size, 100).to(device=constants.device)
@@ -73,6 +79,8 @@ class ChartParser(BertParser):
 
         self.lstm = nn.LSTM(868, hidden_size, 2, batch_first=True, bidirectional=False).to(device=constants.device)
         self.lstm_tree = nn.LSTM(hidden_size, hidden_size, 1, batch_first=False, bidirectional=False).to(
+            device=constants.device)
+        self.compressor = nn.LSTM(hidden_size, 1, 1, batch_first=False, bidirectional=False).to(
             device=constants.device)
 
     def init_pending(self, n):
@@ -316,7 +324,7 @@ class ChartParser(BertParser):
 
             if len(possible_items) > 0:
 
-                new_item, hypergraph, scores, gold_index = self.predict_next(x, possible_items, hypergraph,
+                new_item, hypergraph, scores, gold_index = self.predict_next_biaffine(x, possible_items, hypergraph,
                                                                              oracle_agenda, transitions)
                 if new_item is not None:
                     pending[(new_item.i, new_item.j, new_item.h)] = new_item
@@ -498,13 +506,56 @@ class ChartParser(BertParser):
         loss += criterion_mod(mod_scores, mod_t)
 
         return loss
+    def predict_next_biaffine(self, x, possible_items, hypergraph, oracle_agenda,list_possible_next):
+        n = len(x)
+        z = torch.zeros_like(x[0, :]).to(device=constants.device)
+        scores = []
+        h_11 = self.dropout(F.relu(self.linear_h11(x))).unsqueeze(0)
+        #h_12 = self.dropout(F.relu(self.linear_h12(x))).unsqueeze(0)
+        h_21 = self.dropout(F.relu(self.linear_h21(x))).unsqueeze(0)
+        h,_ = self.compressor(x.unsqueeze(1))
+        #print_red(h.shape)
+        #h_22 = self.dropout(F.relu(self.linear_h22(x))).unsqueeze(0)
+        #h_1 = torch.cat([h_11,h_12],dim=0)
+        #h_2 = torch.cat([h_21,h_22],dim=0)
+        h_logits = self.biaffine_h(h_11, h_21).squeeze(0)
+        change = torch.kron(h_logits,h)
+        dim = int(h_logits.shape[0])
+        change = change.view(dim,dim,dim)
+        mask = torch.zeros_like(change,dtype=torch.bool).to(device=constants.device)
+
+        #print_red(change.shape)
+        #print_red(h_logits.shape)
+        #jj
+        for item in possible_items:
+            i, j, h = item.i, item.j, item.h
+
+            if j >= len(x):
+                j = len(x) - 1
+            mask[i,j,h] = True
+
+        scores = torch.masked_select(h_logits, mask).unsqueeze(0)
+        winner = torch.argmax(scores, dim=-1)
+
+        if self.training:
+            next_item = None
+            gold_index = None
+            for i, item in enumerate(possible_items):
+                if (item.i, item.j, item.h) in list_possible_next.keys():
+                    gold_index = torch.tensor([i], dtype=torch.long).to(device=constants.device)
+                    next_item = list_possible_next[(item.i, item.j, item.h)]
+                    break
+        else:
+            gold_index = None
+            next_item = possible_items[winner]
+        return next_item, hypergraph, scores, gold_index
 
     def get_item_logits(self, s, pending, hypergraph, oracle_item):
         gold_index = None
         h_dep = self.dropout(F.relu(self.linear_dep(s)))
         h_arc = self.dropout(F.relu(self.linear_head(s)))
 
-        h_logits = self.biaffine(h_arc.unsqueeze(0), h_dep.unsqueeze(0)).squeeze(0)
+        h_logits = self.biaffine_item(h_arc.unsqueeze(0), h_dep.unsqueeze(0)).squeeze(0)
         scores = []
         mask = torch.zeros_like(h_logits,dtype=torch.bool).to(device=constants.device)
         n = h_logits.shape[0]
