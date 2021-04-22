@@ -168,9 +168,9 @@ class LazyArcStandard(Hypergraph):
 
     def __init__(self, n, chart):
         super().__init__(n, chart)
-        for i in range(n + 1):
-            item = Item(i, i + 1, i, i, i)
-            self.chart[item] =  item
+        #for i in range(n + 1):
+        #    item = Item(i, i + 1, i, i, i)
+        #    self.chart[item] =  item
         self.locator = Chart()#defaultdict(lambda : 0)
         self.trees = Chart()
         self.linear_tree_left = nn.Linear(300, 100)
@@ -275,7 +275,7 @@ class LazyArcStandard(Hypergraph):
                     #picks_right.append(ikg)
         return picks
 
-    def outgoing(self, item,popped):
+    def outgoing(self, item):
         """ Lazily Expand the Hypergraph """
         i, j, h = item.i, item.j, item.h
         # items to the left
@@ -285,24 +285,28 @@ class LazyArcStandard(Hypergraph):
         for k in range(0, i + 1):
             for g in range(k, i):
                 if (k, i, g) in self.chart:
-                    item_l = self.chart[(k, i, g)]
-                    # if (k,j,g) != (i,j,h):
-                    if g not in popped:
+                    if self.chart[(k,i,g)] not in self.bucket:
+                        item_l = self.chart[(k, i, g)]
+                        # if (k,j,g) != (i,j,h):
+                        #if g not in popped:
                         all_arcs.append(Item(k, j, g, item_l, item))
-                    # if (k,j,h) != (i,j,h):
-                    if h not in popped:
+                        # if (k,j,h) != (i,j,h):
+                        #if h not in popped:
                         all_arcs.append(Item(k, j, h, item_l, item))
 
         # items to the right
         for k in range(j, self.n + 1):
             for g in range(j, k):
                 if (j, k, g) in self.chart:
-                    item_r = self.chart[(j, k, g)]
-                    # if (i,k,h) != (i,j,h):
-                    if h not in popped:
+                    if self.chart[(j,k,g)] not in self.bucket:
+                        item_r = self.chart[(j, k, g)]
+                        # if (i,k,h) != (i,j,h):
+                        #if h not in popped:
+                        item_n1 = Item(i, k, h, item, item_r)
+                        item_n2 = Item(i, k, g, item, item_r)
                         all_arcs.append(Item(i, k, h, item, item_r))
-                    # if (i,k,g) != (i,j,h):
-                    if g not in popped:
+                        # if (i,k,g) != (i,j,h):
+                        #if g not in popped:
                         all_arcs.append(Item(i, k, g, item, item_r))
 
         return all_arcs

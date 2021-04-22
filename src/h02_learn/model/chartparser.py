@@ -44,13 +44,13 @@ class ChartParser(BertParser):
         self.prune = True  # easy_first
         self.dropout = nn.Dropout(dropout)
         layers = []
-        #self.mlp = nn.Linear(500 * 3, 1)
+        # self.mlp = nn.Linear(500 * 3, 1)
         l1 = nn.Linear(hidden_size * 3, hidden_size)
         l11 = nn.Linear(hidden_size * 4, hidden_size)
-        l2 = nn.Linear(hidden_size,1)
-        l22 = nn.Linear(hidden_size,1)
-        layers = [l1,nn.ReLU(),l2,nn.Sigmoid()]
-        layers2 = [l11,nn.ReLU(),l22,nn.Sigmoid()]
+        l2 = nn.Linear(hidden_size, 1)
+        l22 = nn.Linear(hidden_size, 1)
+        layers = [l1, nn.ReLU(), l2, nn.Sigmoid()]
+        layers2 = [l11, nn.ReLU(), l22, nn.Sigmoid()]
         self.mlp = nn.Sequential(*layers)
         self.mlp2 = nn.Sequential(*layers2)
 
@@ -72,13 +72,15 @@ class ChartParser(BertParser):
             batch_first=True, bidirectional=False).to(device=constants.device)
 
         self.lstm = nn.LSTM(868, hidden_size, 2, batch_first=True, bidirectional=False).to(device=constants.device)
-        self.lstm_tree = nn.LSTM(hidden_size, hidden_size, 1, batch_first=False, bidirectional=False).to(device=constants.device)
+        self.lstm_tree = nn.LSTM(hidden_size, hidden_size, 1, batch_first=False, bidirectional=False).to(
+            device=constants.device)
 
     def init_pending(self, n):
-        pending = []
+        pending = {}
         for i in range(n):
             k, j, h = i, i + 1, i
-            pending.append(Item(k, j, h, k, k))
+            pending[(k, j, h)] = Item(k, j, h, k, k)
+            # pending.append(Item(k, j, h, k, k))
         return pending
 
     def run_lstm(self, x, sent_lens):
@@ -97,36 +99,36 @@ class ChartParser(BertParser):
         c = nn.Tanh()(self.linear_tree(reprs))
         return c
 
-    def window(self,i,n):
+    def window(self, i, n):
         if i >= n:
-            return [n-1,None,None,None]
-        elif i-1 >= 0 and i+1 < n and i+2 < n:
+            return [n - 1, None, None, None]
+        elif i - 1 >= 0 and i + 1 < n and i + 2 < n:
             return [i - 1, i, i + 1, i + 2]
-        elif i-1 < 0 and i+1 < n and i+2 < n:
+        elif i - 1 < 0 and i + 1 < n and i + 2 < n:
             return [None, i, i + 1, i + 2]
-        elif i-1 >= 0 and i+1 < n and i+2>n:
-            return [i-1,i,i+1,None]
-        elif i-1 >= 0 and i+1 > n:
-            return [i-1,i,None,None]
+        elif i - 1 >= 0 and i + 1 < n and i + 2 > n:
+            return [i - 1, i, i + 1, None]
+        elif i - 1 >= 0 and i + 1 > n:
+            return [i - 1, i, None, None]
         else:
-            return [None,i,None,None]
+            return [None, i, None, None]
 
-    def window2(self,i,n):
+    def window2(self, i, n):
 
         if i >= n:
-            i = n-2
-        if i-1 >= 0 and i+2 < n:
-            return [i-1,i,i+1,i+2]
-        elif i-1 < 0 and i+2 < n:
-            return [None,i, i+1, i+2]
-        elif i-1 >= 0 and i+2>n:
-            return [i-1,i,i+1,None]
+            i = n - 2
+        if i - 1 >= 0 and i + 2 < n:
+            return [i - 1, i, i + 1, i + 2]
+        elif i - 1 < 0 and i + 2 < n:
+            return [None, i, i + 1, i + 2]
+        elif i - 1 >= 0 and i + 2 > n:
+            return [i - 1, i, i + 1, None]
         else:
-            return [None,i,i+1,None]
+            return [None, i, i + 1, None]
 
-    def possible_arcs_simple(self, words,remaining,oracle_arc):
+    def possible_arcs_simple(self, words, remaining, oracle_arc):
         scores = []
-        z = torch.zeros_like(words[0,:]).to(device=constants.device)
+        z = torch.zeros_like(words[0, :]).to(device=constants.device)
         n = len(remaining)
         arcs = []
         oracle_ind = 0
@@ -139,25 +141,25 @@ class ChartParser(BertParser):
             gold = (derived[2], right[2])
         else:
             gold = (derived[2], left[2])
-        for i in range(n-1):
+        for i in range(n - 1):
             window = self.window(i, n)
-            rep = torch.cat([words[i,:] if i is not None else z for i in window],dim=-1).to(device=constants.device)
-            pair1 = (remaining[i],remaining[i+1])
-            pair2 = (remaining[i+1],remaining[i])
+            rep = torch.cat([words[i, :] if i is not None else z for i in window], dim=-1).to(device=constants.device)
+            pair1 = (remaining[i], remaining[i + 1])
+            pair2 = (remaining[i + 1], remaining[i])
             if pair1 == gold:
                 oracle_ind = i
             if pair2 == gold:
-                oracle_ind = i+1
+                oracle_ind = i + 1
             score = self.mlp2(rep)
-            #print_red(score)
+            # print_red(score)
             scores.append(score[0])
             scores.append(score[1])
-            arcs.append((remaining[i],remaining[i+1]))
-            arcs.append((remaining[i+1],remaining[i]))
-        #scores = torch.stack(scores,dim=-1)
+            arcs.append((remaining[i], remaining[i + 1]))
+            arcs.append((remaining[i + 1], remaining[i]))
+        # scores = torch.stack(scores,dim=-1)
         scores = torch.tensor(scores).to(device=constants.device)
-        best_score_ind = torch.argmax(scores,dim=0)
-        return scores, torch.tensor([oracle_ind],dtype=torch.long).to(device=constants.device), arcs[best_score_ind]
+        best_score_ind = torch.argmax(scores, dim=0)
+        return scores, torch.tensor([oracle_ind], dtype=torch.long).to(device=constants.device), arcs[best_score_ind]
 
     def take_action_simple(self, predicted_arc, oracle_arc, remaining):
         if self.training:
@@ -176,34 +178,141 @@ class ChartParser(BertParser):
             return remaining, made_arc
         else:
             remaining.remove(predicted_arc[1])
-            return remaining, (torch.tensor(predicted_arc[0]),torch.tensor(predicted_arc[1]))
+            return remaining, (torch.tensor(predicted_arc[0]), torch.tensor(predicted_arc[1]))
 
-
-    def possible_arcs(self, words, pending,popped, hypergraph, history, oracle_arc):
+    def pick_next(self, words, pending, hypergraph, oracle_item):
         all_options = []
         all_items = []
         arcs = []
         # #print("pending len {}".format(len(pending)))
         item_index2_pending_index = {}
         n = len(words)
-        z = torch.zeros_like(words[0,:]).to(device=constants.device)
+        z = torch.zeros_like(words[0, :]).to(device=constants.device)
+        counter_all_items = 0
+        # left = oracle_arc[0]
+        # right = oracle_arc[1]
+        # derived = oracle_arc[2]
+        # gold_arc = (derived[2].item(), left[2].item() if left[2].item() != derived[2].item() else right[2].item())
+        scores = []
+        gold_index = None
+        for iter, item in enumerate(pending.values()):
+            if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
+                #print_blue("PRUNE")
+                continue
+
+            i, j, h = item.i, item.j, item.h
+            if i == oracle_item[0] and j == oracle_item[1] and h == oracle_item[2]:
+                gold_index = torch.tensor([iter], dtype=torch.long).to(device=constants.device)
+
+            if isinstance(item.l, Item):
+                l_score = item.l.score
+            else:
+                l_score = 1
+            if isinstance(item.r, Item):
+                r_score = item.r.score
+            else:
+                r_score = 1
+            if item in hypergraph.scored_items:
+                score = item.score
+            else:
+                if j >= len(words):
+                    j = len(words) - 1
+                # features_derived = torch.cat([words[i,:],words[j,:],words[h,:]],dim=-1).to(device=constants.device)
+                window = self.window(h, n)
+                features_derived = torch.cat([words[h, :] if h is not None else z for h in window], dim=-1).to(
+                    device=constants.device)
+                score = self.mlp2(features_derived) * l_score * r_score
+                # score = torch.exp(score)
+                # print_blue(score)
+                item.update_score(score)
+                hypergraph.score_item(item)
+            # print_green(item.score)
+            scores.append(score)
+        # print_green(gold_arc)
+        # for i, (u, v) in enumerate(arcs):
+        #    print_blue((u,v))
+        #    if (u, v) == gold_arc:
+        #        gold_index = i
+        scores = torch.stack(scores).permute(1, 0)
+        # scores = torch.tensor(scores).to(device=constants.device).unsqueeze(0)
+        winner = torch.argmax(scores, dim=-1)
+        winner_item = list(pending.values())[winner]
+        # print_green(winner_item)
+        # print_red(list(pending.values())[gold_index])
+        gold_next_item = None
+        if gold_index is not None:
+            gold_next_item = list(pending.values())[gold_index]
+        return scores, winner_item, gold_index, hypergraph, gold_next_item
+
+    def predict_next(self, x, possible_items, hypergraph, oracle_agenda, list_possible_next):
+        n = len(x)
+        z = torch.zeros_like(x[0, :]).to(device=constants.device)
+        scores = []
+        for item in possible_items:
+            i, j, h = item.i, item.j, item.h
+            if isinstance(item.l, Item):
+                l_score = item.l.score
+            else:
+                l_score = 1
+            if isinstance(item.r, Item):
+                r_score = item.r.score
+            else:
+                r_score = 1
+            if item in hypergraph.scored_items:
+                score = item.score
+            else:
+                if j >= len(x):
+                    j = len(x) - 1
+                window = self.window(h, n)
+                features_derived = torch.cat([x[h, :] if h is not None else z for h in window], dim=-1).to(
+                    device=constants.device)
+                score = self.mlp2(features_derived) * l_score * r_score
+                item.update_score(score)
+                hypergraph.score_item(item)
+            scores.append(score)
+        # scores = torch.tensor(scores).to(device=constants.device).unsqueeze(0)
+        scores = torch.stack(scores).permute(1, 0)
+
+        winner = torch.argmax(scores, dim=-1)
+        if self.training:
+            next_item = None
+            gold_index = None
+            for i, item in enumerate(possible_items):
+                if (item.i, item.j, item.h) in list_possible_next.keys():
+                    gold_index = torch.tensor([i], dtype=torch.long).to(device=constants.device)
+                    next_item = list_possible_next[(item.i, item.j, item.h)]
+                    break
+        else:
+            gold_index = None
+            next_item = possible_items[winner]
+        return next_item, hypergraph, scores, gold_index
+
+    def possible_arcs(self, words, pending, popped, hypergraph, history, oracle_arc):
+        all_options = []
+        all_items = []
+        arcs = []
+        # #print("pending len {}".format(len(pending)))
+        item_index2_pending_index = {}
+        n = len(words)
+        z = torch.zeros_like(words[0, :]).to(device=constants.device)
         counter_all_items = 0
         left = oracle_arc[0]
         right = oracle_arc[1]
         derived = oracle_arc[2]
-        gold_arc = (derived[2].item(),left[2].item() if left[2].item() != derived[2].item() else right[2].item())
+        gold_arc = (derived[2].item(), left[2].item() if left[2].item() != derived[2].item() else right[2].item())
         for iter, item in enumerate(pending):
             if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
+                print_blue("PRUNE")
                 continue
             hypergraph = hypergraph.update_chart(item)
             # ###print(colored("Item {} should be added".format(item),"red"))
             # for tang in hypergraph.chart:
             #    ###print(colored(tang,"red"))
-            possible_arcs = hypergraph.outgoing(item,popped)
+            possible_arcs = hypergraph.outgoing(item, popped)
             for tree in possible_arcs:
                 item_index2_pending_index[counter_all_items] = iter
                 counter_all_items += 1
-                #if (tree.i, tree.j, tree.h) in history:
+                # if (tree.i, tree.j, tree.h) in history:
                 #    continue
                 all_items.append(tree)
                 all_options.append(torch.tensor(
@@ -215,42 +324,42 @@ class ChartParser(BertParser):
             ###print(colored("Item {} should be deleted".format(item), "blue"))
             # for tang in hypergraph.chart:
             #    ###print(colored(tang, "blue"))
-        #print_red(len(arcs))
-        #print_blue(len(list(set(arcs))))
+        # print_red(len(arcs))
+        # print_blue(len(list(set(arcs))))
 
         triples = torch.stack(all_options)
         scores = []
         gold_index = 0
         for item in all_items:
-            i,j,h = item.i, item.j, item.h
-            #arcs.append((i if i != h else j,h))
-            if isinstance(item.l,Item):
+            i, j, h = item.i, item.j, item.h
+            # arcs.append((i if i != h else j,h))
+            if isinstance(item.l, Item):
                 l_score = item.l.score
             else:
                 l_score = 1
-            if isinstance(item.r,Item):
+            if isinstance(item.r, Item):
                 r_score = item.r.score
             else:
                 r_score = 1
             if item in hypergraph.scored_items:
                 score = item.score
             else:
-                if j >=len(words):
-                    j = len(words)-1
-                #features_derived = torch.cat([words[i,:],words[j,:],words[h,:]],dim=-1).to(device=constants.device)
+                if j >= len(words):
+                    j = len(words) - 1
+                # features_derived = torch.cat([words[i,:],words[j,:],words[h,:]],dim=-1).to(device=constants.device)
                 window = self.window(h, n)
                 features_derived = torch.cat([words[h, :] if h is not None else z for h in window], dim=-1).to(
                     device=constants.device)
-                score = self.mlp2(features_derived)*l_score*r_score
-                #score = torch.exp(score)
-                #print_blue(score)
+                score = self.mlp2(features_derived) * l_score * r_score
+                # score = torch.exp(score)
+                # print_blue(score)
                 item.update_score(score)
                 hypergraph.score_item(item)
-            #print_green(item.score)
+            # print_green(item.score)
             scores.append(score)
 
         for i, (u, v) in enumerate(arcs):
-            #print_green("arc {} iter {}".format((u,v),i))
+            # print_green("arc {} iter {}".format((u,v),i))
             if (u, v) == gold_arc:
                 gold_index = i
         #    w = torch.cat([words[u], words[v]], dim=-1).to(device=constants.device)
@@ -258,178 +367,71 @@ class ChartParser(BertParser):
         #    scores.append(s)
         scores = torch.tensor(scores).to(device=constants.device).unsqueeze(0)
 
-        #print_green(scores)
-        winner = torch.argmax(scores,dim=-1)
+        # print_green(scores)
+        winner = torch.argmax(scores, dim=-1)
         # pending.pop(item_index2_pending_index[winner.item()])
         winner_item = all_items[winner]
+        # print_green(winner)
+        # print_blue(gold_index)
+        # print_blue(all_items[gold_index])
+        # print_blue(gold_arc)
+        # print_green(arcs[gold_index])
+        # print_red(arcs[winner])
+        print_green(winner_item)
+        print_red(all_items[gold_index])
+        # kjj
         # if not self.training:
         #    pending.append(winner_item)
-        return triples[winner], winner_item, arcs[winner], scores, pending, torch.tensor([gold_index],dtype=torch.long)\
+        return triples[winner], winner_item, arcs[winner], scores, pending, torch.tensor([gold_index], dtype=torch.long) \
             .to(device=constants.device), hypergraph
 
-    def take_step(self, transitions, hypergraph, oracle_agenda, pred_item, pending):
+    def take_step(self, x, transitions, gold_next_item, hypergraph, oracle_agenda, pred_item, pending):
         if self.training:
-            left = transitions[0]
-            right = transitions[1]
-            derived = transitions[2]
-            di = oracle_agenda[(derived[0].item(), derived[1].item(), derived[2].item())]
-            # print(colored("oracle {}".format(di),"yellow"))
-            pending.append(di)
-            hypergraph = hypergraph.update_chart(di)
-            hypergraph = hypergraph.add_bucket(di)
-            if derived[2] != right[2]:
-                # right is child and is popped
-                made_arc = (derived[2], right[2])
-            else:
-                made_arc = (derived[2], left[2])
+
+            key = (gold_next_item.i, gold_next_item.j, gold_next_item.h)
+            di = gold_next_item
+            # oracle_agenda[(derived[0].item(), derived[1].item(), derived[2].item())]
 
         else:
+            di = pred_item
+            key = (pred_item.i, pred_item.j, pred_item.h)
 
-            hypergraph = hypergraph.update_chart(pred_item)
-            hypergraph = hypergraph.add_bucket(pred_item)
-            pending.append(pred_item)
-            if isinstance(pred_item.r, Item):
-                right_head = pred_item.r.h
-                right_key = (pred_item.r.i, pred_item.r.j, pred_item.r.h)
+        made_arc = None
+        del pending[key]
+
+        if isinstance(di.l, Item):
+            h = di.h
+            m = di.l.h if di.l.h != h else di.r.h
+            made_arc = (h, m)
+        if di.l in hypergraph.bucket or di.r in hypergraph.bucket:
+            #print_red("PRUNE")
+            h = di.h
+            m = di.l.h if di.l.h != h else di.r.h
+            made_arc = (h, m)
+            scores, gold_index = None, None
+        else:
+            hypergraph = hypergraph.update_chart(di)
+            hypergraph = hypergraph.add_bucket(di)
+            possible_items = hypergraph.outgoing(di)
+
+            if len(possible_items) > 0:
+
+                new_item, hypergraph, scores, gold_index = self.predict_next(x, possible_items, hypergraph,
+                                                                             oracle_agenda, transitions)
+                if new_item is not None:
+                    pending[(new_item.i, new_item.j, new_item.h)] = new_item
             else:
-                right_head = pred_item.r
-                right_key = (pred_item.r, pred_item.r + 1, pred_item.r)
-            if isinstance(pred_item.l, Item):
-                left_head = pred_item.l.h
-                left_key = (pred_item.l.i, pred_item.l.j, pred_item.l.h)
-            else:
-                left_head = pred_item.l
-                left_key = (pred_item.l, pred_item.l + 1, pred_item.l)
+                scores, gold_index = None, None
+                pass
 
-            if pred_item.h != right_head:
-                made_arc = (torch.tensor(pred_item.h), torch.tensor(right_head))
-            else:
-                made_arc = (torch.tensor(pred_item.h), torch.tensor(left_head))
+        return hypergraph, pending, di, made_arc, scores, gold_index
 
-        return hypergraph, made_arc, pending
-
-    def init_agenda_oracle(self, oracle_hypergraph):
-        pending = defaultdict(lambda: 0)
-        for item_tree in oracle_hypergraph:
-            left = item_tree[0]
-            right = item_tree[1]
-            derived = item_tree[2]
-
-            if left[0] == left[2] and left[0] + 1 == left[1]:
-                # is axiom
-                left_item = Item(left[0].item(), left[1].item(), left[2].item(),
-                                 left[0].item(), left[0].item())
-                pending[(left[0].item(), left[1].item(), left[2].item())] = left_item
-            else:
-                left_item = pending[(left[0].item(), left[1].item(), left[2].item())]
-            if right[0] == right[2] and right[0] + 1 == right[1]:
-                # is axiom
-                right_item = Item(right[0].item(), right[1].item(), right[2].item(),
-                                  right[0].item(), right[0].item())
-                pending[(right[0].item(), right[1].item(), right[2].item())] = right_item
-            else:
-                right_item = pending[(right[0].item(), right[1].item(), right[2].item())]
-
-            pending[(derived[0].item(), derived[1].item(), derived[2].item())] = Item(derived[0].item(),
-                                                                                      derived[1].item(),
-                                                                                      derived[2].item(),
-                                                                                      left_item, right_item)
-        # ###print("cherry pies")
-        # for item in pending.values():
-        #    ###print(item)
-        return pending
-
-    def margin_loss_stejjj(self, oracle_action, scores, map):
-
-        left = oracle_action[0]
-        right = oracle_action[1]
-        derived = oracle_action[2]
-        correct_head = derived[2]
-        correct_mod = right[2] if right[2] != derived[2] else left[2]
-        score_incorrect = torch.max(scores)
-
-        # try:
-        correct_head = map[correct_head.item()]
-        # except:
-        #    # correct head already has a head itself (bottom up parsing)
-        #    return nn.ReLU()(1-score_incorrect)
-        # try:
-        correct_mod = map[correct_mod.item()]
-        # except:
-        #    # mod already has a head
-        #    return nn.ReLU()(1-score_incorrect)
-        score_correct = scores[correct_head, correct_mod]
-
-        loss = nn.ReLU()(1 - score_correct + score_incorrect)
-        ##print(loss)
-        return loss
-
-    def margin_loss_step(self, oracle_action, scores):
-        # correct action is the oracle action for now
-        left = oracle_action[0]
-        right = oracle_action[1]
-        derived = oracle_action[2]
-        correct_head = derived[2]
-        correct_mod = right[2] if right[2] != derived[2] else left[2]
-        score_incorrect = torch.max(scores)
-        score_correct = scores[correct_head, correct_mod]
-        # score_correct = self.mlp(
-        #    torch.cat([words[correct_head], words[correct_mod]], dim=-1).to(device=constants.device))
-
-        return nn.ReLU()(1 - score_correct + torch.max(score_incorrect))
-
-    def heads_from_arcs(self, arcs, sent_len):
-        heads = [0] * sent_len
-        for (u, v) in arcs:
-            heads[v] = u.item()
-        return torch.tensor(heads).to(device=constants.device)
-
-    def post_order(self, root, arcs):
-        data = []
-
-        def recurse(node):
-            if not node:
-                return
-            children = [v for (u, v) in arcs if u == node]
-            for c in children:
-                recurse(c)
-            data.append(node)
-
-        recurse(root)
-        return data
-
-    def compute_tree(self, x, heads, labels):
-        arcs = []
-        for i, elem in enumerate(heads):
-            arcs.append((elem, i + 1))
-
-        postorder = self.post_order(0, arcs)
-        for node in postorder:
-            children = [v for (u, v) in arcs if u == node]
-            if len(children) == 0:
-                continue
-            tmp = x[node]
-            for c in children:
-                tmp = self.tree_representation(tmp, x[c], labels[node])
-            x[node] = tmp
-
-        return x
-
-    def tree_lstm(self, x, left_children, right_children):
-        # print_blue(left_children)
-        # print_blue(right_children)
-        left_reps = x[list(left_children), :].unsqueeze(1)
-        right_reps = x[list(right_children), :]#.unsqueeze(1)
-        right_reps = torch.flip(right_reps, dims=[0, 1]).unsqueeze(1)
-        # print_green(left_reps.shape)
-        # print_green(right_reps.shape)
-        _, (lh, _) = self.lstm_tree(left_reps)
-        _, (rh, _) = self.lstm_tree(right_reps)
-        # print_yellow(lh.shape)
-        # print_yellow(rh.shape)
-        c = torch.cat([lh, rh], dim=-1).to(device=constants.device)
-        c = self.linear_tree(c)
-        return c
+    def init_arc_list(self, tensor_list, oracle_agenda):
+        item_list = {}
+        for t in tensor_list:
+            item = oracle_agenda[(t[0].item(), t[1].item(), t[2].item())]
+            item_list[(item.i, item.j, item.h)] = item
+        return item_list
 
     def forward(self, x, transitions, relations, map, heads, rels):
 
@@ -438,7 +440,7 @@ class ChartParser(BertParser):
             out = self.bert(x[0].to(device=constants.device))[2]
             x_emb = torch.stack(out[-8:]).mean(0)
 
-        heads_batch = torch.ones((x_emb.shape[0], heads.shape[1])).to(device=constants.device)# * -1
+        heads_batch = torch.ones((x_emb.shape[0], heads.shape[1])).to(device=constants.device)  # * -1
 
         prob_sum = 0
         batch_loss = 0
@@ -501,135 +503,63 @@ class ChartParser(BertParser):
             left_children = {i: [i] for i in range(curr_sentence_length)}
             remaining = list(range(curr_sentence_length))
             current_representations = s.clone()
-            h_tree = self.linear_head(s.unsqueeze(0).to(device=constants.device))
-            d_tree = self.linear_dep(s.unsqueeze(0).to(device=constants.device))
-            # wrong_right_children = {i:[i] for i in range(curr_sentence_length)}
-            # wrong_left_children = {i:[i] for i in range(curr_sentence_length)}
-            # wrong_current_representations = s.clone()
-            for step in range(len(oracle_hypergraph)):
-                # print(s_ind)
-                # good luck with this lol
-                # ind_map = {ind: i for i, ind in enumerate(s_ind)}
-                # map_ind = {i: ind for i, ind in enumerate(s_ind)}
-                # h_tree = self.linear_head(s.unsqueeze(0).to(device=constants.device))
-                # d_tree = self.linear_dep(s.unsqueeze(0).to(device=constants.device))
-                # trees = torch.exp(self.biaffine(h_tree,d_tree))
-                # trees = trees.squeeze(0)
-                # scores_orig = trees
-                # all_picks = []
-                # for en, item in enumerate(pending):
-                #    picks = hypergraph.new_trees(item, popped)
-                #    all_picks.append(picks)
-                #    # scores = hypergraph.make_legal(scores,picks)
-                #    # #print(colored("{}".format(scores),"blue"))
-                # picks = [item for sublist in all_picks for item in sublist]
-                # scores, scores_all = self.biaffineChart(h_tree, d_tree, picks, hypergraph, ind_map)
-                # scores = hypergraph.make_legal(scores_orig,picks)
-                ##print(scores).
-                # item_to_make =self.pick_best(scores,hypergraph)
-                # mx = torch.amax(scores, (0, 1))
-                ##print(colored("max elem {}".format(mx), "red"))
-                # mx_ind = (torch.eq(scores, mx)).nonzero(as_tuple=True)
-                ##print(colored("max ind {}".format(mx_ind), "red"))
 
-                # this index to items
-                # if len(mx_ind[0]) > 1 or len(mx_ind[1]) > 1:
-                #    # ind_x = map_ind[mx_ind[0][0].item()]
-                #    ind_x = mx_ind[0][0].item()
-                #    # ind_y = map_ind[mx_ind[1][0].item()]
-                #    ind_y = mx_ind[1][0].item()
-                #    select = 1
-                #    while ind_x == ind_y:
-                #        # ind_y = map_ind[mx_ind[1][1].item()]
-                #        ind_y = mx_ind[1][1].item()
-                #        select += 1
-                # else:
-                #    # ind_x = map_ind[mx_ind[0].item()]
-                #    ind_x = mx_ind[0].item()
-                #    # ind_y = map_ind[mx_ind[1].item()]
-                #    ind_y = mx_ind[1].item()
-                # key = (ind_x, ind_y)
-                # item_to_make = hypergraph.locator[key]
-                item_tensor, item_to_make, arc_made, \
-                scores, pending, gold_index,hypergraph = self.possible_arcs(current_representations, pending,popped, hypergraph,
-                                                                history, oracle_hypergraph[step])
-                #print_green(curr_sentence_length)
-                #print_blue(scores.shape)
-                #print_green(scores)
-                #scores, oracle_score, predicted_arc = self.possible_arcs_simple(current_representations,
-                #                                                                remaining,oracle_hypergraph[step])
-                #remaining, made_arc = self.take_action_simple(predicted_arc,oracle_hypergraph[step],remaining)
-                history[(item_to_make.i, item_to_make.j, item_to_make.h)] = item_to_make
+            oracle_hypergraph_picks = oracle_hypergraph[:, -1, :].clone()
+            list_oracle_hypergraph_picks = [t for t in oracle_hypergraph_picks]
+            # print_red(list_oracle_hypergraph_picks)
+            """
+                convert this to a list of actual item types
+                use that to do thing
+            """
+            # oracle_hypergraph_picks[:,-2,:] = torch.zeros_like(oracle_hypergraph_picks[:,0,:]).to(device=constants.device)
+            oracle_transition_picks = oracle_hypergraph[:, :-1, :].clone()
 
-                hypergraph, made_arc, pending = self.take_step(oracle_hypergraph[step], hypergraph, oracle_agenda,
-                                                               item_to_make, pending)
-                max_score = scores[:,torch.argmax(scores,dim=-1)]
-                loss += 0.5*nn.CrossEntropyLoss()(scores,gold_index)+0.5*nn.ReLU()(1-scores[:,gold_index]+max_score)
-                #loss += self.margin_loss_step(oracle_hypergraph[step], scores)
-                # loss += self.item_oracle_loss_single_step(scores_all, oracle_hypergraph[step])
-                #if self.training:
-                #    #loss += nn.CrossEntropyLoss()(scores.unsqueeze(0),oracle_score)
-                #    loss += nn.ReLU()(1-scores[oracle_score]+torch.max(scores))
-                # h = ind_map[made_arc[0].item()]
-                h = made_arc[0].item()
-                m = made_arc[1].item()
-                #else:
-                #    h = made_arc[0]
-                #    m = made_arc[1]
-                # print_blue(made_arc)
-                if h < m:
-                    # m is a right child
-                    right_children[h].append(m)
-                else:
-                    # m is a left child
-                    left_children[h].append(m)
+            dim1 = int(oracle_transition_picks.shape[0] * oracle_transition_picks.shape[1])
+            dim2 = int(oracle_transition_picks.shape[2])
 
-                h_rep = self.tree_lstm(current_representations, left_children[h], right_children[h])
-                #print_yellow(current_representations[h,:])
-                current_representations[h, :] = h_rep
-                #print_red(current_representations[h,:])
+            oracle_transition_picks = oracle_transition_picks.view(dim1, dim2)
+            # oracle_hypergraph_picks = oracle_hypergraph_picks.view(dim1,dim2)
+            # print_red(oracle_hypergraph_picks)
+            # print_green(oracle_transition_picks)
+            arc_list = self.init_arc_list(list_oracle_hypergraph_picks, oracle_agenda)
+            for step in range(len(oracle_transition_picks)):
 
-                # m = ind_map[made_arc[1].item()]
-                # h_w = item_to_make.h
-                # m_w = item_to_make.i if item_to_make.i != item_to_make.h else item_to_make.j
-                # if h_w < m_w:
-                #    wrong_right_children[h_w] = wrong_right_children[h_w].append(m_w)
-                # else:
-                #    wrong_left_children[h_w] = wrong_left_children[h_w].append(m_w)
-                # h_wrong_rep = self.tree_lstm(wrong_current_representations,wrong_left_children[h_w],wrong_right_children[h_w])
-                # wrong_current_representations[h_w,:] = h_wrong_rep
-                # label = self.linear_label(torch.cat([s[h, :], s[m, :]], dim=-1)
-                #                          .to(device=constants.device))
-                # new_rep = self.tree_representation(s[h, :].to(device=constants.device), s[m, :]
-                #                                   .to(device=constants.device), label.to(device=constants.device))
-                # if h_w < curr_sentence_length and m_w < curr_sentence_length:
-                #    label_wrong = self.linear_label(torch.cat([s_wrong[h_w, :], s_wrong[m_w, :]], dim=-1)
-                #                                    .to(device=constants.device))
-                #    new_rep_wrong = self.tree_representation(s_wrong[h_w, :].to(device=constants.device), s_wrong[m_w, :]
-                #                                       .to(device=constants.device), label_wrong.to(device=constants.device))
-                #    s_wrong[h_w, :] = new_rep_wrong.unsqueeze(0)
-                # s = s.clone().to(device=constants.device)
-                # s[h, :] = new_rep.unsqueeze(0)
-                # tmp1 = s.clone().detach().to(device=constants.device)
-                # tmp1[h, :] = new_rep.to(device=constants.device)
-                # s_ind.remove(made_arc[1].item())
-                # tmp = torch.zeros((s.shape[0] - 1, s.shape[1])).to(device=constants.device)
-                # tmp[:m, :] = tmp1[:m, :]
-                # tmp[m:, :] = tmp1[m + 1:, :]
-                # s = tmp
-                popped.append(m)
-                #remaining.remove(m)
-                # s[made_arc[1],:] = torch.zeros(1,1,trees.shape[2]).to(device=constants.device)
+                arc_index_aux = step % 3
+                # if arc_index_aux != 2:
+                scores, item_to_make, gold_index, hypergraph, gold_next_item = self.pick_next(current_representations,
+                                                                                              pending,
+                                                                                              hypergraph,
+                                                                                              oracle_transition_picks[
+                                                                                                  step])
 
-                # loss += self.item_oracle_loss_single_step(scores, oracle_hypergraph[step])
-                arcs.append(made_arc)
+                hypergraph, pending, made_item, made_arc, scores_hg, gold_index_hg = self.take_step(
+                    current_representations,
+                    arc_list,
+                    gold_next_item,
+                    hypergraph,
+                    oracle_agenda,
+                    item_to_make,
+                    pending)
+                if made_arc is not None:
+                    h = made_arc[0]
+                    m = made_arc[1]
+                    arcs.append(made_arc)
+                    if h < m:
+                        # m is a right child
+                        right_children[h].append(m)
+                    else:
+                        # m is a left child
+                        left_children[h].append(m)
+                    h_rep = self.tree_lstm(current_representations, left_children[h], right_children[h])
+                    current_representations[h, :] = h_rep
 
-            # made_tree = s[0,:]
-            # print(gold_tree.shape)
-            # print(s.shape)
-            # print(made_tree.shape)
-            # tree_loss += nn.MSELoss()(gold_tree, s_wrong)  # self.tree_loss(gold_tree,made_tree)
-            # tree_loss += nn.CosineEmbeddingLoss(margin=1.0)(gold_tree, s_wrong,torch.ones(gold_tree.shape[0]).to(device=constants.device))  # self.tree_loss(gold_tree,made_tree)
+                # max_score = scores[:,torch.argmax(scores,dim=-1)]
+                if self.training:
+                    loss += 0.5 * nn.CrossEntropyLoss()(scores,
+                                                        gold_index)  # +0.5*nn.ReLU()(1-scores[:,gold_index]+max_score)
+                    if gold_index_hg is not None and scores_hg is not None:
+                        loss += 0.5 * nn.CrossEntropyLoss()(scores_hg,
+                                                            gold_index_hg)  # +0.5*nn.ReLU(gold_index_hg[:,gold_index_hg]+max_score)
             pred_heads = self.heads_from_arcs(arcs, curr_sentence_length)
             heads_batch[i, :curr_sentence_length] = pred_heads
             # if self.training:
@@ -644,10 +574,9 @@ class ChartParser(BertParser):
         # tree_loss /= x_emb.shape[0]
         l_logits = self.get_label_logits(h_t, heads)
         rels_batch = torch.argmax(l_logits, dim=-1)
-        #rels_batch = rels_batch.permute(1, 0)
+        # rels_batch = rels_batch.permute(1, 0)
         batch_loss += self.loss(batch_loss, l_logits, rels)
         # batch_loss += tree_loss
-
         return batch_loss, heads_batch, rels_batch
 
     def item_oracle_loss_single_step(self, scores, oracle_item):
@@ -705,3 +634,101 @@ class ChartParser(BertParser):
         criterion_l = nn.CrossEntropyLoss(ignore_index=0).to(device=constants.device)
         loss = criterion_l(l_logits.reshape(-1, l_logits.shape[-1]), rels.reshape(-1))
         return loss + batch_loss
+
+    def init_agenda_oracle(self, oracle_hypergraph):
+        pending = defaultdict(lambda: 0)
+        for item_tree in oracle_hypergraph:
+            left = item_tree[0]
+            right = item_tree[1]
+            derived = item_tree[2]
+
+            if left[0] == left[2] and left[0] + 1 == left[1]:
+                # is axiom
+                left_item = Item(left[0].item(), left[1].item(), left[2].item(),
+                                 left[0].item(), left[0].item())
+                pending[(left[0].item(), left[1].item(), left[2].item())] = left_item
+            else:
+                left_item = pending[(left[0].item(), left[1].item(), left[2].item())]
+            if right[0] == right[2] and right[0] + 1 == right[1]:
+                # is axiom
+                right_item = Item(right[0].item(), right[1].item(), right[2].item(),
+                                  right[0].item(), right[0].item())
+                pending[(right[0].item(), right[1].item(), right[2].item())] = right_item
+            else:
+                right_item = pending[(right[0].item(), right[1].item(), right[2].item())]
+
+            pending[(derived[0].item(), derived[1].item(), derived[2].item())] = Item(derived[0].item(),
+                                                                                      derived[1].item(),
+                                                                                      derived[2].item(),
+                                                                                      left_item, right_item)
+        # ###print("cherry pies")
+        # for item in pending.values():
+        #    ###print(item)
+        return pending
+
+    def margin_loss_step(self, oracle_action, scores):
+        # correct action is the oracle action for now
+        left = oracle_action[0]
+        right = oracle_action[1]
+        derived = oracle_action[2]
+        correct_head = derived[2]
+        correct_mod = right[2] if right[2] != derived[2] else left[2]
+        score_incorrect = torch.max(scores)
+        score_correct = scores[correct_head, correct_mod]
+        # score_correct = self.mlp(
+        #    torch.cat([words[correct_head], words[correct_mod]], dim=-1).to(device=constants.device))
+
+        return nn.ReLU()(1 - score_correct + torch.max(score_incorrect))
+
+    def heads_from_arcs(self, arcs, sent_len):
+        heads = [0] * sent_len
+        for (u, v) in arcs:
+            heads[v] = u  # .item()
+        return torch.tensor(heads).to(device=constants.device)
+
+    def post_order(self, root, arcs):
+        data = []
+
+        def recurse(node):
+            if not node:
+                return
+            children = [v for (u, v) in arcs if u == node]
+            for c in children:
+                recurse(c)
+            data.append(node)
+
+        recurse(root)
+        return data
+
+    def compute_tree(self, x, heads, labels):
+        arcs = []
+        for i, elem in enumerate(heads):
+            arcs.append((elem, i + 1))
+
+        postorder = self.post_order(0, arcs)
+        for node in postorder:
+            children = [v for (u, v) in arcs if u == node]
+            if len(children) == 0:
+                continue
+            tmp = x[node]
+            for c in children:
+                tmp = self.tree_representation(tmp, x[c], labels[node])
+            x[node] = tmp
+
+        return x
+
+    def tree_lstm(self, x, left_children, right_children):
+        # print_blue(left_children)
+        # print_blue(right_children)
+        left_reps = x[list(left_children), :].unsqueeze(1)
+        right_reps = x[list(right_children), :]  # .unsqueeze(1)
+        right_reps = torch.flip(right_reps, dims=[0, 1]).unsqueeze(1)
+        # print_green(left_reps.shape)
+        # print_green(right_reps.shape)
+        _, (lh, _) = self.lstm_tree(left_reps)
+        _, (rh, _) = self.lstm_tree(right_reps)
+        # print_yellow(lh.shape)
+        # print_yellow(rh.shape)
+        c = torch.cat([lh, rh], dim=-1).to(device=constants.device)
+        c = self.linear_tree(c)
+        return c
