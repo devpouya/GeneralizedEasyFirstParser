@@ -106,7 +106,7 @@ class ChartParser(BertParser):
             return [i - 1, i, i + 1, i + 2]
         elif i - 1 < 0 and i + 1 < n and i + 2 < n:
             return [None, i, i + 1, i + 2]
-        elif i - 1 >= 0 and i + 1 < n and i + 2 > n:
+        elif i - 1 >= 0 and i + 1 < n < i + 2:
             return [i - 1, i, i + 1, None]
         elif i - 1 >= 0 and i + 1 > n:
             return [i - 1, i, None, None]
@@ -212,28 +212,23 @@ class ChartParser(BertParser):
                 r_score = item.r.score
             else:
                 r_score = 1
-            if item in hypergraph.scored_items:
-                score = item.score
-            else:
-                if j >= len(words):
-                    j = len(words) - 1
-                features_derived = torch.cat([words[i,:],words[j,:],words[h,:]],dim=-1).to(device=constants.device)
-                #window = self.window(h, n)
-                #features_derived = torch.cat([words[h, :] if h is not None else z for h in window], dim=-1).to(
-                #    device=constants.device)
-                score = self.mlp(features_derived)*l_score*r_score
-                #score = self.mlp2(features_derived) * l_score * r_score
-                # score = torch.exp(score)
-                # print_blue(score)
-                item.update_score(score)
-                hypergraph.score_item(item)
+            #if item in hypergraph.scored_items:
+            #    score = item.score
+            #else:
+            if j >= len(words):
+                j = len(words) - 1
+            features_derived = torch.cat([words[i,:],words[j,:],words[h,:]],dim=-1).to(device=constants.device)
+            #window = self.window(h, n)
+            #features_derived = torch.cat([words[h, :] if h is not None else z for h in window], dim=-1).to(
+            #    device=constants.device)
+            score = self.mlp(features_derived)#*l_score*r_score
+            #score = self.mlp2(features_derived) * l_score * r_score
+            # score = torch.exp(score)
+            # print_blue(score)
+            item.update_score(score)
+            hypergraph.score_item(item)
             # print_green(item.score)
             scores.append(score)
-        # print_green(gold_arc)
-        # for i, (u, v) in enumerate(arcs):
-        #    print_blue((u,v))
-        #    if (u, v) == gold_arc:
-        #        gold_index = i
         scores = torch.stack(scores).permute(1, 0)
         # scores = torch.tensor(scores).to(device=constants.device).unsqueeze(0)
         winner = torch.argmax(scores, dim=-1)
@@ -259,19 +254,19 @@ class ChartParser(BertParser):
                 r_score = item.r.score
             else:
                 r_score = 1
-            if item in hypergraph.scored_items:
-                score = item.score
-            else:
-                if j >= len(x):
-                    j = len(x) - 1
-                #window = self.window(h, n)
-                #features_derived = torch.cat([x[h, :] if h is not None else z for h in window], dim=-1).to(
-                #    device=constants.device)
-                #score = self.mlp2(features_derived) * l_score * r_score
-                features_derived = torch.cat([x[i,:],x[j,:],x[h,:]],dim=-1).to(device=constants.device)
-                score = self.mlp(features_derived)*l_score*r_score
-                item.update_score(score)
-                hypergraph.score_item(item)
+            #if item in hypergraph.scored_items:
+            #    score = item.score
+            #else:
+            if j >= len(x):
+                j = len(x) - 1
+            #window = self.window(h, n)
+            #features_derived = torch.cat([x[h, :] if h is not None else z for h in window], dim=-1).to(
+            #    device=constants.device)
+            #score = self.mlp2(features_derived) * l_score * r_score
+            features_derived = torch.cat([x[i,:],x[j,:],x[h,:]],dim=-1).to(device=constants.device)
+            score = self.mlp(features_derived)#*l_score*r_score
+            item.update_score(score)
+            hypergraph.score_item(item)
             scores.append(score)
         # scores = torch.tensor(scores).to(device=constants.device).unsqueeze(0)
         scores = torch.stack(scores).permute(1, 0)
@@ -290,103 +285,7 @@ class ChartParser(BertParser):
             next_item = possible_items[winner]
         return next_item, hypergraph, scores, gold_index
 
-    def possible_arcs(self, words, pending, popped, hypergraph, history, oracle_arc):
-        all_options = []
-        all_items = []
-        arcs = []
-        # #print("pending len {}".format(len(pending)))
-        item_index2_pending_index = {}
-        n = len(words)
-        z = torch.zeros_like(words[0, :]).to(device=constants.device)
-        counter_all_items = 0
-        left = oracle_arc[0]
-        right = oracle_arc[1]
-        derived = oracle_arc[2]
-        gold_arc = (derived[2].item(), left[2].item() if left[2].item() != derived[2].item() else right[2].item())
-        for iter, item in enumerate(pending):
-            if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
-                print_blue("PRUNE")
-                continue
-            hypergraph = hypergraph.update_chart(item)
-            # ###print(colored("Item {} should be added".format(item),"red"))
-            # for tang in hypergraph.chart:
-            #    ###print(colored(tang,"red"))
-            possible_arcs = hypergraph.outgoing(item, popped)
-            for tree in possible_arcs:
-                item_index2_pending_index[counter_all_items] = iter
-                counter_all_items += 1
-                # if (tree.i, tree.j, tree.h) in history:
-                #    continue
-                all_items.append(tree)
-                all_options.append(torch.tensor(
-                    [[tree.l.i, tree.l.j, tree.l.h], [tree.r.i, tree.r.j, tree.r.h], [tree.i, tree.j, tree.h]]
-                ).to(device=constants.device))
-                arcs.append((tree.h, tree.r.h if tree.r.h != tree.h else tree.l.h))
-            if not hypergraph.axiom(item):
-                hypergraph = hypergraph.delete_from_chart(item)
-            ###print(colored("Item {} should be deleted".format(item), "blue"))
-            # for tang in hypergraph.chart:
-            #    ###print(colored(tang, "blue"))
-        # print_red(len(arcs))
-        # print_blue(len(list(set(arcs))))
 
-        triples = torch.stack(all_options)
-        scores = []
-        gold_index = 0
-        for item in all_items:
-            i, j, h = item.i, item.j, item.h
-            # arcs.append((i if i != h else j,h))
-            if isinstance(item.l, Item):
-                l_score = item.l.score
-            else:
-                l_score = 1
-            if isinstance(item.r, Item):
-                r_score = item.r.score
-            else:
-                r_score = 1
-            if item in hypergraph.scored_items:
-                score = item.score
-            else:
-                if j >= len(words):
-                    j = len(words) - 1
-                # features_derived = torch.cat([words[i,:],words[j,:],words[h,:]],dim=-1).to(device=constants.device)
-                window = self.window(h, n)
-                features_derived = torch.cat([words[h, :] if h is not None else z for h in window], dim=-1).to(
-                    device=constants.device)
-                score = self.mlp2(features_derived) * l_score * r_score
-                # score = torch.exp(score)
-                # print_blue(score)
-                item.update_score(score)
-                hypergraph.score_item(item)
-            # print_green(item.score)
-            scores.append(score)
-
-        for i, (u, v) in enumerate(arcs):
-            # print_green("arc {} iter {}".format((u,v),i))
-            if (u, v) == gold_arc:
-                gold_index = i
-        #    w = torch.cat([words[u], words[v]], dim=-1).to(device=constants.device)
-        #    s = self.mlp(w)
-        #    scores.append(s)
-        scores = torch.tensor(scores).to(device=constants.device).unsqueeze(0)
-
-        # print_green(scores)
-        winner = torch.argmax(scores, dim=-1)
-        # pending.pop(item_index2_pending_index[winner.item()])
-        winner_item = all_items[winner]
-        # print_green(winner)
-        # print_blue(gold_index)
-        # print_blue(all_items[gold_index])
-        # print_blue(gold_arc)
-        # print_green(arcs[gold_index])
-        # print_red(arcs[winner])
-        print_green(winner_item)
-        print_red(all_items[gold_index])
-        # kjj
-        # if not self.training:
-        #    pending.append(winner_item)
-        return triples[winner], winner_item, arcs[winner], scores, pending, torch.tensor([gold_index], dtype=torch.long) \
-            .to(device=constants.device), hypergraph
 
     def take_step(self, x, transitions, gold_next_item, hypergraph, oracle_agenda, pred_item, pending):
         if self.training:
@@ -460,14 +359,15 @@ class ChartParser(BertParser):
         sent_lens = (x_mapped[:, :, 0] != 0).sum(-1).to(device=constants.device)
         max_len = torch.max(sent_lens)
         h_t = self.run_lstm(x_mapped, sent_lens)
-        initial_weights_logits = self.get_head_logits(h_t, sent_lens)
+        #initial_weights_logits = self.get_head_logits(h_t, sent_lens)
+
         tree_loss = 0
-        for i in range(initial_weights_logits.shape[0]):
+        for i in range(h_t.shape[0]):
 
             curr_sentence_length = sent_lens[i]
 
-            curr_init_weights = initial_weights_logits[i]
-            curr_init_weights = curr_init_weights[:curr_sentence_length + 1, :curr_sentence_length + 1]
+            # curr_init_weights = initial_weights_logits[i]
+            #curr_init_weights = curr_init_weights[:curr_sentence_length + 1, :curr_sentence_length + 1]
             # curr_init_weights = torch.exp(curr_init_weights)
 
             oracle_hypergraph = transitions[i]
@@ -480,23 +380,11 @@ class ChartParser(BertParser):
             pending = self.init_pending(curr_sentence_length)
             hypergraph = self.hypergraph(curr_sentence_length, chart)
 
-            trees = torch.exp(curr_init_weights)
+            #trees = torch.exp(curr_init_weights)
             arcs = []
             history = defaultdict(lambda: 0)
             loss = 0
             popped = []
-            """
-            steps: 1. compute tree_rep of gold trajectories
-                   2. parse this sentence
-                   3. minimize between gold and computed
-            FAILED....
-            """
-
-            """
-            steps: 1. tree-lstm
-                   2. score with mlp
-                   
-            """
 
             # 1. compute tree
             # gold_tree = self.compute_tree(s, heads[i, :curr_sentence_length], rels[i, :curr_sentence_length])
@@ -608,6 +496,7 @@ class ChartParser(BertParser):
 
         return loss
 
+    #def get_item_logits(self, s, ):
     def get_head_logits(self, h_t, sent_lens):
         h_dep = self.dropout(F.relu(self.linear_dep(h_t)))
         h_arc = self.dropout(F.relu(self.linear_head(h_t)))
