@@ -324,7 +324,7 @@ class ChartParser(BertParser):
 
             if len(possible_items) > 0:
 
-                new_item, hypergraph, scores, gold_index = self.predict_next_biaffine(x, possible_items, hypergraph,
+                new_item, hypergraph, scores, gold_index = self.predict_next(x, possible_items, hypergraph,
                                                                              oracle_agenda, transitions)
                 if new_item is not None:
                     pending[(new_item.i, new_item.j, new_item.h)] = new_item
@@ -423,15 +423,15 @@ class ChartParser(BertParser):
 
                 arc_index_aux = step % 3
                 # if arc_index_aux != 2:
-                # scores, item_to_make, gold_index, hypergraph, gold_next_item = self.pick_next(current_representations,
-                #                                                                              pending,
-                #                                                                              hypergraph,
-                #                                                                              oracle_transition_picks[
-                #                                                                                  step])
-                scores, item_to_make, gold_index, gold_next_item = self.get_item_logits(current_representations,
-                                                                                        pending,
-                                                                                        hypergraph,
-                                                                                        oracle_transition_picks[step])
+                scores, item_to_make, gold_index, hypergraph, gold_next_item = self.pick_next(current_representations,
+                                                                                             pending,
+                                                                                             hypergraph,
+                                                                                             oracle_transition_picks[
+                                                                                                 step])
+                #scores, item_to_make, gold_index, gold_next_item = self.get_item_logits(current_representations,
+                #                                                                        pending,
+                #                                                                        hypergraph,
+                #                                                                        oracle_transition_picks[step])
 
                 hypergraph, pending, made_item, made_arc, scores_hg, gold_index_hg = self.take_step(
                     current_representations,
