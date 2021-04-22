@@ -217,11 +217,12 @@ class ChartParser(BertParser):
             else:
                 if j >= len(words):
                     j = len(words) - 1
-                # features_derived = torch.cat([words[i,:],words[j,:],words[h,:]],dim=-1).to(device=constants.device)
-                window = self.window(h, n)
-                features_derived = torch.cat([words[h, :] if h is not None else z for h in window], dim=-1).to(
-                    device=constants.device)
-                score = self.mlp2(features_derived) * l_score * r_score
+                features_derived = torch.cat([words[i,:],words[j,:],words[h,:]],dim=-1).to(device=constants.device)
+                #window = self.window(h, n)
+                #features_derived = torch.cat([words[h, :] if h is not None else z for h in window], dim=-1).to(
+                #    device=constants.device)
+                score = self.mlp(features_derived)*l_score*r_score
+                #score = self.mlp2(features_derived) * l_score * r_score
                 # score = torch.exp(score)
                 # print_blue(score)
                 item.update_score(score)
@@ -263,10 +264,12 @@ class ChartParser(BertParser):
             else:
                 if j >= len(x):
                     j = len(x) - 1
-                window = self.window(h, n)
-                features_derived = torch.cat([x[h, :] if h is not None else z for h in window], dim=-1).to(
-                    device=constants.device)
-                score = self.mlp2(features_derived) * l_score * r_score
+                #window = self.window(h, n)
+                #features_derived = torch.cat([x[h, :] if h is not None else z for h in window], dim=-1).to(
+                #    device=constants.device)
+                #score = self.mlp2(features_derived) * l_score * r_score
+                features_derived = torch.cat([x[i,:],x[j,:],x[h,:]],dim=-1).to(device=constants.device)
+                score = self.mlp(features_derived)*l_score*r_score
                 item.update_score(score)
                 hypergraph.score_item(item)
             scores.append(score)
