@@ -304,7 +304,7 @@ class ChartParser(BertParser):
             self.item_lstm.push(rep)
             if len(possible_items) > 0:
 
-                new_item, hypergraph, scores, gold_index = self.predict_next(x, possible_items, hypergraph,
+                new_item, hypergraph, scores, gold_index = self.predict_next_biaffine(x, possible_items, hypergraph,
                                                                              oracle_agenda, transitions)
                 if new_item is not None:
                     pending[(new_item.i, new_item.j, new_item.h)] = new_item
@@ -402,7 +402,7 @@ class ChartParser(BertParser):
             for step in range(len(oracle_transition_picks)):
 
                 # if arc_index_aux != 2:
-                scores, item_to_make, gold_index, hypergraph, gold_next_item = self.pick_next(current_representations,
+                scores, item_to_make, gold_index, hypergraph, gold_next_item = self.get_item_logits(current_representations,
                                                                                              pending,
                                                                                              hypergraph,
                                                                                              oracle_transition_picks[
@@ -487,18 +487,15 @@ class ChartParser(BertParser):
         loss += criterion_mod(mod_scores, mod_t)
 
         return loss
+
     def predict_next_biaffine(self, x, possible_items, hypergraph, oracle_agenda,list_possible_next):
         n = len(x)
         z = torch.zeros_like(x[0, :]).to(device=constants.device)
         scores = []
         h_11 = self.dropout(F.relu(self.linear_h11(x))).unsqueeze(0)
-        #h_12 = self.dropout(F.relu(self.linear_h12(x))).unsqueeze(0)
         h_21 = self.dropout(F.relu(self.linear_h21(x))).unsqueeze(0)
         h,_ = self.compressor(x.unsqueeze(1))
-        #print_red(h.shape)
-        #h_22 = self.dropout(F.relu(self.linear_h22(x))).unsqueeze(0)
-        #h_1 = torch.cat([h_11,h_12],dim=0)
-        #h_2 = torch.cat([h_21,h_22],dim=0)
+
         h_logits = self.biaffine_h(h_11, h_21).squeeze(0)
         change = torch.kron(h_logits,h)
         dim = int(h_logits.shape[0])
@@ -515,7 +512,7 @@ class ChartParser(BertParser):
                 j = len(x) - 1
             mask[i,j,h] = True
 
-        scores = torch.masked_select(h_logits, mask).unsqueeze(0)
+        scores = torch.masked_select(change, mask).unsqueeze(0)
         winner = torch.argmax(scores, dim=-1)
 
         if self.training:
@@ -535,10 +532,14 @@ class ChartParser(BertParser):
         gold_index = None
         h_dep = self.dropout(F.relu(self.linear_dep(s)))
         h_arc = self.dropout(F.relu(self.linear_head(s)))
+        h, _ = self.compressor(s.unsqueeze(1))
 
         h_logits = self.biaffine_item(h_arc.unsqueeze(0), h_dep.unsqueeze(0)).squeeze(0)
+        change = torch.kron(h_logits,h)
+        dim = int(h_logits.shape[0])
+        change = change.view(dim,dim,dim)
         scores = []
-        mask = torch.zeros_like(h_logits,dtype=torch.bool).to(device=constants.device)
+        mask = torch.zeros_like(change,dtype=torch.bool).to(device=constants.device)
         n = h_logits.shape[0]
         for iter, item in enumerate(pending.values()):
             if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
@@ -549,9 +550,9 @@ class ChartParser(BertParser):
                 gold_index = torch.tensor([iter], dtype=torch.long).to(device=constants.device)
             if j >= n:
                 j = n - 1
-            mask[i,j] = True
+            mask[i,j,h] = True
             #scores.append(h_logits[i, j])
-        scores = torch.masked_select(h_logits,mask).unsqueeze(0)
+        scores = torch.masked_select(change,mask).unsqueeze(0)
         winner = torch.argmax(scores, dim=-1)
         winner_item = list(pending.values())[winner]
 
@@ -559,7 +560,7 @@ class ChartParser(BertParser):
         if gold_index is not None:
             gold_next_item = list(pending.values())[gold_index]
 
-        return scores, winner_item, gold_index, gold_next_item
+        return scores, winner_item, gold_index, hypergraph, gold_next_item
 
     def get_head_logits(self, h_t, sent_lens):
         h_dep = self.dropout(F.relu(self.linear_dep(h_t)))
