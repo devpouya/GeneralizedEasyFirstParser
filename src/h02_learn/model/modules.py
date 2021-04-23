@@ -23,10 +23,13 @@ class Item(object):
         self.subtrees = {}
         self.arcs = []
         self.score = 1
+        self.rel = None
 
     def update_score(self, s):
         self.score = s
-
+    def add_rel(self, rel):
+        self.rel = rel
+        return self
     def __str__(self):
         return "Item:\t" + str((self.i, self.j, self.h))
 

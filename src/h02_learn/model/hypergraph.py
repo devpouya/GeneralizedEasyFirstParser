@@ -166,7 +166,7 @@ class Hypergraph(object):
 
 class LazyArcStandard(Hypergraph):
 
-    def __init__(self, n, chart):
+    def __init__(self, n, chart,rels):
         super().__init__(n, chart)
         #for i in range(n + 1):
         #    item = Item(i, i + 1, i, i, i)
@@ -176,6 +176,7 @@ class LazyArcStandard(Hypergraph):
         self.linear_tree_left = nn.Linear(300, 100)
         self.linear_tree_right = nn.Linear(300, 100)
         self.scored_items = {}
+        self.rels = rels
 
     def score_item(self, item):
         self.scored_items[item] = item
@@ -289,10 +290,20 @@ class LazyArcStandard(Hypergraph):
                         item_l = self.chart[(k, i, g)]
                         # if (k,j,g) != (i,j,h):
                         #if g not in popped:
-                        all_arcs.append(Item(k, j, g, item_l, item))
+                        item1 = Item(k, j, g, item_l, item)
+                        arc_made = (g, item_l.h if item_l.h != g else item.h)
+                        m = arc_made[1] - 1
+                        rel_made = self.rels[m]
+                        item1.add_rel(rel_made)
+                        all_arcs.append(item1)
                         # if (k,j,h) != (i,j,h):
                         #if h not in popped:
-                        all_arcs.append(Item(k, j, h, item_l, item))
+                        item2 = Item(k, j, h, item_l, item)
+                        arc_made = (h, item_l.h if item_l.h != h else item.h)
+                        m = arc_made[1] - 1
+                        rel_made = self.rels[m]
+                        item2.add_rel(rel_made)
+                        all_arcs.append(item2)
 
         # items to the right
         for k in range(j, self.n + 1):
@@ -303,11 +314,18 @@ class LazyArcStandard(Hypergraph):
                         # if (i,k,h) != (i,j,h):
                         #if h not in popped:
                         item_n1 = Item(i, k, h, item, item_r)
+                        arc_made = (h, item.h if item.h != h else item_r.h)
+                        m = arc_made[1] - 1
+                        rel_made = self.rels[m]
+                        item_n1.add_rel(rel_made)
                         item_n2 = Item(i, k, g, item, item_r)
-                        all_arcs.append(Item(i, k, h, item, item_r))
-                        # if (i,k,g) != (i,j,h):
-                        #if g not in popped:
-                        all_arcs.append(Item(i, k, g, item, item_r))
+                        arc_made = (g, item.h if item.h != g else item_r.h)
+                        m = arc_made[1] - 1
+                        rel_made = self.rels[m]
+                        item_n2.add_rel(rel_made)
+                        all_arcs.append(item_n1)
+
+                        all_arcs.append(item_n2)
 
         return all_arcs
 
