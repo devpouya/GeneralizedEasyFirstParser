@@ -252,7 +252,6 @@ class ChartParser(BertParser):
                 item.update_score(score)
                 hypergraph.score_item(item)
             scores.append(score)
-        # scores = torch.tensor(scores).to(device=constants.device).unsqueeze(0)
         scores = torch.stack(scores).permute(1, 0)
 
         winner = torch.argmax(scores, dim=-1)
@@ -402,7 +401,6 @@ class ChartParser(BertParser):
             arc_list = self.init_arc_list(list_oracle_hypergraph_picks, oracle_agenda)
             for step in range(len(oracle_transition_picks)):
 
-                arc_index_aux = step % 3
                 # if arc_index_aux != 2:
                 scores, item_to_make, gold_index, hypergraph, gold_next_item = self.pick_next(current_representations,
                                                                                              pending,
@@ -415,13 +413,13 @@ class ChartParser(BertParser):
                 #                                                                        oracle_transition_picks[step])
 
                 hypergraph, pending, made_item, made_arc, scores_hg, gold_index_hg = self.take_step(
-                    current_representations,
-                    arc_list,
-                    gold_next_item,
-                    hypergraph,
-                    oracle_agenda,
-                    item_to_make,
-                    pending)
+                                                                                                current_representations,
+                                                                                                arc_list,
+                                                                                                gold_next_item,
+                                                                                                hypergraph,
+                                                                                                oracle_agenda,
+                                                                                                item_to_make,
+                                                                                                pending)
                 if made_arc is not None:
                     h = made_arc[0]
                     m = made_arc[1]
@@ -436,13 +434,14 @@ class ChartParser(BertParser):
                     current_representations = current_representations.clone()
                     current_representations[h, :] = h_rep
 
-                # max_score = scores[:,torch.argmax(scores,dim=-1)]
+                max_score = scores[:,torch.argmax(scores,dim=-1)]
                 if self.training:
                     loss += 0.5 * nn.CrossEntropyLoss()(scores,
-                                                        gold_index)  # +0.5*nn.ReLU()(1-scores[:,gold_index]+max_score)
+                                                        gold_index) +0.5*nn.ReLU()(1-scores[:,gold_index]+max_score)
                     if gold_index_hg is not None and scores_hg is not None:
+                        max_score_hg = scores_hg[:,torch.argmax(scores_hg,dim=-1)]
                         loss += 0.5 * nn.CrossEntropyLoss()(scores_hg,
-                                                            gold_index_hg)  # +0.5*nn.ReLU(gold_index_hg[:,gold_index_hg]+max_score)
+                                                            gold_index_hg) +0.5*nn.ReLU()(scores_hg[:,gold_index_hg]+max_score_hg)
             pred_heads = self.heads_from_arcs(arcs, curr_sentence_length)
             heads_batch[i, :curr_sentence_length] = pred_heads
             # if self.training:
@@ -454,7 +453,6 @@ class ChartParser(BertParser):
 
         batch_loss /= x_emb.shape[0]
         # print_yellow(heads_batch)
-        # print_yellow(heads)
         heads = heads_batch
         # tree_loss /= x_emb.shape[0]
         l_logits = self.get_label_logits(h_t, heads)
