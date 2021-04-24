@@ -63,7 +63,7 @@ def get_optimizer(paramters, optim_alg, lr_decay, weight_decay):
     return optimizer, lr_scheduler
 
 
-def get_model(vocabs,embeddings,args,max_sent_len,eos_token_id):
+def get_model(vocabs,embeddings,args,max_sent_len):
 
     if args.model == 'arc-standard': # or args.model=='easy-first':
         return NeuralTransitionParser(
@@ -99,16 +99,16 @@ def get_model(vocabs,embeddings,args,max_sent_len,eos_token_id):
             .to(device=constants.device)
     elif args.model == 'agenda-std':
         return ChartParser(vocabs=vocabs, embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
-                           hypergraph=LazyArcStandard,dropout=0.33, beam_size=10,max_sent_len=max_sent_len, easy_first=False,eos_token_id=eos_token_id).to(device=constants.device)
+                           hypergraph=LazyArcStandard,dropout=0.33, beam_size=10,max_sent_len=max_sent_len, easy_first=False).to(device=constants.device)
     elif args.model == 'agenda-hybrid':
         return ChartParser(vocabs=vocabs, embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
-                           hypergraph=LazyHybrid,dropout=0.33, beam_size=10,max_sent_len=max_sent_len, easy_first=False,eos_token_id=eos_token_id).to(device=constants.device)
+                           hypergraph=LazyHybrid,dropout=0.33, beam_size=10,max_sent_len=max_sent_len, easy_first=False).to(device=constants.device)
     elif args.model == 'agenda-eager':
         return ChartParser(vocabs=vocabs, embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
-                           hypergraph=LazyArcEager,dropout=0.33, beam_size=10,max_sent_len=max_sent_len, easy_first=False,eos_token_id=eos_token_id).to(device=constants.device)
+                           hypergraph=LazyArcEager,dropout=0.33, beam_size=10,max_sent_len=max_sent_len, easy_first=False).to(device=constants.device)
     elif args.model == 'agenda-mh4':
         return ChartParser(vocabs=vocabs, embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
-                           hypergraph=LazyMH4,dropout=0.33, beam_size=10,max_sent_len=max_sent_len, easy_first=False,eos_token_id=eos_token_id).to(device=constants.device)
+                           hypergraph=LazyMH4,dropout=0.33, beam_size=10,max_sent_len=max_sent_len, easy_first=False).to(device=constants.device)
     else:
         return BiaffineParser(
             vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size,
@@ -352,13 +352,13 @@ def main():
         fname = "arc-standard"
     else:
         fname = args.model
-    trainloader, devloader, testloader, vocabs, embeddings,max_sent_len,eos_token_id = \
+    trainloader, devloader, testloader, vocabs, embeddings,max_sent_len = \
         get_data_loaders(args.data_path, args.language, args.batch_size, args.batch_size_eval, fname,
                          transition_system=transition_system, bert_model=args.bert_model)
     print('Train size: %d Dev size: %d Test size: %d' %
           (len(trainloader.dataset), len(devloader.dataset), len(testloader.dataset)))
 
-    model = get_model(vocabs, embeddings, args,max_sent_len,eos_token_id)
+    model = get_model(vocabs, embeddings, args,max_sent_len)
     #if args.model != 'agenda-std':
     train(trainloader, devloader, model, args.eval_batches, args.wait_iterations,
           args.optim, args.lr_decay, args.weight_decay, args.save_path, args.save_periodically)
