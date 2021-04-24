@@ -22,9 +22,13 @@ class Item(object):
         self.r = item_r
         self.subtrees = {}
         self.arcs = []
+        self.vector_rep = None
         self.score = 1
         self.rel = None
 
+    def set_vector_rep(self, x):
+        self.vector_rep = x
+        return self
     def update_score(self, s):
         self.score = s
     def add_rel(self, rel):
