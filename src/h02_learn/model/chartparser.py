@@ -46,74 +46,82 @@ class ChartParser(BertParser):
         self.dropout = nn.Dropout(dropout)
         layers = []
         # self.mlp = nn.Linear(500 * 3, 1)
-        l1 = nn.Linear(hidden_size * 6 + rel_embedding_size, 3 * hidden_size)
-        l11 = nn.Linear(hidden_size * 6 + rel_embedding_size, 3 * hidden_size)
-        l2 = nn.Linear(3 * hidden_size, hidden_size)
-        lf = nn.Linear(hidden_size, 1)
-        l22 = nn.Linear(3 * hidden_size, hidden_size)
-        lf2 = nn.Linear(hidden_size, 1)
-        l3 = nn.Linear(hidden_size * 3, hidden_size)
-        l33 = nn.Linear(hidden_size, self.num_rels)
-        layers = [l1, nn.ReLU(), l2, nn.ReLU(), lf, nn.Sigmoid()]
-        layers2 = [l11, nn.ReLU(), l22, nn.ReLU(), lf2, nn.Sigmoid()]
-        layers3 = [l3, nn.ReLU(), l33, nn.Softmax(dim=-1)]
-        self.ls = nn.Linear(200,1)
+        #l1 = nn.Linear(hidden_size * 6 + rel_embedding_size, 3 * hidden_size)
+        #l1 = nn.Linear(hidden_size * 6 + rel_embedding_size, 3 * hidden_size)
+        #l11 = nn.Linear(hidden_size * 6 + rel_embedding_size, 3 * hidden_size)
+        #l11 = nn.Linear(hidden_size * 6 + rel_embedding_size, 3 * hidden_size)
+        #l2 = nn.Linear(3 * hidden_size, hidden_size)
+        #l2 = nn.Linear(3 * hidden_size, hidden_size)
+        #lf = nn.Linear(hidden_size, 1)
+        #lf = nn.Linear(hidden_size, 1)
+        #l22 = nn.Linear(3 * hidden_size, hidden_size)
+        #l22 = nn.Linear(3 * hidden_size, hidden_size)
+        #lf2 = nn.Linear(hidden_size, 1)
+        #lf2 = nn.Linear(hidden_size, 1)
+        #l3 = nn.Linear(hidden_size * 3, hidden_size)
+        #l3 = nn.Linear(hidden_size * 3, hidden_size)
+        #l33 = nn.Linear(hidden_size, self.num_rels)
+        #l33 = nn.Linear(hidden_size, self.num_rels)
+        #layers = [l1, nn.ReLU(), l2, nn.ReLU(), lf, nn.Sigmoid()]
+        #layers2 = [l11, nn.ReLU(), l22, nn.ReLU(), lf2, nn.Sigmoid()]
+        #layers3 = [l3, nn.ReLU(), l33, nn.Softmax(dim=-1)]
+        #self.ls = nn.Linear(200,1)
         #layers_small = [ls,nn.Sigmoid()]
-        self.mlp = nn.Sequential(*layers)
-        self.mlp2 = nn.Sequential(*layers2)
-        self.mlp_rel = nn.Sequential(*layers3)
+        #self.mlp = nn.Sequential(*layers)
+        #self.mlp2 = nn.Sequential(*layers2)
+        #self.mlp_rel = nn.Sequential(*layers3)
         #self.mlp_small = nn.Sequential(*layers_small)
         self.linear_tree = nn.Linear(hidden_size * 2, hidden_size)
-        self.linear_label = nn.Linear(hidden_size * 2, self.rel_embedding_size)
+        #self.linear_label = nn.Linear(hidden_size * 2, self.rel_embedding_size)
         self.max_size = max_sent_len
         self.linear_dep = nn.Linear(hidden_size, 200).to(device=constants.device)
-        self.linear_h11 = nn.Linear(hidden_size, 200).to(device=constants.device)
-        self.linear_h12 = nn.Linear(hidden_size, 200).to(device=constants.device)
-        self.linear_h21 = nn.Linear(hidden_size, 200).to(device=constants.device)
-        self.linear_h22 = nn.Linear(hidden_size, 200).to(device=constants.device)
+        #self.linear_h11 = nn.Linear(hidden_size, 200).to(device=constants.device)
+        #self.linear_h12 = nn.Linear(hidden_size, 200).to(device=constants.device)
+        #self.linear_h21 = nn.Linear(hidden_size, 200).to(device=constants.device)
+        #self.linear_h22 = nn.Linear(hidden_size, 200).to(device=constants.device)
         self.linear_head = nn.Linear(hidden_size, 200).to(device=constants.device)
         self.biaffine_item = Biaffine(200, 200)
         self.biaffine = Biaffine(200, 200)
-        self.biaffine_h = Biaffine(200, 200)
+        #self.biaffine_h = Biaffine(200, 200)
         self.bilinear_item = Bilinear(200,200,1)
         self.linear_items1 = nn.Linear(hidden_size, 200).to(device=constants.device)
         self.linear_items2 = nn.Linear(hidden_size, 200).to(device=constants.device)
-        self.biaffineChart = BiaffineChart(200, 200)
+        #self.biaffineChart = BiaffineChart(200, 200)
 
         self.linear_labels_dep = nn.Linear(hidden_size, 200).to(device=constants.device)
         self.linear_labels_head = nn.Linear(hidden_size, 200).to(device=constants.device)
         self.bilinear_label = Bilinear(200, 200, self.num_rels)
 
-        self.weight_matrix = nn.MultiheadAttention(868, num_heads=1, dropout=dropout).to(device=constants.device)
-        self.root_selector = nn.LSTM(
-            868, 1, 1, dropout=(dropout if 1 > 1 else 0),
-            batch_first=True, bidirectional=False).to(device=constants.device)
+        #self.weight_matrix = nn.MultiheadAttention(868, num_heads=1, dropout=dropout).to(device=constants.device)
+        #self.root_selector = nn.LSTM(
+        #    868, 1, 1, dropout=(dropout if 1 > 1 else 0),
+        #    batch_first=True, bidirectional=False).to(device=constants.device)
 
         self.lstm = nn.LSTM(868, hidden_size, 2, batch_first=True, bidirectional=False).to(device=constants.device)
-        self.lstm_tree = nn.LSTM(hidden_size, hidden_size, 1, batch_first=False, bidirectional=False).to(
-            device=constants.device)
+        #self.lstm_tree = nn.LSTM(hidden_size, hidden_size, 1, batch_first=False, bidirectional=False).to(
+        #    device=constants.device)
         self.lstm_tree_left = nn.LSTM(hidden_size, hidden_size, 1, batch_first=False, bidirectional=False).to(
             device=constants.device)
         self.lstm_tree_right = nn.LSTM(hidden_size, hidden_size, 1, batch_first=False, bidirectional=False).to(
             device=constants.device)
-        self.compressor = nn.LSTM(hidden_size, 1, 1, batch_first=False, bidirectional=False).to(
-            device=constants.device)
+        #self.compressor = nn.LSTM(hidden_size, 1, 1, batch_first=False, bidirectional=False).to(
+        #    device=constants.device)
 
-        input_init = torch.zeros((1, hidden_size * 3)).to(
-            device=constants.device)
-        hidden_init = torch.zeros((1, hidden_size * 3)).to(
-            device=constants.device)
-        self.empty_initial = nn.Parameter(torch.zeros(1, hidden_size * 3)).to(device=constants.device)
+        #input_init = torch.zeros((1, hidden_size * 3)).to(
+        #    device=constants.device)
+        #hidden_init = torch.zeros((1, hidden_size * 3)).to(
+        #    device=constants.device)
+        #self.empty_initial = nn.Parameter(torch.zeros(1, hidden_size * 3)).to(device=constants.device)
 
-        self.lstm_init_state = (nn.init.xavier_uniform_(input_init), nn.init.xavier_uniform_(hidden_init))
-        self.stack_lstm = nn.LSTMCell(hidden_size * 3, hidden_size * 3).to(device=constants.device)
+        #self.lstm_init_state = (nn.init.xavier_uniform_(input_init), nn.init.xavier_uniform_(hidden_init))
+        #self.stack_lstm = nn.LSTMCell(hidden_size * 3, hidden_size * 3).to(device=constants.device)
 
-        self.item_lstm = StackCell(self.stack_lstm, self.lstm_init_state, self.lstm_init_state, self.dropout,
-                                   self.empty_initial)
+        #self.item_lstm = StackCell(self.stack_lstm, self.lstm_init_state, self.lstm_init_state, self.dropout,
+        #                           self.empty_initial)
 
-        self.ij_score = nn.MultiheadAttention(embed_dim=hidden_size, num_heads=1)
-        self.ih_score = nn.MultiheadAttention(embed_dim=hidden_size, num_heads=1)
-        self.jh_score = nn.MultiheadAttention(embed_dim=hidden_size, num_heads=1)
+        #self.ij_score = nn.MultiheadAttention(embed_dim=hidden_size, num_heads=1)
+        #self.ih_score = nn.MultiheadAttention(embed_dim=hidden_size, num_heads=1)
+        #self.jh_score = nn.MultiheadAttention(embed_dim=hidden_size, num_heads=1)
 
         # with torch.no_grad():
         #    eos_tens = torch.tensor([self.eos_token_id]).unsqueeze(0).to(device=constants.device)
@@ -221,7 +229,7 @@ class ChartParser(BertParser):
         #rel_dummy = self.rel_embeddings(rel_0).to(device=constants.device)
         #zrel = torch.zeros_like(rel_dummy).to(device=constants.device)
         rel_loss = 0
-        items_tensor = torch.zeros((1,200)).to(device=constants.device)
+        items_tensor = torch.zeros((1,400)).to(device=constants.device)
         for iter, item in enumerate(pending.values()):
             if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
                 continue
@@ -429,8 +437,8 @@ class ChartParser(BertParser):
                 h = len(x) - 1
             else:
                 h = di.h
-            rep = torch.cat([x[di.i, :], x[j, :], x[h, :]], dim=-1).unsqueeze(0).to(device=constants.device)
-            self.item_lstm.push(rep)
+            # rep = torch.cat([x[di.i, :], x[j, :], x[h, :]], dim=-1).unsqueeze(0).to(device=constants.device)
+            # self.item_lstm.push(rep)
 
             if len(possible_items) > 0:
 
@@ -730,8 +738,8 @@ class ChartParser(BertParser):
         right_reps = torch.flip(right_reps, dims=[0, 1]).unsqueeze(1).to(device=constants.device)
         # print_green(left_reps.shape)
         # print_green(right_reps.shape)
-        _, (lh, _) = self.lstm_tree(left_reps)
-        _, (rh, _) = self.lstm_tree(right_reps)
+        _, (lh, _) = self.lstm_tree_left(left_reps)
+        _, (rh, _) = self.lstm_tree_right(right_reps)
         # print_yellow(lh.shape)
         # print_yellow(rh.shape)
         c = torch.cat([lh, rh], dim=-1).to(device=constants.device)
