@@ -103,7 +103,6 @@ class SyntaxDataset(Dataset):
         self.fname = fname
         self.max_rel = 0
         self.model = transition_system
-        print(self.model)
         self.transition_file = transition_file
         self.transition_system = {act: i for (act, i) in zip(transition_system[0], transition_system[1])}
         # self.transition_system[None] = -2
@@ -112,7 +111,6 @@ class SyntaxDataset(Dataset):
         self.tokenizer = tokenizer
         self.max_sent_len = 0
         self.load_data(fname, transition_file)
-
         self.n_instances = len(self.words)
 
     # save agenda actions in the same format as the rest
@@ -151,13 +149,14 @@ class SyntaxDataset(Dataset):
         return len(ids) == 2 * n - 1
 
     def tokenize(self, wordlist):
+        wordlist = wordlist #+ ["<EOS>"]
         encoded = self.tokenizer(wordlist, is_split_into_words=True, return_tensors="pt",
                                  return_attention_mask=False,
                                  return_token_type_ids=False,
-                                 add_special_tokens=False)
-
+                                 add_special_tokens=True)
+        #print(encoded)
+        #kj
         enc = [self.tokenizer.encode(x, add_special_tokens=False) for x in wordlist]
-
         idx = 0
         token_mapping = []
         token_mapping2 = []
@@ -171,7 +170,8 @@ class SyntaxDataset(Dataset):
             token_mapping.append(tokenout[-1])
             token_mapping2.append(tokenout)
 
-
+        #print(self.tokenizer.eos_token_id)
+        #jk
         return encoded['input_ids'].squeeze(0), torch.LongTensor(token_mapping).to(device=constants.device)
     def hypergraph2tensor(self, hypergraph):
         all_graphs = []

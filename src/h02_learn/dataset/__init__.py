@@ -1,7 +1,7 @@
 from os import path
 from torch.utils.data import DataLoader
 
-from h01_data import load_vocabs, load_embeddings, get_ud_fname, get_oracle_actions
+from h01_data import load_vocabs, load_embeddings, get_ud_fname, get_oracle_actions,get_oracle_actions_small,get_ud_fname_small
 from utils import constants
 from .syntax import SyntaxDataset
 from transformers import BertTokenizer, BertTokenizerFast
@@ -92,5 +92,6 @@ def get_data_loaders(data_path, language, batch_size, batch_size_eval, transitio
     testloader, max_sent_len_test = get_data_loader(fname_test, transitions_test, transition_system, tokenizer,
                                                     batch_size_eval,
                                                     shuffle=False)
+
     max_sent_len = max(max_sent_len_dev, max_sent_len_test, max_sent_len_train)
     return trainloader, devloader, testloader, vocabs, embeddings, max_sent_len
