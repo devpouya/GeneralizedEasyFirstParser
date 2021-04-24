@@ -46,82 +46,82 @@ class ChartParser(BertParser):
         self.dropout = nn.Dropout(dropout)
         layers = []
         # self.mlp = nn.Linear(500 * 3, 1)
-        #l1 = nn.Linear(hidden_size * 6 + rel_embedding_size, 3 * hidden_size)
-        #l1 = nn.Linear(hidden_size * 6 + rel_embedding_size, 3 * hidden_size)
-        #l11 = nn.Linear(hidden_size * 6 + rel_embedding_size, 3 * hidden_size)
-        #l11 = nn.Linear(hidden_size * 6 + rel_embedding_size, 3 * hidden_size)
-        #l2 = nn.Linear(3 * hidden_size, hidden_size)
-        #l2 = nn.Linear(3 * hidden_size, hidden_size)
-        #lf = nn.Linear(hidden_size, 1)
-        #lf = nn.Linear(hidden_size, 1)
-        #l22 = nn.Linear(3 * hidden_size, hidden_size)
-        #l22 = nn.Linear(3 * hidden_size, hidden_size)
-        #lf2 = nn.Linear(hidden_size, 1)
-        #lf2 = nn.Linear(hidden_size, 1)
-        #l3 = nn.Linear(hidden_size * 3, hidden_size)
-        #l3 = nn.Linear(hidden_size * 3, hidden_size)
-        #l33 = nn.Linear(hidden_size, self.num_rels)
-        #l33 = nn.Linear(hidden_size, self.num_rels)
-        #layers = [l1, nn.ReLU(), l2, nn.ReLU(), lf, nn.Sigmoid()]
-        #layers2 = [l11, nn.ReLU(), l22, nn.ReLU(), lf2, nn.Sigmoid()]
-        #layers3 = [l3, nn.ReLU(), l33, nn.Softmax(dim=-1)]
-        #self.ls = nn.Linear(200,1)
-        #layers_small = [ls,nn.Sigmoid()]
-        #self.mlp = nn.Sequential(*layers)
-        #self.mlp2 = nn.Sequential(*layers2)
-        #self.mlp_rel = nn.Sequential(*layers3)
-        #self.mlp_small = nn.Sequential(*layers_small)
+        # l1 = nn.Linear(hidden_size * 6 + rel_embedding_size, 3 * hidden_size)
+        # l1 = nn.Linear(hidden_size * 6 + rel_embedding_size, 3 * hidden_size)
+        # l11 = nn.Linear(hidden_size * 6 + rel_embedding_size, 3 * hidden_size)
+        # l11 = nn.Linear(hidden_size * 6 + rel_embedding_size, 3 * hidden_size)
+        # l2 = nn.Linear(3 * hidden_size, hidden_size)
+        # l2 = nn.Linear(3 * hidden_size, hidden_size)
+        # lf = nn.Linear(hidden_size, 1)
+        # lf = nn.Linear(hidden_size, 1)
+        # l22 = nn.Linear(3 * hidden_size, hidden_size)
+        # l22 = nn.Linear(3 * hidden_size, hidden_size)
+        # lf2 = nn.Linear(hidden_size, 1)
+        # lf2 = nn.Linear(hidden_size, 1)
+        # l3 = nn.Linear(hidden_size * 3, hidden_size)
+        # l3 = nn.Linear(hidden_size * 3, hidden_size)
+        # l33 = nn.Linear(hidden_size, self.num_rels)
+        # l33 = nn.Linear(hidden_size, self.num_rels)
+        # layers = [l1, nn.ReLU(), l2, nn.ReLU(), lf, nn.Sigmoid()]
+        # layers2 = [l11, nn.ReLU(), l22, nn.ReLU(), lf2, nn.Sigmoid()]
+        # layers3 = [l3, nn.ReLU(), l33, nn.Softmax(dim=-1)]
+        # self.ls = nn.Linear(200,1)
+        # layers_small = [ls,nn.Sigmoid()]
+        # self.mlp = nn.Sequential(*layers)
+        # self.mlp2 = nn.Sequential(*layers2)
+        # self.mlp_rel = nn.Sequential(*layers3)
+        # self.mlp_small = nn.Sequential(*layers_small)
         self.linear_tree = nn.Linear(hidden_size * 2, hidden_size)
-        #self.linear_label = nn.Linear(hidden_size * 2, self.rel_embedding_size)
+        # self.linear_label = nn.Linear(hidden_size * 2, self.rel_embedding_size)
         self.max_size = max_sent_len
         self.linear_dep = nn.Linear(hidden_size, 200).to(device=constants.device)
-        #self.linear_h11 = nn.Linear(hidden_size, 200).to(device=constants.device)
-        #self.linear_h12 = nn.Linear(hidden_size, 200).to(device=constants.device)
-        #self.linear_h21 = nn.Linear(hidden_size, 200).to(device=constants.device)
-        #self.linear_h22 = nn.Linear(hidden_size, 200).to(device=constants.device)
+        # self.linear_h11 = nn.Linear(hidden_size, 200).to(device=constants.device)
+        # self.linear_h12 = nn.Linear(hidden_size, 200).to(device=constants.device)
+        # self.linear_h21 = nn.Linear(hidden_size, 200).to(device=constants.device)
+        # self.linear_h22 = nn.Linear(hidden_size, 200).to(device=constants.device)
         self.linear_head = nn.Linear(hidden_size, 200).to(device=constants.device)
         self.biaffine_item = Biaffine(200, 200)
         self.biaffine = Biaffine(200, 200)
-        #self.biaffine_h = Biaffine(200, 200)
-        self.bilinear_item = Bilinear(200,200,1)
+        # self.biaffine_h = Biaffine(200, 200)
+        self.bilinear_item = Bilinear(200, 200, 1)
         self.linear_items1 = nn.Linear(hidden_size, 200).to(device=constants.device)
         self.linear_items2 = nn.Linear(hidden_size, 200).to(device=constants.device)
-        #self.biaffineChart = BiaffineChart(200, 200)
+        # self.biaffineChart = BiaffineChart(200, 200)
 
         self.linear_labels_dep = nn.Linear(hidden_size, 200).to(device=constants.device)
         self.linear_labels_head = nn.Linear(hidden_size, 200).to(device=constants.device)
         self.bilinear_label = Bilinear(200, 200, self.num_rels)
 
-        #self.weight_matrix = nn.MultiheadAttention(868, num_heads=1, dropout=dropout).to(device=constants.device)
-        #self.root_selector = nn.LSTM(
+        # self.weight_matrix = nn.MultiheadAttention(868, num_heads=1, dropout=dropout).to(device=constants.device)
+        # self.root_selector = nn.LSTM(
         #    868, 1, 1, dropout=(dropout if 1 > 1 else 0),
         #    batch_first=True, bidirectional=False).to(device=constants.device)
 
         self.lstm = nn.LSTM(868, hidden_size, 2, batch_first=True, bidirectional=False).to(device=constants.device)
-        #self.lstm_tree = nn.LSTM(hidden_size, hidden_size, 1, batch_first=False, bidirectional=False).to(
-        #    device=constants.device)
+        self.lstm_tree = nn.LSTM(hidden_size, hidden_size, 1, batch_first=False, bidirectional=False).to(
+           device=constants.device)
         self.lstm_tree_left = nn.LSTM(hidden_size, hidden_size, 1, batch_first=False, bidirectional=False).to(
             device=constants.device)
         self.lstm_tree_right = nn.LSTM(hidden_size, hidden_size, 1, batch_first=False, bidirectional=False).to(
             device=constants.device)
-        #self.compressor = nn.LSTM(hidden_size, 1, 1, batch_first=False, bidirectional=False).to(
+        # self.compressor = nn.LSTM(hidden_size, 1, 1, batch_first=False, bidirectional=False).to(
         #    device=constants.device)
 
-        #input_init = torch.zeros((1, hidden_size * 3)).to(
+        # input_init = torch.zeros((1, hidden_size * 3)).to(
         #    device=constants.device)
-        #hidden_init = torch.zeros((1, hidden_size * 3)).to(
+        # hidden_init = torch.zeros((1, hidden_size * 3)).to(
         #    device=constants.device)
-        #self.empty_initial = nn.Parameter(torch.zeros(1, hidden_size * 3)).to(device=constants.device)
+        # self.empty_initial = nn.Parameter(torch.zeros(1, hidden_size * 3)).to(device=constants.device)
 
-        #self.lstm_init_state = (nn.init.xavier_uniform_(input_init), nn.init.xavier_uniform_(hidden_init))
-        #self.stack_lstm = nn.LSTMCell(hidden_size * 3, hidden_size * 3).to(device=constants.device)
+        # self.lstm_init_state = (nn.init.xavier_uniform_(input_init), nn.init.xavier_uniform_(hidden_init))
+        # self.stack_lstm = nn.LSTMCell(hidden_size * 3, hidden_size * 3).to(device=constants.device)
 
-        #self.item_lstm = StackCell(self.stack_lstm, self.lstm_init_state, self.lstm_init_state, self.dropout,
+        # self.item_lstm = StackCell(self.stack_lstm, self.lstm_init_state, self.lstm_init_state, self.dropout,
         #                           self.empty_initial)
 
-        #self.ij_score = nn.MultiheadAttention(embed_dim=hidden_size, num_heads=1)
-        #self.ih_score = nn.MultiheadAttention(embed_dim=hidden_size, num_heads=1)
-        #self.jh_score = nn.MultiheadAttention(embed_dim=hidden_size, num_heads=1)
+        # self.ij_score = nn.MultiheadAttention(embed_dim=hidden_size, num_heads=1)
+        # self.ih_score = nn.MultiheadAttention(embed_dim=hidden_size, num_heads=1)
+        # self.jh_score = nn.MultiheadAttention(embed_dim=hidden_size, num_heads=1)
 
         # with torch.no_grad():
         #    eos_tens = torch.tensor([self.eos_token_id]).unsqueeze(0).to(device=constants.device)
@@ -220,31 +220,31 @@ class ChartParser(BertParser):
 
             return scores, winner_item, gold_index, hypergraph, next_item, rel_loss
 
-    def pick_next(self, words,n, pending, hypergraph, oracle_item):
+    def pick_next(self, words, n, pending, hypergraph, oracle_item):
         scores = []
 
         gold_index = None
-        #all_embedding = self.item_lstm.embedding().squeeze(0)
-        #rel_0 = torch.tensor([0], dtype=torch.long).to(device=constants.device)
-        #rel_dummy = self.rel_embeddings(rel_0).to(device=constants.device)
-        #zrel = torch.zeros_like(rel_dummy).to(device=constants.device)
+        # all_embedding = self.item_lstm.embedding().squeeze(0)
+        # rel_0 = torch.tensor([0], dtype=torch.long).to(device=constants.device)
+        # rel_dummy = self.rel_embeddings(rel_0).to(device=constants.device)
+        # zrel = torch.zeros_like(rel_dummy).to(device=constants.device)
         rel_loss = 0
-        items_tensor = torch.zeros((1,400)).to(device=constants.device)
+        items_tensor = torch.zeros((1, 400)).to(device=constants.device)
         for iter, item in enumerate(pending.values()):
             if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
                 continue
             i, j, h = item.i, item.j, item.h
             if i == oracle_item[0] and j == oracle_item[1] and h == oracle_item[2]:
                 gold_index = torch.tensor([iter], dtype=torch.long).to(device=constants.device)
-            #if item in hypergraph.scored_items:
+            # if item in hypergraph.scored_items:
             #    score = torch.tensor(item.score).to(device=constants.device)
-            #else:
-            #if j >= len(words):
+            # else:
+            # if j >= len(words):
             #    j = len(words) - 1
-            #features_derived = torch.cat([words[i, :], words[j, :], words[h, :]], dim=-1).to(
+            # features_derived = torch.cat([words[i, :], words[j, :], words[h, :]], dim=-1).to(
             #    device=constants.device)
-            #rel = item.rel
-            #if rel is not None:
+            # rel = item.rel
+            # if rel is not None:
             #    rel_target = torch.tensor([rel], dtype=torch.long).to(device=constants.device)
             #    rel_gold = self.rel_embeddings(rel_target).to(device=constants.device)
             #    pred_rel = self.mlp_rel(features_derived)
@@ -255,35 +255,37 @@ class ChartParser(BertParser):
             #        rel_embed = rel_gold
             #    else:
             #        rel_embed = rel_pred
-            #else:
+            # else:
             #    rel_embed = zrel
             #    rel_loss += 0
-            #features_derived = torch.cat([features_derived, all_embedding, rel_embed.squeeze(0)], dim=-1)
-            #features_derived = self.tree_rep(i,j,h,words)
-            #score = self.mlp_small(features_derived)
-            #if item not in hypergraph.repped_items:
+            # features_derived = torch.cat([features_derived, all_embedding, rel_embed.squeeze(0)], dim=-1)
+            # features_derived = self.tree_rep(i,j,h,words)
+            # score = self.mlp_small(features_derived)
+            # if item not in hypergraph.repped_items:
             left_children = hypergraph.get_left_children_from(h, i)  # list(range(i)) + [h]
             right_children = hypergraph.get_right_children_until(h, j)  # [h] + list(range(j, h))
             features_derived = self.tree_lstm(words, left_children, right_children).squeeze(0)
-            hypergraph = hypergraph.set_item_vec(features_derived,item)
-            #else:
+            hypergraph = hypergraph.set_item_vec(features_derived, item)
+            # else:
             #    features_derived = item.vector_rep
             if iter == 0:
                 items_tensor = features_derived
             else:
-                items_tensor = torch.cat([items_tensor,features_derived],dim=0)
+                items_tensor = torch.cat([items_tensor, features_derived], dim=0)
 
-            #score = self.mlp_small(features_derived)
-            #item.update_score(score)
-            #hypergraph.score_item(item)
-            #scores.append(score)
-        #scores = torch.stack(scores).squeeze(1).permute(1, 0)
+            # score = self.mlp_small(features_derived)
+            # item.update_score(score)
+            # hypergraph.score_item(item)
+            # scores.append(score)
+        # scores = torch.stack(scores).squeeze(1).permute(1, 0)
         # scores = torch.tensor(scores).to(device=constants.device).unsqueeze(0)
         h1 = self.dropout(F.relu(self.linear_items1(items_tensor))).unsqueeze(0)
         h2 = self.dropout(F.relu(self.linear_items2(items_tensor))).unsqueeze(0)
-        scores = self.bilinear_item(h1, h2).squeeze(0).permute(1,0)
-        #scores = nn.Softmax(dim=-1)(torch.sum(item_logits,dim=0)).unsqueeze(0)
-        #scores = nn.Softmax(dim=-1)(F.relu(self.ls(item_logits)))
+        item_logits = self.biaffine_item(h1, h2).squeeze(0)
+
+        #scores = self.bilinear_item(h1, h2).squeeze(0).permute(1, 0)
+        scores = nn.Softmax(dim=-1)(torch.sum(item_logits,dim=0)).unsqueeze(0)
+        # scores = nn.Softmax(dim=-1)(F.relu(self.ls(item_logits)))
 
         winner = torch.argmax(scores, dim=-1)
         winner_item = list(pending.values())[winner]
@@ -294,13 +296,13 @@ class ChartParser(BertParser):
             gold_next_item = list(pending.values())[gold_index]
         return scores, winner_item, gold_index, hypergraph, gold_next_item, rel_loss
 
-    def attn_score_item(self, x,orig, items, hypergraph):
+    def attn_score_item(self, x, orig, items, hypergraph):
         n = x.shape[0]
         print_green(orig.shape)
         mask_ij = torch.empty((n, n)).fill_(float('-inf'))
         mask_ih = torch.empty((n, n)).fill_(float('-inf'))
         mask_jh = torch.empty((n, n)).fill_(float('-inf'))
-        mask = torch.zeros((n,n,n), dtype=torch.bool).to(device=constants.device)
+        mask = torch.zeros((n, n, n), dtype=torch.bool).to(device=constants.device)
 
         for iter, item in enumerate(items.values()):
             if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
@@ -309,44 +311,44 @@ class ChartParser(BertParser):
             mask_ij[i, j] = 0
             mask_ih[i, h] = 0
             mask_jh[j, h] = 0
-            mask[i,j,h] = True
+            mask[i, j, h] = True
         # put original matrix as third input?
         x = x.unsqueeze(1)
         attn_ij = self.ij_score(x, x, x, attn_mask=mask_ij)[1].squeeze(0)
         attn_ih = self.ih_score(x, x, x, attn_mask=mask_ih)[1].squeeze(0)
         attn_jh = self.jh_score(x, x, x, attn_mask=mask_jh)[1].squeeze(0)
-        scores = torch.zeros((n,n,n))
+        scores = torch.zeros((n, n, n))
         for item in items.values():
             if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
                 continue
-            i,j,h = item.i,item.j,item.h
-            scores[i,j,h] = torch.exp(attn_ij[i,j])*attn_jh[j,h]*attn_ih[i,h]
+            i, j, h = item.i, item.j, item.h
+            scores[i, j, h] = torch.exp(attn_ij[i, j]) * attn_jh[j, h] * attn_ih[i, h]
         scores = torch.masked_select(scores, mask)
         return attn_jh
 
     def predict_next(self, x, possible_items, hypergraph):
         n = len(x)
         z = torch.zeros_like(x[0, :]).to(device=constants.device)
-        items_tensor = torch.zeros((1,400)).to(device=constants.device)
+        items_tensor = torch.zeros((1, 400)).to(device=constants.device)
 
-        #all_embedding = self.item_lstm.embedding().squeeze(0)
-        #rel_0 = torch.tensor([0], dtype=torch.long).to(device=constants.device)
-        #rel_dummy = self.rel_embeddings(rel_0).to(device=constants.device)
-        #zrel = torch.zeros_like(rel_dummy).to(device=constants.device)
+        # all_embedding = self.item_lstm.embedding().squeeze(0)
+        # rel_0 = torch.tensor([0], dtype=torch.long).to(device=constants.device)
+        # rel_dummy = self.rel_embeddings(rel_0).to(device=constants.device)
+        # zrel = torch.zeros_like(rel_dummy).to(device=constants.device)
         rel_loss = 0
         for iter, item in enumerate(possible_items):
             i, j, h = item.i, item.j, item.h
             # print_yellow((i,j,h))
-            #if item in hypergraph.scored_items:
+            # if item in hypergraph.scored_items:
             #    score = item.score
-            #else:
-            #if j >= len(x):
+            # else:
+            # if j >= len(x):
             #    j = len(x) - 1
-            #if h >= len(x):
+            # if h >= len(x):
             #    h = len(x) - 1
-            #features_derived = torch.cat([x[i, :], x[j, :], x[h, :]], dim=-1).to(device=constants.device)
-            #rel = item.rel
-            #if rel is not None:
+            # features_derived = torch.cat([x[i, :], x[j, :], x[h, :]], dim=-1).to(device=constants.device)
+            # rel = item.rel
+            # if rel is not None:
             #    rel_target = torch.tensor([rel], dtype=torch.long).to(device=constants.device)
             #    rel_gold = self.rel_embeddings(rel_target).to(device=constants.device)
             #    pred_rel = self.mlp_rel(features_derived)
@@ -357,39 +359,41 @@ class ChartParser(BertParser):
             #        rel_embed = rel_gold
             #    else:
             #        rel_embed = rel_pred
-            #else:
+            # else:
             #    rel_embed = zrel
             #    rel_loss += 0
-            #features_derived = torch.cat([features_derived, all_embedding, rel_embed.squeeze(0)], dim=-1)
-            #score = self.mlp2(features_derived)  # *l_score*r_score
-            #item.update_score(score)
-            #left_children = list(range(i))+[h]
-            #right_children = [h]+list(range(j,h))
-            #features_derived = self.tree_lstm(x, left_children, right_children).squeeze(0)
+            # features_derived = torch.cat([features_derived, all_embedding, rel_embed.squeeze(0)], dim=-1)
+            # score = self.mlp2(features_derived)  # *l_score*r_score
+            # item.update_score(score)
+            # left_children = list(range(i))+[h]
+            # right_children = [h]+list(range(j,h))
+            # features_derived = self.tree_lstm(x, left_children, right_children).squeeze(0)
             ##features_derived = self.tree_rep(i, j, h, x)
-            #score = self.mlp_small(features_derived)
-            #hypergraph.score_item(item)
-            #scores.append(score)
-            #if item.vector_rep is None:
-            #if item not in hypergraph.repped_items:
-            left_children = hypergraph.get_left_children_from(h,i)#list(range(i)) + [h]
-            right_children = hypergraph.get_right_children_until(h,j)#[h] + list(range(j, h))
+            # score = self.mlp_small(features_derived)
+            # hypergraph.score_item(item)
+            # scores.append(score)
+            # if item.vector_rep is None:
+            # if item not in hypergraph.repped_items:
+            left_children = hypergraph.get_left_children_from(h, i)  # list(range(i)) + [h]
+            right_children = hypergraph.get_right_children_until(h, j)  # [h] + list(range(j, h))
 
             features_derived = self.tree_lstm(x, left_children, right_children).squeeze(0)
             hypergraph = hypergraph.set_item_vec(features_derived, item)
-            #else:
+            # else:
             #    features_derived = item.vector_rep
-            #else:
+            # else:
             #    features_derived = item.vector_rep
             if iter == 0:
                 items_tensor = features_derived
             else:
-                items_tensor = torch.cat([items_tensor,features_derived],dim=0)
-        #scores = torch.stack(scores).squeeze(1).permute(1,0)
+                items_tensor = torch.cat([items_tensor, features_derived], dim=0)
+        # scores = torch.stack(scores).squeeze(1).permute(1,0)
         h1 = self.dropout(F.relu(self.linear_items1(items_tensor))).unsqueeze(0)
         h2 = self.dropout(F.relu(self.linear_items2(items_tensor))).unsqueeze(0)
-        scores = self.bilinear_item(h1, h2).squeeze(0).permute(1,0)
-        #scores = nn.Softmax(dim=-1)(torch.sum(item_logits, dim=0)).unsqueeze(0)
+        item_logits = self.biaffine_item(h1, h2).squeeze(0)
+
+        #scores = self.bilinear_item(h1, h2).squeeze(0).permute(1, 0)
+        scores = nn.Softmax(dim=-1)(torch.sum(item_logits, dim=0)).unsqueeze(0)
         winner = torch.argmax(scores, dim=-1)
         if self.training:
 
@@ -419,13 +423,13 @@ class ChartParser(BertParser):
             # m = di.l.h if di.l.h != h else di.r.h
             # (h, m)
             made_arc, _ = hypergraph.make_arc(di)
-            (h,m) = made_arc
+            (h, m) = made_arc
             if h < m:
                 # m is a right child
-                hypergraph = hypergraph.add_right_child(h,m)
+                hypergraph = hypergraph.add_right_child(h, m)
             else:
                 # m is a left child
-                hypergraph = hypergraph.add_left_child(h,m)
+                hypergraph = hypergraph.add_left_child(h, m)
 
         if di.l in hypergraph.bucket or di.r in hypergraph.bucket:
             # h = di.h
@@ -477,7 +481,7 @@ class ChartParser(BertParser):
         return item_list
 
     def forward(self, x, transitions, relations, map, heads, rels):
-        x_ = x[0][:,1:]
+        x_ = x[0][:, 1:]
         # average of last 4 hidden layers
         with torch.no_grad():
             out = self.bert(x_.to(device=constants.device))[2]
@@ -485,16 +489,17 @@ class ChartParser(BertParser):
         heads_batch = torch.ones((x_emb.shape[0], heads.shape[1])).to(device=constants.device)  # * -1
         prob_sum = 0
         batch_loss = 0
-        x_mapped = torch.zeros((x_emb.shape[0], heads.shape[1]+1, x_emb.shape[2] + 100)).to(device=constants.device)
-        eos_emb = x_emb[0,-1, :].unsqueeze(0).to(device=constants.device)
-        eos_emb = torch.cat([eos_emb,torch.zeros((1,100)).to(device=constants.device)],dim=-1).to(device=constants.device)
+        x_mapped = torch.zeros((x_emb.shape[0], heads.shape[1] + 1, x_emb.shape[2] + 100)).to(device=constants.device)
+        eos_emb = x_emb[0, -1, :].unsqueeze(0).to(device=constants.device)
+        eos_emb = torch.cat([eos_emb, torch.zeros((1, 100)).to(device=constants.device)], dim=-1).to(
+            device=constants.device)
         for i, sentence in enumerate(x_emb):
             # initialize a parser
             mapping = map[i, map[i] != -1]
             tag = self.tag_embeddings(x[1][i][x[1][i] != 0].to(device=constants.device))
-            sentence = sentence[:-1,:]
+            sentence = sentence[:-1, :]
             s = self.get_bert_embeddings(mapping, sentence, tag)
-            s = torch.cat([s,eos_emb],dim=0)
+            s = torch.cat([s, eos_emb], dim=0)
             curr_sentence_length = s.shape[0]
             x_mapped[i, :curr_sentence_length, :] = s
 
@@ -502,11 +507,11 @@ class ChartParser(BertParser):
         max_len = torch.max(sent_lens)
         h_t = self.run_lstm(x_mapped, sent_lens)
         # initial_weights_logits = self.get_head_logits(h_t, sent_lens)
-        h_t_noeos = torch.zeros((h_t.shape[0],heads.shape[1],h_t.shape[2])).to(device=constants.device)
+        h_t_noeos = torch.zeros((h_t.shape[0], heads.shape[1], h_t.shape[2])).to(device=constants.device)
         tree_loss = 0
         for i in range(h_t.shape[0]):
 
-            curr_sentence_length = sent_lens[i]-1
+            curr_sentence_length = sent_lens[i] - 1
 
             # curr_init_weights = initial_weights_logits[i]
             # curr_init_weights = curr_init_weights[:curr_sentence_length + 1, :curr_sentence_length + 1]
@@ -516,7 +521,7 @@ class ChartParser(BertParser):
             oracle_hypergraph = oracle_hypergraph[oracle_hypergraph[:, 0, 0] != -1, :, :]
             oracle_agenda = self.init_agenda_oracle(oracle_hypergraph, rels[i])
 
-            s = h_t[i, :curr_sentence_length+1, :]
+            s = h_t[i, :curr_sentence_length + 1, :]
             chart = Chart()
             pending = self.init_pending(curr_sentence_length)
             hypergraph = self.hypergraph(curr_sentence_length, chart, rels[i])
@@ -551,7 +556,7 @@ class ChartParser(BertParser):
             for step in range(len(oracle_transition_picks)):
 
                 # if arc_index_aux != 2:
-                #scores = self.attn_score_item(current_representations,s,pending,hypergraph)
+                # scores = self.attn_score_item(current_representations,s,pending,hypergraph)
                 scores, item_to_make, gold_index, hypergraph, gold_next_item, rel_loss = self.pick_next(
                     current_representations,
                     curr_sentence_length,
@@ -590,7 +595,7 @@ class ChartParser(BertParser):
             heads_batch[i, :curr_sentence_length] = pred_heads
 
             loss /= len(oracle_hypergraph)
-            h_t_noeos[i,:curr_sentence_length,:] = h_t[i, :curr_sentence_length, :]
+            h_t_noeos[i, :curr_sentence_length, :] = h_t[i, :curr_sentence_length, :]
             batch_loss += loss
         batch_loss /= x_emb.shape[0]
         heads = heads_batch
@@ -744,19 +749,15 @@ class ChartParser(BertParser):
             heads[v] = u  # .item()
         return torch.tensor(heads).to(device=constants.device)
 
-
     def tree_lstm(self, x, left_children, right_children):
-        # print_blue(left_children)
-        # print_blue(right_children)
+
         left_reps = x[list(left_children), :].unsqueeze(1).to(device=constants.device)
         right_reps = x[list(right_children), :].to(device=constants.device)
         right_reps = torch.flip(right_reps, dims=[0, 1]).unsqueeze(1).to(device=constants.device)
-        # print_green(left_reps.shape)
-        # print_green(right_reps.shape)
+
         _, (lh, _) = self.lstm_tree(left_reps)
         _, (rh, _) = self.lstm_tree(right_reps)
-        # print_yellow(lh.shape)
-        # print_yellow(rh.shape)
+
         c = torch.cat([lh, rh], dim=-1).to(device=constants.device)
         c = nn.Tanh()(self.linear_tree(c))
         return c
