@@ -425,8 +425,8 @@ class ChartParser(BertParser):
         prob_sum = 0
         batch_loss = 0
         x_mapped = torch.zeros((x_emb.shape[0], heads.shape[1]+1, x_emb.shape[2] + 100)).to(device=constants.device)
-        eos_emb = x_emb[0,-1, :].unsqueeze(0)
-        eos_emb = torch.cat([eos_emb,torch.zeros((1,100)).to(device=constants.device)],dim=-1)
+        eos_emb = x_emb[0,-1, :].unsqueeze(0).to(device=constants.device)
+        eos_emb = torch.cat([eos_emb,torch.zeros((1,100)).to(device=constants.device)],dim=-1).to(device=constants.device)
         for i, sentence in enumerate(x_emb):
             # initialize a parser
             mapping = map[i, map[i] != -1]
@@ -441,7 +441,7 @@ class ChartParser(BertParser):
         max_len = torch.max(sent_lens)
         h_t = self.run_lstm(x_mapped, sent_lens)
         # initial_weights_logits = self.get_head_logits(h_t, sent_lens)
-        h_t_noeos = torch.zeros((h_t.shape[0],heads.shape[1],h_t.shape[2]))
+        h_t_noeos = torch.zeros((h_t.shape[0],heads.shape[1],h_t.shape[2])).to(device=constants.device)
         tree_loss = 0
         for i in range(h_t.shape[0]):
 
