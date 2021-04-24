@@ -253,12 +253,13 @@ class ChartParser(BertParser):
             #features_derived = torch.cat([features_derived, all_embedding, rel_embed.squeeze(0)], dim=-1)
             #features_derived = self.tree_rep(i,j,h,words)
             #score = self.mlp_small(features_derived)
-            #if item.vector_rep is None:
-            left_children = list(range(i)) + [h]
-            right_children = [h] + list(range(j, h))
-            features_derived = self.tree_lstm(words, left_children, right_children).squeeze(0)
-            #else:
-            #    features_derived = item.vector_rep
+            if item not in hypergraph.repped_items:
+                left_children = list(range(i)) + [h]
+                right_children = [h] + list(range(j, h))
+                features_derived = self.tree_lstm(words, left_children, right_children).squeeze(0)
+                hypergraph = hypergraph.set_item_vec(features_derived,item)
+            else:
+                features_derived = item.vector_rep
             if iter == 0:
                 items_tensor = features_derived
             else:
@@ -362,9 +363,13 @@ class ChartParser(BertParser):
             #hypergraph.score_item(item)
             #scores.append(score)
             #if item.vector_rep is None:
-            left_children = list(range(i)) + [h]
-            right_children = [h] + list(range(j, h))
-            features_derived = self.tree_lstm(x, left_children, right_children).squeeze(0)
+            if item not in hypergraph.repped_items:
+                left_children = list(range(i)) + [h]
+                right_children = [h] + list(range(j, h))
+                features_derived = self.tree_lstm(x, left_children, right_children).squeeze(0)
+                hypergraph = hypergraph.set_item_vec(features_derived, item)
+            else:
+                features_derived = item.vector_rep
             #else:
             #    features_derived = item.vector_rep
             if iter == 0:

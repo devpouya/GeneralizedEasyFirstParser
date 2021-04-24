@@ -23,6 +23,7 @@ class Hypergraph(object):
         self.scored_items = {}
 
         self.possible_next = {}
+        self.repped_items = {}
 
     def set_possible_next(self, items):
         for k in items.keys():
@@ -44,6 +45,11 @@ class Hypergraph(object):
                 del self.possible_next[(item.i, item.j, item.h)]
                 break
         return gold_index, next_item
+
+    def set_item_vec(self, vec, item):
+        item = item.set_vector_rep(vec)
+        self.repped_items[item] = item
+        return self
 
     def score_item(self, item):
         self.scored_items[item] = item
