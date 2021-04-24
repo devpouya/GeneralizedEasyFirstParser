@@ -24,6 +24,8 @@ class Hypergraph(object):
 
         self.possible_next = {}
         self.repped_items = {}
+        self.right_children = {i: [i] for i in range(n)}
+        self.left_children = {i: [i] for i in range(n)}
 
     def set_possible_next(self, items):
         for k in items.keys():
@@ -68,6 +70,31 @@ class Hypergraph(object):
         self.bucket[item.l] += 1
         self.bucket[item.r] += 1
         return self
+
+    def add_right_child(self, head, mod):
+        self.right_children[head].append(mod)
+        return self
+
+    def get_right_children_until(self, head,i):
+        rc = self.right_children[head]
+        ret = []
+        for item in list(rc):
+            if item < i:
+                ret.append(item)
+        ret.append(i)
+        return ret
+
+    def add_left_child(self, head, mod):
+        self.left_children[head].append(mod)
+        return self
+
+    def get_left_children_from(self, head,i):
+        lc = self.right_children[head]
+        ret = [i]
+        for item in list(lc):
+            if item > i:
+                ret.append(item)
+        return ret
 
     def axiom(self, i):
         pass
@@ -140,11 +167,11 @@ class LazyArcStandard(Hypergraph):
                         item_r = self.chart[(j, k, g)]
 
                         item_n1 = Item(i, k, h, item, item_r)
-                        _, item_n1 = self.make_arc(item_n1,add_rel=True)
+                        _, item_n1 = self.make_arc(item_n1, add_rel=True)
                         all_arcs.append(item_n1)
 
                         item_n2 = Item(i, k, g, item, item_r)
-                        _, item_n2 = self.make_arc(item_n2,add_rel=True)
+                        _, item_n2 = self.make_arc(item_n2, add_rel=True)
                         all_arcs.append(item_n2)
 
         return all_arcs

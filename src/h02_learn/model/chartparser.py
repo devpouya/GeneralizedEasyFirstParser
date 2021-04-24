@@ -261,13 +261,13 @@ class ChartParser(BertParser):
             #features_derived = torch.cat([features_derived, all_embedding, rel_embed.squeeze(0)], dim=-1)
             #features_derived = self.tree_rep(i,j,h,words)
             #score = self.mlp_small(features_derived)
-            if item not in hypergraph.repped_items:
-                left_children = list(range(i)) + [h]
-                right_children = [h] + list(range(j, h))
-                features_derived = self.tree_lstm(words, left_children, right_children).squeeze(0)
-                hypergraph = hypergraph.set_item_vec(features_derived,item)
-            else:
-                features_derived = item.vector_rep
+            #if item not in hypergraph.repped_items:
+            left_children = hypergraph.get_left_children_from(h, i)  # list(range(i)) + [h]
+            right_children = hypergraph.get_right_children_until(h, j)  # [h] + list(range(j, h))
+            features_derived = self.tree_lstm(words, left_children, right_children).squeeze(0)
+            hypergraph = hypergraph.set_item_vec(features_derived,item)
+            #else:
+            #    features_derived = item.vector_rep
             if iter == 0:
                 items_tensor = features_derived
             else:
@@ -372,8 +372,9 @@ class ChartParser(BertParser):
             #scores.append(score)
             #if item.vector_rep is None:
             #if item not in hypergraph.repped_items:
-            left_children = list(range(i)) + [h]
-            right_children = [h] + list(range(j, h))
+            left_children = hypergraph.get_left_children_from(h,i)#list(range(i)) + [h]
+            right_children = hypergraph.get_right_children_until(h,j)#[h] + list(range(j, h))
+
             features_derived = self.tree_lstm(x, left_children, right_children).squeeze(0)
             hypergraph = hypergraph.set_item_vec(features_derived, item)
             #else:
@@ -418,11 +419,26 @@ class ChartParser(BertParser):
             # m = di.l.h if di.l.h != h else di.r.h
             # (h, m)
             made_arc, _ = hypergraph.make_arc(di)
+            (h,m) = made_arc
+            if h < m:
+                # m is a right child
+                hypergraph = hypergraph.add_right_child(h,m)
+            else:
+                # m is a left child
+                hypergraph = hypergraph.add_left_child(h,m)
+
         if di.l in hypergraph.bucket or di.r in hypergraph.bucket:
             # h = di.h
             # m = di.l.h if di.l.h != h else di.r.h
             # made_arc = (h, m)
             made_arc, _ = hypergraph.make_arc(di)
+            (h, m) = made_arc
+            if h < m:
+                # m is a right child
+                hypergraph = hypergraph.add_right_child(h, m)
+            else:
+                # m is a left child
+                hypergraph = hypergraph.add_left_child(h, m)
             scores, gold_index, rel_loss = None, None, 0
         else:
             hypergraph = hypergraph.update_chart(di)
@@ -576,7 +592,6 @@ class ChartParser(BertParser):
             loss /= len(oracle_hypergraph)
             h_t_noeos[i,:curr_sentence_length,:] = h_t[i, :curr_sentence_length, :]
             batch_loss += loss
-            self.item_lstm.back_to_init()
         batch_loss /= x_emb.shape[0]
         heads = heads_batch
         # tree_loss /= x_emb.shape[0]
@@ -738,8 +753,8 @@ class ChartParser(BertParser):
         right_reps = torch.flip(right_reps, dims=[0, 1]).unsqueeze(1).to(device=constants.device)
         # print_green(left_reps.shape)
         # print_green(right_reps.shape)
-        _, (lh, _) = self.lstm_tree_left(left_reps)
-        _, (rh, _) = self.lstm_tree_right(right_reps)
+        _, (lh, _) = self.lstm_tree(left_reps)
+        _, (rh, _) = self.lstm_tree(right_reps)
         # print_yellow(lh.shape)
         # print_yellow(rh.shape)
         c = torch.cat([lh, rh], dim=-1).to(device=constants.device)
