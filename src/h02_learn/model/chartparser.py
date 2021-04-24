@@ -75,6 +75,7 @@ class ChartParser(BertParser):
         self.biaffine_item = Biaffine(200, 200)
         self.biaffine = Biaffine(200, 200)
         self.biaffine_h = Biaffine(200, 200)
+        self.bilinear_item = Bilinear(200,200,1)
         self.linear_items1 = nn.Linear(hidden_size, 200).to(device=constants.device)
         self.linear_items2 = nn.Linear(hidden_size, 200).to(device=constants.device)
         self.biaffineChart = BiaffineChart(200, 200)
@@ -269,10 +270,10 @@ class ChartParser(BertParser):
             #scores.append(score)
         #scores = torch.stack(scores).squeeze(1).permute(1, 0)
         # scores = torch.tensor(scores).to(device=constants.device).unsqueeze(0)
-        h1 = self.dropout(F.relu(self.linear_dep(items_tensor))).unsqueeze(0)
-        h2 = self.dropout(F.relu(self.linear_head(items_tensor))).unsqueeze(0)
-        item_logits = self.biaffine_item(h1, h2).squeeze(0)
-        scores = nn.Softmax(dim=-1)(torch.sum(item_logits,dim=0)).unsqueeze(0)
+        h1 = self.dropout(F.relu(self.linear_items1(items_tensor))).unsqueeze(0)
+        h2 = self.dropout(F.relu(self.linear_items2(items_tensor))).unsqueeze(0)
+        scores = self.bilinear_item(h1, h2).squeeze(0).permute(1,0)
+        #scores = nn.Softmax(dim=-1)(torch.sum(item_logits,dim=0)).unsqueeze(0)
         #scores = nn.Softmax(dim=-1)(F.relu(self.ls(item_logits)))
 
         winner = torch.argmax(scores, dim=-1)
@@ -371,10 +372,10 @@ class ChartParser(BertParser):
             else:
                 items_tensor = torch.cat([items_tensor,features_derived],dim=0)
         #scores = torch.stack(scores).squeeze(1).permute(1,0)
-        h1 = self.dropout(F.relu(self.linear_dep(items_tensor))).unsqueeze(0)
-        h2 = self.dropout(F.relu(self.linear_head(items_tensor))).unsqueeze(0)
-        item_logits = self.biaffine_item(h1, h2).squeeze(0)
-        scores = nn.Softmax(dim=-1)(torch.sum(item_logits, dim=0)).unsqueeze(0)
+        h1 = self.dropout(F.relu(self.linear_items1(items_tensor))).unsqueeze(0)
+        h2 = self.dropout(F.relu(self.linear_items2(items_tensor))).unsqueeze(0)
+        scores = self.bilinear_item(h1, h2).squeeze(0).permute(1,0)
+        #scores = nn.Softmax(dim=-1)(torch.sum(item_logits, dim=0)).unsqueeze(0)
         winner = torch.argmax(scores, dim=-1)
         if self.training:
 
@@ -558,9 +559,7 @@ class ChartParser(BertParser):
                                                              gold_index_hg)
             pred_heads = self.heads_from_arcs(arcs, curr_sentence_length)
             heads_batch[i, :curr_sentence_length] = pred_heads
-            if self.training:
-               print_yellow(pred_heads)
-               print_blue(heads[i])
+
             loss /= len(oracle_hypergraph)
             h_t_noeos[i,:curr_sentence_length,:] = h_t[i, :curr_sentence_length, :]
             batch_loss += loss
