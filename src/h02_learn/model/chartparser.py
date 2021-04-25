@@ -411,14 +411,12 @@ class ChartParser(BertParser):
 
                 if self.training:
                     game_winner = nn.MultiMarginLoss()(scores, gold_index)
-                    # loss += 0.5 * nn.CrossEntropyLoss()(scores,
-                    #                                     gold_index) + 0.5*game_winner
+                    loss += 0.5 * nn.CrossEntropyLoss()(scores,gold_index)
                     loss += 0.5 * game_winner
                     if gold_index_hg is not None and scores_hg is not None:
                         game_winner_hg = nn.MultiMarginLoss()(scores_hg, gold_index_hg)
 
-                        # loss += 0.5 * nn.CrossEntropyLoss()(scores_hg,
-                        #                                     gold_index_hg) + 0.5*game_winner_hg
+                        loss += 0.5 * nn.CrossEntropyLoss()(scores_hg,gold_index_hg)
                         loss += 0.5 * game_winner_hg
             pred_heads = self.heads_from_arcs(arcs, curr_sentence_length)
             heads_batch[i, :curr_sentence_length] = pred_heads
