@@ -67,6 +67,10 @@ class ChartParser(BertParser):
         self.lstm = nn.LSTM(868, self.hidden_size, 2, batch_first=True, bidirectional=False).to(device=constants.device)
         self.lstm_tree = nn.LSTM(self.hidden_size, self.hidden_size, 1, batch_first=False, bidirectional=False).to(
            device=constants.device)
+
+        encoder_layer = nn.TransformerEncoderLayer(d_model=868,nhead=4)
+        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=2)
+
         self.lstm_tree_left = nn.LSTM(self.hidden_size, self.hidden_size, 1, batch_first=False, bidirectional=False).to(
             device=constants.device)
         self.lstm_tree_right = nn.LSTM(self.hidden_size, self.hidden_size, 1, batch_first=False, bidirectional=False).to(
@@ -382,7 +386,6 @@ class ChartParser(BertParser):
             arc_list = self.init_arc_list(list_oracle_hypergraph_picks, oracle_agenda)
             hypergraph = hypergraph.set_possible_next(arc_list)
             for step in range(len(oracle_transition_picks)):
-
                 scores, item_to_make, gold_index,\
                 hypergraph, gold_next_item = self.predict_next_prn(current_representations,
                                                                    pending,hypergraph,
@@ -409,11 +412,14 @@ class ChartParser(BertParser):
                     current_representations[h, :] = h_rep
 
                 if self.training:
+                    game_winner = nn.MultiMarginLoss()(scores,gold_index)
                     loss += 0.5 * nn.CrossEntropyLoss()(scores,
-                                                         gold_index)
+                                                         gold_index) + 0.5*game_winner
                     if gold_index_hg is not None and scores_hg is not None:
+                        game_winner_hg = nn.MultiMarginLoss()(scores_hg, gold_index_hg)
+
                         loss += 0.5 * nn.CrossEntropyLoss()(scores_hg,
-                                                             gold_index_hg)
+                                                             gold_index_hg) + 0.5*game_winner_hg
             pred_heads = self.heads_from_arcs(arcs, curr_sentence_length)
             heads_batch[i, :curr_sentence_length] = pred_heads
 
