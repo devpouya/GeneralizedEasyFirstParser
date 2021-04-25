@@ -131,10 +131,12 @@ class ChartParser(BertParser):
         h_col = {}
         ind_ij = 0
         ind_h = 0
+        keys_to_delete = {}
         for iter, item in enumerate(items.values()):
             i, j, h = item.i, item.j, item.h
             if prune:
                 if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
+                    keys_to_delete.append((i,j,h))
                     continue
                 if i == oracle_item[0] and j == oracle_item[1] and h == oracle_item[2]:
                     gold_index = torch.tensor([iter], dtype=torch.long).to(device=constants.device)
@@ -194,6 +196,8 @@ class ChartParser(BertParser):
         # scores = self.bilinear_item(h1, h2).squeeze(0).permute(1, 0)
         # scores = nn.Softmax(dim=-1)(torch.sum(item_logits, dim=0)).unsqueeze(0)
         winner = torch.argmax(scores, dim=-1)
+        for k in keys_to_delete:
+            del items[k]
         if prune:
             winner_item = list(items.values())[winner]
             if gold_index is not None:
@@ -204,7 +208,7 @@ class ChartParser(BertParser):
             else:
                 gold_index = None
                 next_item = list(items.values())[winner]
-        return scores, winner_item, gold_index, hypergraph, next_item
+        return scores, winner_item, gold_index, hypergraph, next_item, items
 
     def attn_score_item(self, x, orig, items, hypergraph):
         n = x.shape[0]
@@ -293,7 +297,7 @@ class ChartParser(BertParser):
             if len(possible_items) > 0:
 
                 # new_item, hypergraph, scores, gold_index, rel_loss = self.predict_next(x, possible_items, hypergraph)
-                scores, winner_item, gold_index, hypergraph, new_item = self.predict_next_prn(x, possible_items,
+                scores, winner_item, gold_index, hypergraph, new_item,_ = self.predict_next_prn(x, possible_items,
                                                                                               hypergraph, None, False)
                 if new_item is not None:
                     pending[(new_item.i, new_item.j, new_item.h)] = new_item
@@ -385,7 +389,7 @@ class ChartParser(BertParser):
             hypergraph = hypergraph.set_possible_next(arc_list)
             for step in range(len(oracle_transition_picks)):
                 scores, item_to_make, gold_index, \
-                hypergraph, gold_next_item = self.predict_next_prn(current_representations,
+                hypergraph, gold_next_item,pending = self.predict_next_prn(current_representations,
                                                                    pending, hypergraph,
                                                                    oracle_transition_picks[step])
                 hypergraph, pending, made_item, \
