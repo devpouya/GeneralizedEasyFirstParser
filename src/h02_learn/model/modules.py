@@ -23,7 +23,7 @@ class Item(object):
         self.subtrees = {}
         self.arcs = []
         self.vector_rep = None
-        self.score = 1
+        self.score = torch.tensor([0]).to(device=constants.device)
         self.rel = None
 
     def set_vector_rep(self, x):

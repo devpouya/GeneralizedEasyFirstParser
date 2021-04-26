@@ -113,7 +113,6 @@ class ChartParser(BertParser):
             i, j, h = item.i, item.j, item.h
             if prune:
                 if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
-                    keys_to_delete.append((i,j,h))
                     continue
             ij_set.append((i, j))
             h_set.append(h)
@@ -130,14 +129,18 @@ class ChartParser(BertParser):
         h_col = {}
         ind_ij = 0
         ind_h = 0
+        prev_scores = []
         for iter, item in enumerate(items.values()):
             i, j, h = item.i, item.j, item.h
             if prune:
+                if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
+                    keys_to_delete.append((i, j, h))
+                    continue
                 if i == oracle_item[0] and j == oracle_item[1] and h == oracle_item[2]:
                     gold_index = torch.tensor([iter], dtype=torch.long).to(device=constants.device)
             ij_counts[(i, j)] += 1
             h_counts[h] += 1
-
+            prev_scores.append(item.score)
             if ij_counts[(i, j)] <= 1:
                 ij_rows[(i, j)] = ind_ij
                 w_ij = words[i:j + 1, :].unsqueeze(1).to(device=constants.device)
@@ -155,7 +158,11 @@ class ChartParser(BertParser):
         h_ij = self.dropout(F.relu(self.linear_items1(ij_tens))).unsqueeze(0)
         h_h = self.dropout(F.relu(self.linear_items2(h_tens))).unsqueeze(0)
         item_logits = self.biaffine_item(h_ij, h_h).squeeze(0)
-        scores = item_logits[index_matrix != -1].unsqueeze(0)
+        prev_scores = torch.stack(prev_scores,dim=-1)
+        scores = item_logits[index_matrix != -1].unsqueeze(0) + prev_scores
+        for iter, item in enumerate(items.values()):
+            item.update_score(scores[:,iter])
+
         winner = torch.argmax(scores, dim=-1)
         for k in keys_to_delete:
             del items[k]
@@ -171,35 +178,6 @@ class ChartParser(BertParser):
                 next_item = list(items.values())[winner]
         return scores, winner_item, gold_index, hypergraph, next_item, items
 
-    def attn_score_item(self, x, orig, items, hypergraph):
-        n = x.shape[0]
-        print_green(orig.shape)
-        mask_ij = torch.empty((n, n)).fill_(float('-inf'))
-        mask_ih = torch.empty((n, n)).fill_(float('-inf'))
-        mask_jh = torch.empty((n, n)).fill_(float('-inf'))
-        mask = torch.zeros((n, n, n), dtype=torch.bool).to(device=constants.device)
-
-        for iter, item in enumerate(items.values()):
-            if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
-                continue
-            i, j, h = item.i, item.j, item.h
-            mask_ij[i, j] = 0
-            mask_ih[i, h] = 0
-            mask_jh[j, h] = 0
-            mask[i, j, h] = True
-        # put original matrix as third input?
-        x = x.unsqueeze(1)
-        attn_ij = self.ij_score(x, x, x, attn_mask=mask_ij)[1].squeeze(0)
-        attn_ih = self.ih_score(x, x, x, attn_mask=mask_ih)[1].squeeze(0)
-        attn_jh = self.jh_score(x, x, x, attn_mask=mask_jh)[1].squeeze(0)
-        scores = torch.zeros((n, n, n))
-        for item in items.values():
-            if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
-                continue
-            i, j, h = item.i, item.j, item.h
-            scores[i, j, h] = torch.exp(attn_ij[i, j]) * attn_jh[j, h] * attn_ih[i, h]
-        scores = torch.masked_select(scores, mask)
-        return attn_jh
 
     def take_step(self, x, gold_next_item, hypergraph, oracle_agenda, pred_item, pending):
         if self.training:
@@ -244,20 +222,9 @@ class ChartParser(BertParser):
             hypergraph = hypergraph.add_bucket(di)
             possible_items = hypergraph.outgoing(di)
             # print(len(possible_items))
-            if di.j >= len(x):
-                j = len(x) - 1
-            else:
-                j = di.j
-            if di.h >= len(x):
-                h = len(x) - 1
-            else:
-                h = di.h
-            # rep = torch.cat([x[di.i, :], x[j, :], x[h, :]], dim=-1).unsqueeze(0).to(device=constants.device)
-            # self.item_lstm.push(rep)
 
             if len(possible_items) > 0:
 
-                # new_item, hypergraph, scores, gold_index, rel_loss = self.predict_next(x, possible_items, hypergraph)
                 scores, winner_item, gold_index, hypergraph, new_item,_ = self.predict_next_prn(x, possible_items,
                                                                                               hypergraph, None, False)
                 if new_item is not None:
@@ -394,76 +361,7 @@ class ChartParser(BertParser):
         # batch_loss += tree_loss
         return batch_loss, heads_batch, rels_batch
 
-    def predict_next_biaffine(self, x, possible_items, hypergraph, oracle_agenda, list_possible_next):
-        n = len(x)
-        z = torch.zeros_like(x[0, :]).to(device=constants.device)
-        scores = []
-        h_11 = self.dropout(F.relu(self.linear_h11(x))).unsqueeze(0)
-        h_21 = self.dropout(F.relu(self.linear_h21(x))).unsqueeze(0)
-        h, _ = self.compressor(x.unsqueeze(1))
 
-        h_logits = self.biaffine_h(h_11, h_21).squeeze(0)
-        change = torch.kron(h_logits, h)
-        dim = int(h_logits.shape[0])
-        change = change.view(dim, dim, dim)
-        mask = torch.zeros_like(change, dtype=torch.bool).to(device=constants.device)
-
-        for item in possible_items:
-            i, j, h = item.i, item.j, item.h
-
-            if j >= len(x):
-                j = len(x) - 1
-            mask[i, j, h] = True
-
-        scores = torch.masked_select(change, mask).unsqueeze(0)
-        winner = torch.argmax(scores, dim=-1)
-
-        if self.training:
-            next_item = None
-            gold_index = None
-            for i, item in enumerate(possible_items):
-                if (item.i, item.j, item.h) in list_possible_next.keys():
-                    gold_index = torch.tensor([i], dtype=torch.long).to(device=constants.device)
-                    next_item = list_possible_next[(item.i, item.j, item.h)]
-                    break
-        else:
-            gold_index = None
-            next_item = possible_items[winner]
-        return next_item, hypergraph, scores, gold_index
-
-    def get_item_logits(self, s, pending, hypergraph, oracle_item):
-        gold_index = None
-        h_dep = self.dropout(F.relu(self.linear_dep(s)))
-        h_arc = self.dropout(F.relu(self.linear_head(s)))
-        h, _ = self.compressor(s.unsqueeze(1))
-
-        h_logits = self.biaffine_item(h_arc.unsqueeze(0), h_dep.unsqueeze(0)).squeeze(0)
-        change = torch.kron(h_logits, h)
-        dim = int(h_logits.shape[0])
-        change = change.view(dim, dim, dim)
-        scores = []
-        mask = torch.zeros_like(change, dtype=torch.bool).to(device=constants.device)
-        n = h_logits.shape[0]
-        for iter, item in enumerate(pending.values()):
-            if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
-                continue
-            i, j, h = item.i, item.j, item.h
-
-            if i == oracle_item[0] and j == oracle_item[1] and h == oracle_item[2]:
-                gold_index = torch.tensor([iter], dtype=torch.long).to(device=constants.device)
-            if j >= n:
-                j = n - 1
-            mask[i, j, h] = True
-            # scores.append(h_logits[i, j])
-        scores = torch.masked_select(change, mask).unsqueeze(0)
-        winner = torch.argmax(scores, dim=-1)
-        winner_item = list(pending.values())[winner]
-
-        gold_next_item = None
-        if gold_index is not None:
-            gold_next_item = list(pending.values())[gold_index]
-
-        return scores, winner_item, gold_index, hypergraph, gold_next_item
 
     def get_head_logits(self, h_t, sent_lens):
         h_dep = self.dropout(F.relu(self.linear_dep(h_t)))
@@ -490,10 +388,6 @@ class ChartParser(BertParser):
         l_logits = self.bilinear_label(l_dep, l_head)
         return l_logits
 
-    def loss(self, batch_loss, l_logits, rels):
-        criterion_l = nn.CrossEntropyLoss(ignore_index=0).to(device=constants.device)
-        loss = criterion_l(l_logits.reshape(-1, l_logits.shape[-1]), rels.reshape(-1))
-        return loss + batch_loss
 
     def init_agenda_oracle(self, oracle_hypergraph, rels):
         pending = defaultdict(lambda: 0)
@@ -535,7 +429,10 @@ class ChartParser(BertParser):
         for (u, v) in arcs:
             heads[v] = u  # .item()
         return torch.tensor(heads).to(device=constants.device)
-
+    def loss(self, batch_loss, l_logits, rels):
+        criterion_l = nn.CrossEntropyLoss(ignore_index=0).to(device=constants.device)
+        loss = criterion_l(l_logits.reshape(-1, l_logits.shape[-1]), rels.reshape(-1))
+        return loss + batch_loss
     def tree_lstm(self, x, left_children, right_children):
 
         left_reps = x[list(left_children), :].unsqueeze(1).to(device=constants.device)
