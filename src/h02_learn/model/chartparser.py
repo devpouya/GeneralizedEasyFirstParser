@@ -382,7 +382,7 @@ class ChartParser(BertParser):
                                                                    oracle_transition_picks[step])
 
                 if self.training:
-                    items = torch.zeros((heads.shape[1], heads.shape[1] + 1, heads.shape[1] + 1)).to(
+                    items = torch.zeros((curr_sentence_length, curr_sentence_length + 1, curr_sentence_length + 1)).to(
                         device=constants.device)
                     items[ind_to_fill[:, 0], ind_to_fill[:, 1], ind_to_fill[:, 2]] = scores
                     gold_index = oracle_transition_picks[step]
@@ -400,7 +400,7 @@ class ChartParser(BertParser):
                                                                     pending)
                 if self.training:
                     if ind_to_fill is not None and scores_hg is not None and new_item_hg is not None:
-                        items_hg = torch.zeros((heads.shape[1], heads.shape[1] + 1, heads.shape[1] + 1)).to(
+                        items_hg = torch.zeros((curr_sentence_length, curr_sentence_length + 1, curr_sentence_length + 1)).to(
                             device=constants.device)
                         items_hg[ind_to_fill[:,0],ind_to_fill[:,1],ind_to_fill[:,2]] = scores_hg
                         flat_gold = np.ravel_multi_index(np.array([[new_item_hg.i], [new_item_hg.j], [new_item_hg.h]]),
