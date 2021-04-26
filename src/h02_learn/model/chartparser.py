@@ -108,7 +108,7 @@ class ChartParser(BertParser):
         winner_item = None
         ij_set = []
         h_set = []
-        keys_to_delete = {}
+        keys_to_delete = []
         for iter, item in enumerate(items.values()):
             i, j, h = item.i, item.j, item.h
             if prune:
@@ -130,12 +130,11 @@ class ChartParser(BertParser):
         ind_ij = 0
         ind_h = 0
         prev_scores = []
+        for k in keys_to_delete:
+            del items[k]
         for iter, item in enumerate(items.values()):
             i, j, h = item.i, item.j, item.h
             if prune:
-                if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
-                    keys_to_delete.append((i, j, h))
-                    continue
                 if i == oracle_item[0] and j == oracle_item[1] and h == oracle_item[2]:
                     gold_index = torch.tensor([iter], dtype=torch.long).to(device=constants.device)
             ij_counts[(i, j)] += 1
@@ -164,8 +163,7 @@ class ChartParser(BertParser):
             item.update_score(scores[:,iter])
 
         winner = torch.argmax(scores, dim=-1)
-        for k in keys_to_delete:
-            del items[k]
+
         if prune:
             winner_item = list(items.values())[winner]
             if gold_index is not None:
