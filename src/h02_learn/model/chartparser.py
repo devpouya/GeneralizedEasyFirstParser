@@ -386,7 +386,7 @@ class ChartParser(BertParser):
                         device=constants.device)
                     items[ind_to_fill[:, 0], ind_to_fill[:, 1], ind_to_fill[:, 2]] = scores
                     gold_index = oracle_transition_picks[step]
-                    flat_gold = np.ravel_multi_index(np.array([[gold_index[0]], [gold_index[1]], [gold_index[2]]]),
+                    flat_gold = np.ravel_multi_index(np.array([[gold_index[0]], [gold_index[1]], [gold_index[2]]],dtype=int),
                                                      (items.shape[0], items.shape[1], items.shape[2]))
                     flat_gold = torch.tensor(flat_gold, dtype=torch.long).to(device=constants.device)
                     items = items.flatten().unsqueeze(0)
@@ -399,7 +399,7 @@ class ChartParser(BertParser):
                                                                     item_to_make,
                                                                     pending)
                 if self.training:
-                    if ind_to_fill is not None and scores_hg is not None:
+                    if ind_to_fill is not None and scores_hg is not None and new_item_hg is not None:
                         items_hg = torch.zeros((heads.shape[1], heads.shape[1] + 1, heads.shape[1] + 1)).to(
                             device=constants.device)
                         items_hg[ind_to_fill[:,0],ind_to_fill[:,1],ind_to_fill[:,2]] = scores_hg
