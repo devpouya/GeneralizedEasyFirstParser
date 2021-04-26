@@ -106,16 +106,15 @@ class ChartParser(BertParser):
         gold_index = None
         next_item = None
         winner_item = None
-        items_tensor = torch.zeros((1, 400)).to(device=constants.device)
         ij_set = []
         h_set = []
+        keys_to_delete = {}
         for iter, item in enumerate(items.values()):
             i, j, h = item.i, item.j, item.h
             if prune:
                 if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
+                    keys_to_delete.append((i,j,h))
                     continue
-                if i == oracle_item[0] and j == oracle_item[1] and h == oracle_item[2]:
-                    gold_index = torch.tensor([iter], dtype=torch.long).to(device=constants.device)
             ij_set.append((i, j))
             h_set.append(h)
         ij_set = set(ij_set)
@@ -131,28 +130,13 @@ class ChartParser(BertParser):
         h_col = {}
         ind_ij = 0
         ind_h = 0
-        keys_to_delete = {}
         for iter, item in enumerate(items.values()):
             i, j, h = item.i, item.j, item.h
             if prune:
-                if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
-                    keys_to_delete.append((i,j,h))
-                    continue
                 if i == oracle_item[0] and j == oracle_item[1] and h == oracle_item[2]:
                     gold_index = torch.tensor([iter], dtype=torch.long).to(device=constants.device)
             ij_counts[(i, j)] += 1
             h_counts[h] += 1
-            # left_children = hypergraph.get_left_children_from(h, i)
-            # right_children = hypergraph.get_right_children_until(h, j)
-            # left_reps = words[list(left_children), :].unsqueeze(1).to(device=constants.device)
-            # right_reps = words[list(right_children), :].to(device=constants.device)
-            # right_reps = torch.flip(right_reps, dims=[0, 1]).unsqueeze(1).to(device=constants.device)
-            #
-            # if not prune:
-            #    print_green(left_children)
-            #    print_blue(right_children)
-            #    print_red((i,j,h))
-            # features_derived = self.tree_lstm(words, left_children, right_children).squeeze(0)
 
             if ij_counts[(i, j)] <= 1:
                 ij_rows[(i, j)] = ind_ij
@@ -167,34 +151,11 @@ class ChartParser(BertParser):
 
             index_matrix[ij_rows[(i, j)], h_col[h]] = iter
 
-            # hypergraph = hypergraph.set_item_vec(features_derived, item)
 
-            # if iter == 0:
-            #    items_tensor = features_derived
-            # else:
-            #    items_tensor = torch.cat([items_tensor, features_derived], dim=0)
         h_ij = self.dropout(F.relu(self.linear_items1(ij_tens))).unsqueeze(0)
         h_h = self.dropout(F.relu(self.linear_items2(h_tens))).unsqueeze(0)
         item_logits = self.biaffine_item(h_ij, h_h).squeeze(0)
         scores = item_logits[index_matrix != -1].unsqueeze(0)
-        # scores = torch.flatten(item_logits)
-        # index_matrix = torch.flatten(index_matrix)
-        # index_matrix = index_matrix[index_matrix!=-1]
-        # gold_index = torch.argwhere(index_matrix==gold_index.item())[0]
-        # scores = scores[index_matrix].unsqueeze(0)
-        # to score this, need to know which head would've been correct for each i,j
-        # print_yellow(item_logits.shape)
-        # print_red(unique_h)
-        # print_green(unique_ij)
-        # print_yellow(item_logits)
-        # pick best head for each i,j
-        # gets i,j,h
-        # get best i,j,h
-        # winner_heads = torch.argmax(item_logits,dim=1)
-        # ijh = torch.diagonal(torch.index_select(item_logits,1,winner_heads),0).unsqueeze(0)
-        # ultimate_winner = torch.argmax(ijh,dim=-1)
-        # scores = self.bilinear_item(h1, h2).squeeze(0).permute(1, 0)
-        # scores = nn.Softmax(dim=-1)(torch.sum(item_logits, dim=0)).unsqueeze(0)
         winner = torch.argmax(scores, dim=-1)
         for k in keys_to_delete:
             del items[k]
@@ -414,14 +375,9 @@ class ChartParser(BertParser):
                     current_representations[h, :] = h_rep
 
                 if self.training:
-                    game_winner = nn.MultiMarginLoss()(scores, gold_index)
-                    loss += 0.5 * nn.CrossEntropyLoss()(scores,gold_index)
-                    loss += 0.5 * game_winner
+                    loss += 0.5 * nn.CrossEntropyLoss(reduction='sum')(scores,gold_index)
                     if gold_index_hg is not None and scores_hg is not None:
-                        game_winner_hg = nn.MultiMarginLoss()(scores_hg, gold_index_hg)
-
-                        loss += 0.5 * nn.CrossEntropyLoss()(scores_hg,gold_index_hg)
-                        loss += 0.5 * game_winner_hg
+                        loss += 0.5 * nn.CrossEntropyLoss(reduction='sum')(scores_hg,gold_index_hg)
             pred_heads = self.heads_from_arcs(arcs, curr_sentence_length)
             heads_batch[i, :curr_sentence_length] = pred_heads
 
