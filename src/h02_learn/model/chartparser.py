@@ -130,11 +130,13 @@ class ChartParser(BertParser):
         ind_ij = 0
         ind_h = 0
         prev_scores = []
-        for k in keys_to_delete:
-            del items[k]
+        #for k in keys_to_delete:
+        #    del items[k]
         for iter, item in enumerate(items.values()):
             i, j, h = item.i, item.j, item.h
             if prune:
+                if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
+                    continue
                 if i == oracle_item[0] and j == oracle_item[1] and h == oracle_item[2]:
                     gold_index = torch.tensor([iter], dtype=torch.long).to(device=constants.device)
             ij_counts[(i, j)] += 1
