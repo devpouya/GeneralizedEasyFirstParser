@@ -40,11 +40,11 @@ class Hypergraph(object):
         gold_index, next_item = None, None
         # for item in self.possible_next.keys():
         #    print(item)
-        for i, item in enumerate(items):
-            if (item.i, item.j, item.h) in self.possible_next.keys():
-                gold_index = torch.tensor([i], dtype=torch.long).to(device=constants.device)
-                next_item = self.possible_next[(item.i, item.j, item.h)]
-                del self.possible_next[(item.i, item.j, item.h)]
+        for iter, (i,j,h) in enumerate(items.keys()):
+            if (i, j, h) in self.possible_next.keys():
+                gold_index = torch.tensor([iter], dtype=torch.long).to(device=constants.device)
+                next_item = self.possible_next[(i, j, h)]
+                del self.possible_next[(i, j, h)]
                 break
         return gold_index, next_item
 
@@ -155,12 +155,12 @@ class LazyArcStandard(Hypergraph):
                         item1 = Item(k, j, g, item_l, item)
                         _, item1 = self.make_arc(item1, add_rel=True)
                         #all_arcs.append(item1)
-                        all_arcs[item1] = item1
+                        all_arcs[(item1.i,item1.j,item1.h)] = item1
 
                         item2 = Item(k, j, h, item_l, item)
                         _, item2 = self.make_arc(item2)
                         #all_arcs.append(item2)
-                        all_arcs[item2] = item2
+                        all_arcs[(item2.i,item2.j,item2.h)] = item2
 
         # items to the right
         for k in range(j, self.n + 1):
@@ -172,12 +172,12 @@ class LazyArcStandard(Hypergraph):
                         item_n1 = Item(i, k, h, item, item_r)
                         _, item_n1 = self.make_arc(item_n1, add_rel=True)
                         #all_arcs.append(item_n1)
-                        all_arcs[item_n1] = item_n1
+                        all_arcs[(item_n1.i,item_n1.j,item_n1.h)] = item_n1
 
                         item_n2 = Item(i, k, g, item, item_r)
                         _, item_n2 = self.make_arc(item_n2, add_rel=True)
                         #all_arcs.append(item_n2)
-                        all_arcs[item_n2] = item_n2
+                        all_arcs[(item_n2.i,item_n2.j,item_n2.h)] = item_n2
 
         return all_arcs
 
