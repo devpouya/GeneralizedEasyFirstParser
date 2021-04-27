@@ -198,6 +198,7 @@ class ChartParser(BertParser):
         item_logits = self.biaffine_item(h_ij, h_h).squeeze(0)
         # prev_scores = torch.stack(prev_scores, dim=-1)
         scores = item_logits[index_matrix != -1].unsqueeze(0)  # + prev_scores
+        print("HH")
         # ind = 0
         # for iter, item in enumerate(items.values()):
         #    if prune:

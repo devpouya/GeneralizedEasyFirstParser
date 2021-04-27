@@ -1,7 +1,7 @@
 import torch
 
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.cuda.set_device(1)#torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 UD_PATH_RAW = 'ud/ud-treebanks-v2.5/'
 UD_PATH_PROCESSED = 'ud/processed/'
