@@ -148,19 +148,68 @@ class ChartParser(BertParser):
     def possible_arcs(self, pending, hypergraph):
         arcs = []
         all_items = {}
-        del_keys = []
+        del_keys = set()
         # delete keys if in bucket
+        possible_items = {}
+        """
+        for item_1 in list(pending.values()):
+            i1, j1, h1 = item_1.i, item_1.j, item_1.h
+            #if item_1.l in hypergraph.bucket or item_1.r in hypergraph.bucket:
+            #    del_keys.update((i1,j1,h1))
+            #    print_green("PR")
+            #    continue
+            for item_2 in list(pending.values()):
+                i2,j2,h2 = item_2.i,item_2.j,item_2.h
+                #if item_2.l in hypergraph.bucket or item_2.r in hypergraph.bucket:
+                #    del_keys.update((i2,j2,h2))
+                #    print_red("))")
+                #    continue
+
+                if j1 == i2:
+                    if not hypergraph.has_head[h2]:
+                        arcs.append((h1,h2))
+                        possible_items[(i1, j2, h1)] = Item(i1, j2, h1, item_1, item_2)
+
+                    else:
+                        pending[(i1, j2, h1)] = Item(i1, j2, h1, item_1, item_2)
+                    if not hypergraph.has_head[h1]:
+                        arcs.append((h2,h1))
+                        possible_items[(i1, j2, h2)] = Item(i1, j2, h2, item_1, item_2)
+
+                    else:
+                        pending[(i1, j2, h2)] = Item(i1, j2, h2, item_1, item_2)
+
+                if j2 == i1:
+                    if not hypergraph.has_head[h2]:
+                        arcs.append((h1,h2))
+                        possible_items[(i2, j1, h1)] = Item(i2, j1, h1, item_2, item_1)
+
+                    else:
+                        pending[(i2, j1, h1)] = Item(i2, j1, h1, item_2, item_1)
+                    if not hypergraph.has_head[h1]:
+                        arcs.append((h2,h1))
+                        possible_items[(i2, j1, h2)] = Item(i2, j1, h2, item_2, item_1)
+
+                    else:
+                        pending[(i2, j1, h2)] = Item(i2, j1, h2, item_2, item_1)
+        """
         for item in pending.values():
+
+            hypergraph = hypergraph.update_chart(item)
+        all_new = []
+        for item in pending.values():
+
+            new = hypergraph.extend_pending(item)
+            if len(new)>0:
+                all_new = all_new+new
+        for item in all_new:
+            pending[(item.i,item.j,item.h)] = item
+        for item in list(pending.values()):
             #i,j,h = item.i,item.j, item.h
 
-            if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
-                del_keys.append((item.i,item.j,item.h))
-                #print_blue("PR {}".format((item.i,item.j,item.h)))
-                continue
-
             #hypergraph = hypergraph.add_bucket(item)
-            hypergraph = hypergraph.update_chart(item)
             possible_items, possible_arcs = hypergraph.outgoing(item,arcs)
+
             #possible_arcs = ret[1]
             #possible_items = ret[0]
             all_items = {**all_items,**possible_items}
@@ -171,7 +220,7 @@ class ChartParser(BertParser):
             arcs = arcs + possible_arcs
 
 
-        return arcs, all_items,del_keys
+        return arcs, all_items,list(del_keys),pending,hypergraph
 
     def score_arcs(self, possible_arcs, gold_arc, possible_items, words_f, words_b):
         gold_index = None
@@ -180,7 +229,6 @@ class ChartParser(BertParser):
         scores = []
 
         ga = (gold_arc[0].item(),gold_arc[1].item())
-        #print_blue(possible_arcs)
         index2key = {}
         for iter, ((u,v), item) in enumerate(zip(possible_arcs,possible_items.values())):
             i,j,h = item.i, item.j, item.h
@@ -237,7 +285,9 @@ class ChartParser(BertParser):
 
             n = int(sent_lens[i] - 1)
             ordered_arcs = transitions[i]
-            ordered_arcs = ordered_arcs[:n]
+            mask = (ordered_arcs.sum(dim=1)!=-2)
+            ordered_arcs = ordered_arcs[mask,:]
+
             pending = self.init_pending(n)
 
             chart = Chart()
@@ -263,7 +313,7 @@ class ChartParser(BertParser):
             words_f = s  # .clone()
             words_b = s_b  # .clone()
             for iter, gold_arc in enumerate(ordered_arcs):
-                possible_arcs, items,pruned_keys = self.possible_arcs(pending,hypergraph)
+                possible_arcs, items,pruned_keys,pending,hypergraph = self.possible_arcs(pending,hypergraph)
                 scores, gold_index,gold_key = self.score_arcs(possible_arcs, gold_arc, items,words_f,words_b)
                 gind = gold_index.item()
                 made_item = items[gold_key]
@@ -275,14 +325,16 @@ class ChartParser(BertParser):
                     if k in pending.keys():
                         del pending[k]
                 pending[(made_item.i,made_item.j,made_item.h)] = made_item
-                hypergraph = hypergraph.update_chart(made_item.l)
-                hypergraph = hypergraph.update_chart(made_item.r)
-                hypergraph = hypergraph.add_bucket(made_item.l)
-                hypergraph = hypergraph.add_bucket(made_item.r)
+                #hypergraph = hypergraph.update_chart(made_item.l)
+                #hypergraph = hypergraph.update_chart(made_item.r)
+                #hypergraph = hypergraph.add_bucket(made_item.l)
+                hypergraph = hypergraph.add_bucket(made_item)
+                #hypergraph = hypergraph.add_bucket(made_item.r)
                 made_arc = possible_arcs[gind]
 
                 h = made_arc[0]
                 m = made_arc[1]
+                hypergraph.has_head[m] = True
                 arcs.append(made_arc)
 
                 if self.training:
