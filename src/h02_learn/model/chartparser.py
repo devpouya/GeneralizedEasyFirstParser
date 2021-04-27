@@ -58,7 +58,7 @@ class ChartParser(BertParser):
 
         self.linear_items1 = nn.Linear(self.hidden_size * 2, self.hidden_size).to(device=constants.device)
         self.linear_items11 = nn.Linear(self.hidden_size , 200).to(device=constants.device)
-        self.linear_items2 = nn.Linear(self.hidden_size, 200).to(device=constants.device)
+        self.linear_items2 = nn.Linear(self.hidden_size*4, self.hidden_size*2).to(device=constants.device)
         self.linear_items22 = nn.Linear(self.hidden_size * 2, 200).to(device=constants.device)
         self.biaffine_item = Biaffine(200, 200)
         self.ln1 = nn.LayerNorm(self.hidden_size).to(device=constants.device)
@@ -91,8 +91,8 @@ class ChartParser(BertParser):
         self.lstm_init_state = (nn.init.xavier_uniform_(input_init), nn.init.xavier_uniform_(hidden_init))
         self.stack_lstm = nn.LSTMCell(self.hidden_size * 3, self.hidden_size * 3).to(device=constants.device)
 
-        #self.item_lstm = StackCell(self.stack_lstm, self.lstm_init_state, self.lstm_init_state, self.dropout,
-        #                           self.empty_initial)
+        self.item_lstm = StackCell(self.stack_lstm, self.lstm_init_state, self.lstm_init_state, self.dropout,
+                                   self.empty_initial)
 
     def init_pending(self, n):
         pending = {}
@@ -135,7 +135,7 @@ class ChartParser(BertParser):
         ij_set = []
         h_set = []
         keys_to_delete = []
-        #all_embedding = self.item_lstm.embedding()  # .squeeze(0)
+        all_embedding = self.item_lstm.embedding()  # .squeeze(0)
 
         for iter, item in enumerate(items.values()):
             i, j, h = item.i, item.j, item.h
@@ -149,7 +149,7 @@ class ChartParser(BertParser):
         unique_ij = len(ij_set)
         unique_h = len(h_set)
         ij_tens = torch.zeros((unique_ij, self.hidden_size * 2)).to(device=constants.device)
-        h_tens = torch.zeros((unique_h, self.hidden_size)).to(device=constants.device)
+        h_tens = torch.zeros((unique_h, self.hidden_size*4)).to(device=constants.device)
 
         index_matrix = torch.ones((unique_ij, unique_h), dtype=torch.int64).to(device=constants.device) * -1
         ij_counts = {(i, j): 0 for (i, j) in list(ij_set)}
@@ -185,17 +185,17 @@ class ChartParser(BertParser):
                 ind_ij += 1
             if h_counts[h] <= 1:
                 h_col[h] = ind_h
-                #rep = torch.cat([words[h, :].unsqueeze(0), all_embedding], dim=-1)
-                h_tens[ind_h, :] = words[h, :].unsqueeze(0).to(device=constants.device)
+                rep = torch.cat([words[h, :].unsqueeze(0), all_embedding], dim=-1)
+                h_tens[ind_h, :] = rep #words[h, :].unsqueeze(0).to(device=constants.device)
                 ind_h += 1
 
             index_matrix[ij_rows[(i, j)], h_col[h]] = iter
         tmp = self.linear_items1(ij_tens)
         tmp2 = self.linear_items2(h_tens)
         h_ij = self.dropout(self.linear_items11(self.dropout(F.relu(self.ln1(tmp))))).unsqueeze(0)
+        h_h = self.dropout(self.linear_items22(self.dropout(F.relu(self.ln2(tmp2))))).unsqueeze(0)
         #h_h = self.dropout(self.linear_items22(self.dropout(F.relu(self.ln2(tmp2))))).unsqueeze(0)
-        #h_h = self.dropout(self.linear_items22(self.dropout(F.relu(self.ln2(tmp2))))).unsqueeze(0)
-        h_h = self.dropout(F.relu(self.linear_items2(h_tens))).unsqueeze(0)
+        #h_h = self.dropout(F.relu(self.linear_items2(h_tens))).unsqueeze(0)
         item_logits = self.biaffine_item(h_ij, h_h).squeeze(0)
         # prev_scores = torch.stack(prev_scores, dim=-1)
         scores = item_logits[index_matrix != -1].unsqueeze(0)  # + prev_scores
@@ -247,9 +247,9 @@ class ChartParser(BertParser):
             key = (pred_item.i, pred_item.j, pred_item.h)
 
         #rep = torch.cat([x[di.i, :], x[di.j, :], x[di.h, :]], dim=-1).unsqueeze(0).to(device=constants.device)
-        #spanij = self.span_rep(x,x_b,di.i,di.j,len(x))
-        #rep = torch.cat([spanij,x[di.h,:]],dim=-1).unsqueeze(0)
-        #self.item_lstm.push(rep)
+        spanij = self.span_rep(x,x_b,di.i,di.j,len(x))
+        rep = torch.cat([spanij,x[di.h,:]],dim=-1).unsqueeze(0)
+        self.item_lstm.push(rep)
         made_arc = None
         del pending[key]
         if isinstance(di.l, Item):
@@ -432,7 +432,7 @@ class ChartParser(BertParser):
             loss /= len(oracle_hypergraph)
             h_t_noeos[i, :curr_sentence_length, :] = h_t[i, :curr_sentence_length, :]
             batch_loss += loss
-            #self.item_lstm.back_to_init()
+            self.item_lstm.back_to_init()
         batch_loss /= x_emb.shape[0]
         heads = heads_batch
         # tree_loss /= x_emb.shape[0]
