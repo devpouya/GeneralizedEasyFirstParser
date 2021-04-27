@@ -7,7 +7,7 @@ from utils import constants
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from .base import BertParser
 from ..algorithm.transition_parsers import ShiftReduceParser
-from .modules import StackCell, SoftmaxActions, PendingRNN, Agenda, Chart, Item
+from .modules import StackCell, SoftmaxActions, PendingRNN, Agenda, Chart, Item,ItemW
 from .modules import Biaffine, Bilinear, LabelSmoothingLoss
 from .hypergraph import LazyArcStandard, LazyArcEager, LazyHybrid, LazyMH4
 from collections import defaultdict
@@ -56,9 +56,12 @@ class ChartParser(BertParser):
         # self.biaffine_h = Biaffine(200, 200)
         self.bilinear_item = Bilinear(200, 200, 1)
 
-        self.linear_items1 = nn.Linear(self.hidden_size * 2, self.hidden_size).to(device=constants.device)
-        self.linear_items11 = nn.Linear(self.hidden_size , 200).to(device=constants.device)
-        self.linear_items2 = nn.Linear(self.hidden_size*4, self.hidden_size*2).to(device=constants.device)
+        linear_items1 = nn.Linear(self.hidden_size * 6, self.hidden_size*4).to(device=constants.device)
+        linear_items2 = nn.Linear(self.hidden_size*4 , self.hidden_size*2).to(device=constants.device)
+        linear_items3 = nn.Linear(self.hidden_size*2, 1).to(device=constants.device)
+        layers = [linear_items1,nn.ReLU(),nn.Dropout(dropout),linear_items2,nn.ReLU(),nn.Dropout(dropout),
+                  linear_items3,nn.Softmax(dim=-1)]
+        self.mlp = nn.Sequential(*layers)
         self.linear_items22 = nn.Linear(self.hidden_size * 2, 200).to(device=constants.device)
         self.biaffine_item = Biaffine(200, 200)
         self.ln1 = nn.LayerNorm(self.hidden_size).to(device=constants.device)
@@ -126,176 +129,6 @@ class ChartParser(BertParser):
 
         sij = torch.cat([sij, sijb], dim=-1).to(device=constants.device)
         return sij
-    def predict_next_prn(self, words,words_back, items, hypergraph, oracle_item, prune=True):
-        scores = []
-        n = len(words)
-        gold_index = None
-        next_item = None
-        winner_item = None
-        ij_set = []
-        h_set = []
-        keys_to_delete = []
-        all_embedding = self.item_lstm.embedding()  # .squeeze(0)
-
-        for iter, item in enumerate(items.values()):
-            i, j, h = item.i, item.j, item.h
-            if prune:
-                if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
-                    continue
-            ij_set.append((i, j))
-            h_set.append(h)
-        ij_set = set(ij_set)
-        h_set = set(h_set)
-        unique_ij = len(ij_set)
-        unique_h = len(h_set)
-        ij_tens = torch.zeros((unique_ij, self.hidden_size * 2)).to(device=constants.device)
-        h_tens = torch.zeros((unique_h, self.hidden_size*4)).to(device=constants.device)
-
-        index_matrix = torch.ones((unique_ij, unique_h), dtype=torch.int64).to(device=constants.device) * -1
-        ij_counts = {(i, j): 0 for (i, j) in list(ij_set)}
-        h_counts = {h: 0 for h in list(h_set)}
-        ij_rows = {}
-        h_col = {}
-        ind_ij = 0
-        ind_h = 0
-        # prev_scores = []
-        # for k in keys_to_delete:
-        #    del items[k]
-        for iter, item in enumerate(items.values()):
-            i, j, h = item.i, item.j, item.h
-            if prune:
-                if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
-                    continue
-                if i == oracle_item[0] and j == oracle_item[1] and h == oracle_item[2]:
-                    gold_index = torch.tensor([iter], dtype=torch.long).to(device=constants.device)
-            ij_counts[(i, j)] += 1
-            h_counts[h] += 1
-            # prev_scores.append(item.score)
-            if ij_counts[(i, j)] <= 1:
-                ij_rows[(i, j)] = ind_ij
-                sij = self.span_rep(words,words_back,i,j,n)#torch.cat([sij,sijb],dim=-1)
-                #w_ij = words[i:j + 1, :].unsqueeze(1).to(device=constants.device)
-                #_, (unrootedtree_ij, _) = self.lstm_tree(w_ij)
-                # print_yellow(unrootedtree_ij.squeeze(0).shape)
-                # print_blue(words[i,:].shape)
-                # print_red(all_embedding.shape)
-                #rep = torch.cat([unrootedtree_ij.squeeze(0), words[i, :].unsqueeze(0), words[j, :].unsqueeze(0)],
-                #                dim=-1)
-                ij_tens[ind_ij, :] = sij#rep  # unrootedtree_ij.squeeze(0)
-                ind_ij += 1
-            if h_counts[h] <= 1:
-                h_col[h] = ind_h
-                rep = torch.cat([words[h, :].unsqueeze(0), all_embedding], dim=-1)
-                h_tens[ind_h, :] = rep #words[h, :].unsqueeze(0).to(device=constants.device)
-                ind_h += 1
-
-            index_matrix[ij_rows[(i, j)], h_col[h]] = iter
-        tmp = self.linear_items1(ij_tens)
-        tmp2 = self.linear_items2(h_tens)
-        h_ij = self.dropout(self.linear_items11(self.dropout(F.relu(self.ln1(tmp))))).unsqueeze(0)
-        h_h = self.dropout(self.linear_items22(self.dropout(F.relu(self.ln2(tmp2))))).unsqueeze(0)
-        #h_h = self.dropout(self.linear_items22(self.dropout(F.relu(self.ln2(tmp2))))).unsqueeze(0)
-        #h_h = self.dropout(F.relu(self.linear_items2(h_tens))).unsqueeze(0)
-        item_logits = self.biaffine_item(h_ij, h_h).squeeze(0)
-        # prev_scores = torch.stack(prev_scores, dim=-1)
-        scores = item_logits[index_matrix != -1].unsqueeze(0)  # + prev_scores
-        # ind = 0
-        # for iter, item in enumerate(items.values()):
-        #    if prune:
-        #        if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
-        #            continue
-        #    item.update_score(scores[:, ind])
-        #    ind += 1
-
-        winner = torch.argmax(scores, dim=-1)
-
-        if prune:
-            winner_item = list(items.values())[winner]
-            if gold_index is not None:
-                next_item = list(items.values())[gold_index]
-        else:
-            if self.training:
-                gold_index, next_item = hypergraph.return_gold_next(items)
-            else:
-                gold_index = None
-                next_item = list(items.values())[winner]
-        return scores, winner_item, gold_index, hypergraph, next_item, items
-
-    def smooth_one_hot(self, true_labels, classes, smoothing=0.0):
-        """
-        if smoothing == 0, it's one-hot method
-        if 0 < smoothing < 1, it's smooth method
-
-        """
-        classes = max(2,classes)
-        assert 0 <= smoothing < 1
-        confidence = 1.0 - smoothing
-        label_shape = torch.Size((true_labels.size(0), classes))
-        with torch.no_grad():
-            true_dist = torch.empty(size=label_shape, device=true_labels.device)
-            true_dist.fill_(smoothing / (classes - 1))
-            true_dist.scatter_(1, true_labels.data.unsqueeze(1), confidence)
-        return true_dist
-
-    def take_step(self, x,x_b, gold_next_item, hypergraph, oracle_agenda, pred_item, pending):
-        if self.training:
-
-            key = (gold_next_item.i, gold_next_item.j, gold_next_item.h)
-            di = gold_next_item
-        else:
-            di = pred_item
-            key = (pred_item.i, pred_item.j, pred_item.h)
-
-        #rep = torch.cat([x[di.i, :], x[di.j, :], x[di.h, :]], dim=-1).unsqueeze(0).to(device=constants.device)
-        spanij = self.span_rep(x,x_b,di.i,di.j,len(x))
-        rep = torch.cat([spanij,x[di.h,:]],dim=-1).unsqueeze(0)
-        self.item_lstm.push(rep)
-        made_arc = None
-        del pending[key]
-        if isinstance(di.l, Item):
-            # h = di.h
-            # m = di.l.h if di.l.h != h else di.r.h
-            # (h, m)
-            made_arc, _ = hypergraph.make_arc(di)
-            (h, m) = made_arc
-            if h < m:
-                # m is a right child
-                hypergraph = hypergraph.add_right_child(h, m)
-            else:
-                # m is a left child
-                hypergraph = hypergraph.add_left_child(h, m)
-
-        if di.l in hypergraph.bucket or di.r in hypergraph.bucket:
-            # h = di.h
-            # m = di.l.h if di.l.h != h else di.r.h
-            # made_arc = (h, m)
-            made_arc, _ = hypergraph.make_arc(di)
-            (h, m) = made_arc
-            if h < m:
-                # m is a right child
-                hypergraph = hypergraph.add_right_child(h, m)
-            else:
-                # m is a left child
-                hypergraph = hypergraph.add_left_child(h, m)
-            scores, gold_index, rel_loss = None, None, 0
-        else:
-            hypergraph = hypergraph.update_chart(di)
-            hypergraph = hypergraph.add_bucket(di)
-            possible_items = hypergraph.outgoing(di)
-
-            if len(possible_items) > 0:
-
-                scores, winner_item, gold_index, hypergraph, new_item, _ = self.predict_next_prn(x,x_b, possible_items,
-                                                                                                 hypergraph, None,
-                                                                                                 False)
-                if new_item is not None:
-                    pending[(new_item.i, new_item.j, new_item.h)] = new_item
-
-            else:
-                scores, gold_index = None, None
-                pass
-
-        return hypergraph, pending, di, made_arc, scores, gold_index
 
     def init_arc_list(self, tensor_list, oracle_agenda):
         item_list = {}
@@ -303,6 +136,70 @@ class ChartParser(BertParser):
             item = oracle_agenda[(t[0].item(), t[1].item(), t[2].item())]
             item_list[(item.i, item.j, item.h)] = item
         return item_list
+
+    """
+        gereftam:
+        make arc
+        get possible next from grammar
+        repeat
+    
+    """
+
+    def possible_arcs(self, pending, hypergraph):
+        arcs = []
+        all_items = {}
+        del_keys = []
+        # delete keys if in bucket
+        for item in pending.values():
+            #i,j,h = item.i,item.j, item.h
+
+            if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
+                del_keys.append((item.i,item.j,item.h))
+                #print_blue("PR {}".format((item.i,item.j,item.h)))
+                continue
+
+            #hypergraph = hypergraph.add_bucket(item)
+            hypergraph = hypergraph.update_chart(item)
+            possible_items, possible_arcs = hypergraph.outgoing(item,arcs)
+            #possible_arcs = ret[1]
+            #possible_items = ret[0]
+            all_items = {**all_items,**possible_items}
+            #all_items[(possible_items.i,possible_items.j,possible_items.h)] = possible_items
+            #hypergraph = hypergraph.delete_from_chart(item)
+            #hypergraph = hypergraph.remove_from_bucket(item)
+            #arcs.append(possible_arcs)
+            arcs = arcs + possible_arcs
+
+
+        return arcs, all_items,del_keys
+
+    def score_arcs(self, possible_arcs, gold_arc, possible_items, words_f, words_b):
+        gold_index = None
+        gold_key = None
+        n = len(words_b)
+        scores = []
+
+        ga = (gold_arc[0].item(),gold_arc[1].item())
+        #print_blue(possible_arcs)
+        index2key = {}
+        for iter, ((u,v), item) in enumerate(zip(possible_arcs,possible_items.values())):
+            i,j,h = item.i, item.j, item.h
+            if (u,v) == ga:
+                gold_index = torch.tensor([iter],dtype=torch.long).to(device=constants.device)
+                gold_key = (i,j,h)
+            index2key[iter] = (i,j,h)
+            span = self.span_rep(words_f,words_b,i,j,n).unsqueeze(0)
+            fwd_rep = torch.cat([words_f[u,:],words_f[v,:]],dim=-1).unsqueeze(0)
+            bckw_rep = torch.cat([words_b[u,:],words_b[v,:]],dim=-1).unsqueeze(0)
+            rep = torch.cat([span,fwd_rep,bckw_rep],dim=-1)
+            s = self.mlp(rep)
+            scores.append(s)
+        scores = torch.stack(scores,dim=-1).squeeze(0)
+        if not self.training:
+            gold_index = torch.argmax(scores,dim=-1)
+            gold_key = index2key[gold_index.item()]
+        return scores,gold_index,gold_key
+
 
     def forward(self, x, transitions, relations, map, heads, rels):
         x_ = x[0][:, 1:]
@@ -330,26 +227,26 @@ class ChartParser(BertParser):
         sent_lens = (x_mapped[:, :, 0] != 0).sum(-1).to(device=constants.device)
         max_len = torch.max(sent_lens)
         h_t,bh_t = self.run_lstm(x_mapped, sent_lens)
-        # initial_weights_logits = self.get_head_logits(h_t, sent_lens)
+        #initial_weights_logits = self.get_head_logits(h_t, sent_lens)
+
+
         h_t_noeos = torch.zeros((h_t.shape[0], heads.shape[1], h_t.shape[2])).to(device=constants.device)
         tree_loss = 0
+
         for i in range(h_t.shape[0]):
 
-            curr_sentence_length = sent_lens[i] - 1
+            n = int(sent_lens[i] - 1)
+            ordered_arcs = transitions[i]
+            ordered_arcs = ordered_arcs[:n]
+            pending = self.init_pending(n)
 
-            # curr_init_weights = initial_weights_logits[i]
-            # curr_init_weights = curr_init_weights[:curr_sentence_length + 1, :curr_sentence_length + 1]
-            # curr_init_weights = torch.exp(curr_init_weights)
-
-            oracle_hypergraph = transitions[i]
-            oracle_hypergraph = oracle_hypergraph[oracle_hypergraph[:, 0, 0] != -1, :, :]
-            oracle_agenda = self.init_agenda_oracle(oracle_hypergraph, rels[i])
-
-            s = h_t[i, :curr_sentence_length + 1, :]
-            s_b = bh_t[i, :curr_sentence_length + 1, :]
             chart = Chart()
-            pending = self.init_pending(curr_sentence_length)
-            hypergraph = self.hypergraph(curr_sentence_length, chart, rels[i])
+            for k in pending.keys():
+                chart[k] = pending[k]
+            hypergraph = self.hypergraph(n, chart, rels[i])
+
+            s = h_t[i, :n + 1, :]
+            s_b = bh_t[i, :n + 1, :]
 
             # trees = torch.exp(curr_init_weights)
             arcs = []
@@ -361,76 +258,55 @@ class ChartParser(BertParser):
             # gold_tree = self.compute_tree(s, heads[i, :curr_sentence_length], rels[i, :curr_sentence_length])
             # s_wrong = s.clone().detach()
 
-            right_children = {i: [i] for i in range(curr_sentence_length)}
-            left_children = {i: [i] for i in range(curr_sentence_length)}
-            current_representations = s#.clone()
-            current_representations_back = s_b#.clone()
+            right_children = {i: [i] for i in range(n)}
+            left_children = {i: [i] for i in range(n)}
+            words_f = s  # .clone()
+            words_b = s_b  # .clone()
+            for iter, gold_arc in enumerate(ordered_arcs):
+                possible_arcs, items,pruned_keys = self.possible_arcs(pending,hypergraph)
+                scores, gold_index,gold_key = self.score_arcs(possible_arcs, gold_arc, items,words_f,words_b)
+                gind = gold_index.item()
+                made_item = items[gold_key]
+                if (made_item.l.i,made_item.l.j,made_item.l.h) in pending.keys():
+                    del pending[(made_item.l.i,made_item.l.j,made_item.l.h)]
+                if (made_item.r.i,made_item.r.j,made_item.r.h) in pending.keys():
+                    del pending[(made_item.r.i,made_item.r.j,made_item.r.h)]
+                for k in pruned_keys:
+                    if k in pending.keys():
+                        del pending[k]
+                pending[(made_item.i,made_item.j,made_item.h)] = made_item
+                hypergraph = hypergraph.update_chart(made_item.l)
+                hypergraph = hypergraph.update_chart(made_item.r)
+                hypergraph = hypergraph.add_bucket(made_item.l)
+                hypergraph = hypergraph.add_bucket(made_item.r)
+                made_arc = possible_arcs[gind]
 
-            oracle_hypergraph_picks = oracle_hypergraph[:, -1, :].clone()
-            list_oracle_hypergraph_picks = [t for t in oracle_hypergraph_picks]
-
-            # oracle_hypergraph_picks[:,-2,:] = torch.zeros_like(oracle_hypergraph_picks[:,0,:]).to(device=constants.device)
-            oracle_transition_picks = oracle_hypergraph[:, :-1, :].clone()
-
-            dim1 = int(oracle_transition_picks.shape[0] * oracle_transition_picks.shape[1])
-            dim2 = int(oracle_transition_picks.shape[2])
-
-            oracle_transition_picks = oracle_transition_picks.view(dim1, dim2)
-            # oracle_hypergraph_picks = oracle_hypergraph_picks.view(dim1,dim2)
-            arc_list = self.init_arc_list(list_oracle_hypergraph_picks, oracle_agenda)
-            hypergraph = hypergraph.set_possible_next(arc_list)
-            # possible_items = {}
-            # want this to hold item reps
-            popped = {}
-            nc = curr_sentence_length*(curr_sentence_length+1)**2
-            loss_f = LabelSmoothingLoss(classes=nc)
-            for step in range(len(oracle_transition_picks)):
-                scores, item_to_make, gold_index, \
-                hypergraph, gold_next_item, pending = self.predict_next_prn(current_representations,
-                                                                            current_representations_back,
-                                                                            pending, hypergraph,
-                                                                            oracle_transition_picks[step])
-                hypergraph, pending, made_item, \
-                made_arc, scores_hg, gold_index_hg = self.take_step(current_representations,
-                                                                    current_representations_back,
-                                                                    gold_next_item,
-                                                                    hypergraph,
-                                                                    oracle_agenda,
-                                                                    item_to_make,
-                                                                    pending)
-                if made_arc is not None:
-                    h = made_arc[0]
-                    m = made_arc[1]
-                    arcs.append(made_arc)
-                    if h < m:
-                        # m is a right child
-                        right_children[h].append(m)
-                    else:
-                        # m is a left child
-                        left_children[h].append(m)
-                    h_rep = self.tree_lstm(current_representations, left_children[h], right_children[h])
-                    current_representations = current_representations.clone()
-                    current_representations[h, :] = h_rep
-
-                    h_rep = self.tree_lstm(current_representations_back, left_children[h], right_children[h])
-                    current_representations_back = current_representations_back.clone()
-                    current_representations_back[h, :] = h_rep
+                h = made_arc[0]
+                m = made_arc[1]
+                arcs.append(made_arc)
 
                 if self.training:
-                    #smooth_label = self.smooth_one_hot(gold_index,len(scores),smoothing=0.33)
+                    loss += nn.CrossEntropyLoss(reduction='sum')(scores, gold_index)
+                if h < m:
+                    # m is a right child
+                    right_children[h].append(m)
+                else:
+                    # m is a left child
+                    left_children[h].append(m)
+                h_rep = self.tree_lstm(words_f, left_children[h], right_children[h])
+                words_f = words_f.clone()
+                words_f[h, :] = h_rep
 
-                    #loss += 0.5 * nn.CrossEntropyLoss(reduction='sum')(scores, gold_index)
-                    loss += 0.5 * loss_f(scores, gold_index)
-                    if gold_index_hg is not None and scores_hg is not None:
-                        #smooth_label_hg = self.smooth_one_hot(gold_index_hg, len(scores_hg), smoothing=0.33)
+                h_rep = self.tree_lstm(words_b, left_children[h], right_children[h])
+                words_b = words_b.clone()
+                words_b[h, :] = h_rep
+            loss /= len(ordered_arcs)
 
-                        #loss += 0.5 * nn.CrossEntropyLoss(reduction='sum')(scores_hg, smooth_label_hg)
-                        loss += 0.5 * loss_f(scores_hg, gold_index_hg)
-            pred_heads = self.heads_from_arcs(arcs, curr_sentence_length)
-            heads_batch[i, :curr_sentence_length] = pred_heads
+            pred_heads = self.heads_from_arcs(arcs, n)
 
-            loss /= len(oracle_hypergraph)
-            h_t_noeos[i, :curr_sentence_length, :] = h_t[i, :curr_sentence_length, :]
+            heads_batch[i, :n] = pred_heads
+
+            h_t_noeos[i, :n, :] = h_t[i, :n, :]
             batch_loss += loss
             self.item_lstm.back_to_init()
         batch_loss /= x_emb.shape[0]
@@ -523,3 +399,179 @@ class ChartParser(BertParser):
         c = torch.cat([lh, rh], dim=-1).to(device=constants.device)
         c = nn.Tanh()(self.linear_tree(c))
         return c
+
+    def predict_next_prn(self, words, words_back, items, hypergraph, oracle_item, prune=True):
+        scores = []
+        n = len(words)
+        gold_index = None
+        next_item = None
+        winner_item = None
+        ij_set = []
+        h_set = []
+        keys_to_delete = []
+        all_embedding = self.item_lstm.embedding()  # .squeeze(0)
+
+        for iter, item in enumerate(items.values()):
+            i, j, h = item.i, item.j, item.h
+            if prune:
+                if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
+                    continue
+            ij_set.append((i, j))
+            h_set.append(h)
+        ij_set = set(ij_set)
+        h_set = set(h_set)
+        unique_ij = len(ij_set)
+        unique_h = len(h_set)
+        ij_tens = torch.zeros((unique_ij, self.hidden_size * 2)).to(device=constants.device)
+        h_tens = torch.zeros((unique_h, self.hidden_size * 4)).to(device=constants.device)
+
+        index_matrix = torch.ones((unique_ij, unique_h), dtype=torch.int64).to(device=constants.device) * -1
+        ij_counts = {(i, j): 0 for (i, j) in list(ij_set)}
+        h_counts = {h: 0 for h in list(h_set)}
+        ij_rows = {}
+        h_col = {}
+        ind_ij = 0
+        ind_h = 0
+        # prev_scores = []
+        # for k in keys_to_delete:
+        #    del items[k]
+        for iter, item in enumerate(items.values()):
+            i, j, h = item.i, item.j, item.h
+            if prune:
+                if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
+                    continue
+                if i == oracle_item[0] and j == oracle_item[1] and h == oracle_item[2]:
+                    gold_index = torch.tensor([iter], dtype=torch.long).to(device=constants.device)
+            ij_counts[(i, j)] += 1
+            h_counts[h] += 1
+            # prev_scores.append(item.score)
+            if ij_counts[(i, j)] <= 1:
+                ij_rows[(i, j)] = ind_ij
+                sij = self.span_rep(words, words_back, i, j, n)  # torch.cat([sij,sijb],dim=-1)
+                # w_ij = words[i:j + 1, :].unsqueeze(1).to(device=constants.device)
+                # _, (unrootedtree_ij, _) = self.lstm_tree(w_ij)
+                # print_yellow(unrootedtree_ij.squeeze(0).shape)
+                # print_blue(words[i,:].shape)
+                # print_red(all_embedding.shape)
+                # rep = torch.cat([unrootedtree_ij.squeeze(0), words[i, :].unsqueeze(0), words[j, :].unsqueeze(0)],
+                #                dim=-1)
+                ij_tens[ind_ij, :] = sij  # rep  # unrootedtree_ij.squeeze(0)
+                ind_ij += 1
+            if h_counts[h] <= 1:
+                h_col[h] = ind_h
+                rep = torch.cat([words[h, :].unsqueeze(0), all_embedding], dim=-1)
+                h_tens[ind_h, :] = rep  # words[h, :].unsqueeze(0).to(device=constants.device)
+                ind_h += 1
+
+            index_matrix[ij_rows[(i, j)], h_col[h]] = iter
+        tmp = self.linear_items1(ij_tens)
+        tmp2 = self.linear_items2(h_tens)
+        h_ij = self.dropout(self.linear_items11(self.dropout(F.relu(self.ln1(tmp))))).unsqueeze(0)
+        h_h = self.dropout(self.linear_items22(self.dropout(F.relu(self.ln2(tmp2))))).unsqueeze(0)
+        # h_h = self.dropout(self.linear_items22(self.dropout(F.relu(self.ln2(tmp2))))).unsqueeze(0)
+        # h_h = self.dropout(F.relu(self.linear_items2(h_tens))).unsqueeze(0)
+        item_logits = self.biaffine_item(h_ij, h_h).squeeze(0)
+        # prev_scores = torch.stack(prev_scores, dim=-1)
+        scores = item_logits[index_matrix != -1].unsqueeze(0)  # + prev_scores
+        # ind = 0
+        # for iter, item in enumerate(items.values()):
+        #    if prune:
+        #        if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
+        #            continue
+        #    item.update_score(scores[:, ind])
+        #    ind += 1
+
+        winner = torch.argmax(scores, dim=-1)
+        """
+        score all spans at once, 
+        do dp 
+        calculate loss etc
+
+        """
+        if prune:
+            winner_item = list(items.values())[winner]
+            if gold_index is not None:
+                next_item = list(items.values())[gold_index]
+        else:
+            if self.training:
+                gold_index, next_item = hypergraph.return_gold_next(items)
+            else:
+                gold_index = None
+                next_item = list(items.values())[winner]
+        return scores, winner_item, gold_index, hypergraph, next_item, items
+
+    def smooth_one_hot(self, true_labels, classes, smoothing=0.0):
+        """
+        if smoothing == 0, it's one-hot method
+        if 0 < smoothing < 1, it's smooth method
+
+        """
+        classes = max(2, classes)
+        assert 0 <= smoothing < 1
+        confidence = 1.0 - smoothing
+        label_shape = torch.Size((true_labels.size(0), classes))
+        with torch.no_grad():
+            true_dist = torch.empty(size=label_shape, device=true_labels.device)
+            true_dist.fill_(smoothing / (classes - 1))
+            true_dist.scatter_(1, true_labels.data.unsqueeze(1), confidence)
+        return true_dist
+
+    def take_step(self, x, x_b, gold_next_item, hypergraph, oracle_agenda, pred_item, pending):
+        if self.training:
+
+            key = (gold_next_item.i, gold_next_item.j, gold_next_item.h)
+            di = gold_next_item
+        else:
+            di = pred_item
+            key = (pred_item.i, pred_item.j, pred_item.h)
+
+        # rep = torch.cat([x[di.i, :], x[di.j, :], x[di.h, :]], dim=-1).unsqueeze(0).to(device=constants.device)
+        spanij = self.span_rep(x, x_b, di.i, di.j, len(x))
+        rep = torch.cat([spanij, x[di.h, :]], dim=-1).unsqueeze(0)
+        self.item_lstm.push(rep)
+        made_arc = None
+        del pending[key]
+        if isinstance(di.l, Item):
+            # h = di.h
+            # m = di.l.h if di.l.h != h else di.r.h
+            # (h, m)
+            made_arc, _ = hypergraph.make_arc(di)
+            (h, m) = made_arc
+            if h < m:
+                # m is a right child
+                hypergraph = hypergraph.add_right_child(h, m)
+            else:
+                # m is a left child
+                hypergraph = hypergraph.add_left_child(h, m)
+
+        if di.l in hypergraph.bucket or di.r in hypergraph.bucket:
+            # h = di.h
+            # m = di.l.h if di.l.h != h else di.r.h
+            # made_arc = (h, m)
+            made_arc, _ = hypergraph.make_arc(di)
+            (h, m) = made_arc
+            if h < m:
+                # m is a right child
+                hypergraph = hypergraph.add_right_child(h, m)
+            else:
+                # m is a left child
+                hypergraph = hypergraph.add_left_child(h, m)
+            scores, gold_index, rel_loss = None, None, 0
+        else:
+            hypergraph = hypergraph.update_chart(di)
+            hypergraph = hypergraph.add_bucket(di)
+            possible_items = hypergraph.outgoing(di)
+
+            if len(possible_items) > 0:
+
+                scores, winner_item, gold_index, hypergraph, new_item, _ = self.predict_next_prn(x, x_b, possible_items,
+                                                                                                 hypergraph, None,
+                                                                                                 False)
+                if new_item is not None:
+                    pending[(new_item.i, new_item.j, new_item.h)] = new_item
+
+            else:
+                scores, gold_index = None, None
+                pass
+
+        return hypergraph, pending, di, made_arc, scores, gold_index

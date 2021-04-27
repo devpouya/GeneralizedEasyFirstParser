@@ -175,11 +175,9 @@ class SyntaxDataset(Dataset):
         return encoded['input_ids'].squeeze(0), torch.LongTensor(token_mapping).to(device=constants.device)
     def hypergraph2tensor(self, hypergraph):
         all_graphs = []
-        for (left,right,bottom) in hypergraph:
-            i1,j1,h1 = left
-            i2,j2,h2 = right
-            i3,j3,h3 = bottom
-            tmp = torch.LongTensor([[i1,j1,h1],[i2,j2,h2],[i3,j3,h3]]).to(device=constants.device)
+        for left in hypergraph:
+            i1,j1 = left
+            tmp = torch.LongTensor([i1,j1]).to(device=constants.device)
             all_graphs.append(tmp)
 
         return torch.stack(all_graphs).to(device=constants.device)

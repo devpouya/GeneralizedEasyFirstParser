@@ -41,7 +41,7 @@ def generate_batch(batch,transition_system):
     heads = tensor.new_ones(batch_size, max_length) * -1
     rels = tensor.new_zeros(batch_size, max_length)
     if transition_system == constants.agenda:
-        transitions = tensor.new_ones(batch_size, max_length_actions, 3, 3) * -1
+        transitions = tensor.new_ones(batch_size, max_length_actions, 2) * -1
     else:
         transitions = tensor.new_ones(batch_size, max_length_actions) * -1
     relations_in_order = tensor.new_zeros(batch_size, max_length)

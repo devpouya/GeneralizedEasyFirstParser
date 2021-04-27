@@ -32,6 +32,36 @@ def has_head(node, arcs):
     return False
 
 
+class ItemW(object):
+
+    def __init__(self, i, j, h,w, item_l, item_r):
+        self.i, self.j, self.h = i, j, h
+        self.l = item_l
+        self.r = item_r
+        self.w = w
+        self.subtrees = {}
+        self.arcs = []
+        self.vector_rep = None
+        self.score = torch.tensor([0]).to(device=constants.device)
+        self.rel = None
+
+    def set_vector_rep(self, x):
+        self.vector_rep = x
+        return self
+    def update_score(self, s):
+        self.score = s
+    def add_rel(self, rel):
+        self.rel = rel
+        return self
+    def __str__(self):
+        return "Item:\t" + str((self.i, self.j, self.h))
+
+    def __repr__(self):
+        return "Item:\t" + str((self.i, self.j, self.h))
+
+    def __hash__(self):
+        return hash((self.i, self.j, self.h))
+
 class Item(object):
 
     def __init__(self, i, j, h, item_l, item_r):
@@ -121,10 +151,10 @@ class Agenda(object):
         if (item.i, item.j, item.h) not in self:
             self.locator[(item.i, item.j, item.h)] = item
             self.Q.append(item)
-            self.Q.sort(key=lambda x: -x.w)
+            self.Q.sort(key=lambda x: x.w)
         else:
             self.locator[key] = item
-            self.Q.sort(key=lambda x: -x.w)
+            self.Q.sort(key=lambda x: x.w)
 
 
 class PendingRNN():

@@ -1,4 +1,5 @@
 from .modules import Item, Chart
+from .modules import ItemW
 import torch
 import torch.nn as nn
 
@@ -57,7 +58,7 @@ class Hypergraph(object):
         self.scored_items[item] = item
 
     def update_chart(self, item):
-        self.chart[item] = item
+        self.chart[(item.i,item.j,item.h)] = item
         return self
 
     def delete_from_chart(self, item):
@@ -66,6 +67,10 @@ class Hypergraph(object):
         # self.chart.chart.pop(item,None)
         return self
 
+    def remove_from_bucket(self, item):
+        self.bucket[item.l] -= 1
+        self.bucket[item.r] -= 1
+        return self
     def add_bucket(self, item):
         self.bucket[item.l] += 1
         self.bucket[item.r] += 1
@@ -137,49 +142,88 @@ class LazyArcStandard(Hypergraph):
             item.add_rel(rel_made)
         return arc, item
 
-    def outgoing(self, item):
+    def outgoing_ryan(self, item):
+        """ Lazily Expand the Hypergraph """
+        i, j, h = item.i, item.j, item.h
+
+        # items to the left
+        for k in range(0, i + 1):
+            for g in range(k, i):
+                if (k, i, g) in self.chart:
+                    item_l = self.chart[(k, i, g)]
+                    p = item_l.w * item.w
+                    # attach left arc
+                    yield ItemW(k, j, g, p * self.W[(h, g)], item_l, item)
+                    # attach right arc
+                    yield ItemW(k, j, h, p * self.W[(g, h)], item_l, item)
+
+        # items to the right
+        for k in range(j, self.n + 1):
+            for g in range(j, k):
+                if (j, k, g) in self.chart:
+                    item_r = self.chart[(j, k, g)]
+                    p = item.w * item_r.w
+                    # attach left arc
+                    yield ItemW(i, k, h, p * self.W[(g, h)], item, item_r)
+                    # attach right arc
+                    yield ItemW(i, k, g, p * self.W[(h, g)], item, item_r)
+
+    def outgoing(self, item, arc_prev):
         """ Lazily Expand the Hypergraph """
         i, j, h = item.i, item.j, item.h
         # items to the left
         # w = self.score(item)
         # self.arc(item)
         #all_arcs = []
-        all_arcs = {}
 
+        all_arcs = {}
+        arcs = []
         for k in range(0, i + 1):
             for g in range(k, i):
                 if (k, i, g) in self.chart:
-                    if self.chart[(k, i, g)] not in self.bucket:
-                        item_l = self.chart[(k, i, g)]
-
-                        item1 = Item(k, j, g, item_l, item)
-                        _, item1 = self.make_arc(item1, add_rel=True)
-                        #all_arcs.append(item1)
+                    item_l = self.chart[(k, i, g)]
+                    item1 = Item(k, j, g, item_l, item)
+                    arc1, item1 = self.make_arc(item1)
+                    #all_arcs.append(item1)
+                    if item1.l in self.bucket or item1.r in self.bucket:
+                        continue
+                    elif arc1 not in arcs and arc1 not in arc_prev:
+                        arcs.append(arc1)
                         all_arcs[(item1.i,item1.j,item1.h)] = item1
-
-                        item2 = Item(k, j, h, item_l, item)
-                        _, item2 = self.make_arc(item2)
-                        #all_arcs.append(item2)
+                    item2 = Item(k, j, h, item_l, item)
+                    arc2, item2 = self.make_arc(item2)
+                    #all_arcs.append(item2)
+                    if item2.l in self.bucket or item2.r in self.bucket:
+                        continue
+                    elif arc2 not in arcs and arc2 not in arc_prev:
                         all_arcs[(item2.i,item2.j,item2.h)] = item2
+                        arcs.append(arc2)
 
         # items to the right
         for k in range(j, self.n + 1):
             for g in range(j, k):
                 if (j, k, g) in self.chart:
-                    if self.chart[(j, k, g)] not in self.bucket:
-                        item_r = self.chart[(j, k, g)]
 
-                        item_n1 = Item(i, k, h, item, item_r)
-                        _, item_n1 = self.make_arc(item_n1, add_rel=True)
-                        #all_arcs.append(item_n1)
+                    item_r = self.chart[(j, k, g)]
+
+                    item_n1 = Item(i, k, h, item, item_r)
+                    arcn1, item_n1 = self.make_arc(item_n1)
+                    #all_arcs.append(item_n1)
+                    if item_n1.l in self.bucket or item_n1.r in self.bucket:
+                        continue
+                    elif arcn1 not in arcs and arcn1 not in arc_prev:
+                        arcs.append(arcn1)
                         all_arcs[(item_n1.i,item_n1.j,item_n1.h)] = item_n1
-
-                        item_n2 = Item(i, k, g, item, item_r)
-                        _, item_n2 = self.make_arc(item_n2, add_rel=True)
-                        #all_arcs.append(item_n2)
+                    item_n2 = Item(i, k, g, item, item_r)
+                    arcn2, item_n2 = self.make_arc(item_n2)
+                    #all_arcs.append(item_n2)
+                    if item_n2.l in self.bucket or item_n2.r in self.bucket:
+                        continue
+                    elif arcn2 not in arcs and arcn2 not in arc_prev:
                         all_arcs[(item_n2.i,item_n2.j,item_n2.h)] = item_n2
+                        arcs.append(arcn2)
 
-        return all_arcs
+        return all_arcs, arcs
 
 
 class LazyArcEager(Hypergraph):
