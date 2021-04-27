@@ -123,7 +123,7 @@ class ChartParser(BertParser):
         sij = words[j, :] - words[max(i - 1, 0), :]
         sijb = words_back[min(j + 1, n - 1), :] - words_back[i, :]
 
-        sij = torch.cat([sij, sijb], dim=-1)
+        sij = torch.cat([sij, sijb], dim=-1).to(device=constants.device)
         return sij
     def predict_next_prn(self, words,words_back, items, hypergraph, oracle_item, prune=True):
         scores = []
@@ -193,8 +193,8 @@ class ChartParser(BertParser):
 
         tmp = self.linear_items1(ij_tens)
         tmp2 = self.linear_items2(h_tens)
-        h_ij = self.dropout(self.linear_items11(self.dropout(F.relu(nn.LayerNorm(tmp.size())(tmp))))).unsqueeze(0)
-        h_h = self.dropout(self.linear_items22(self.dropout(F.relu(nn.LayerNorm(tmp2.size())(tmp2))))).unsqueeze(0)
+        h_ij = self.dropout(self.linear_items11(self.dropout(F.relu(tmp)))).unsqueeze(0)
+        h_h = self.dropout(self.linear_items22(self.dropout(F.relu(tmp2)))).unsqueeze(0)
         #h_h = self.dropout(F.relu(self.linear_items2(h_tens))).unsqueeze(0)
         item_logits = self.biaffine_item(h_ij, h_h).squeeze(0)
         # prev_scores = torch.stack(prev_scores, dim=-1)
