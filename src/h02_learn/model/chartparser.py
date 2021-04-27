@@ -8,7 +8,7 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from .base import BertParser
 from ..algorithm.transition_parsers import ShiftReduceParser
 from .modules import StackCell, SoftmaxActions, PendingRNN, Agenda, Chart, Item
-from .modules import Biaffine, Bilinear, BiaffineChart
+from .modules import Biaffine, Bilinear, LabelSmoothingLoss
 from .hypergraph import LazyArcStandard, LazyArcEager, LazyHybrid, LazyMH4
 from collections import defaultdict
 
@@ -221,9 +221,21 @@ class ChartParser(BertParser):
                 next_item = list(items.values())[winner]
         return scores, winner_item, gold_index, hypergraph, next_item, items
 
-    def item_maps(self, n, i, j, h):
-        a = np.array([[i], [j], [h]])
-        return np.ravel_multi_index(a, (n, n + 1, n + 1))
+    def smooth_one_hot(self, true_labels, classes, smoothing=0.0):
+        """
+        if smoothing == 0, it's one-hot method
+        if 0 < smoothing < 1, it's smooth method
+
+        """
+        classes = max(2,classes)
+        assert 0 <= smoothing < 1
+        confidence = 1.0 - smoothing
+        label_shape = torch.Size((true_labels.size(0), classes))
+        with torch.no_grad():
+            true_dist = torch.empty(size=label_shape, device=true_labels.device)
+            true_dist.fill_(smoothing / (classes - 1))
+            true_dist.scatter_(1, true_labels.data.unsqueeze(1), confidence)
+        return true_dist
 
     def take_step(self, x,x_b, gold_next_item, hypergraph, oracle_agenda, pred_item, pending):
         if self.training:
@@ -370,6 +382,8 @@ class ChartParser(BertParser):
             # possible_items = {}
             # want this to hold item reps
             popped = {}
+            nc = curr_sentence_length*(curr_sentence_length+1)**2
+            loss_f = LabelSmoothingLoss(classes=nc)
             for step in range(len(oracle_transition_picks)):
                 scores, item_to_make, gold_index, \
                 hypergraph, gold_next_item, pending = self.predict_next_prn(current_representations,
@@ -403,9 +417,15 @@ class ChartParser(BertParser):
                     current_representations_back[h, :] = h_rep
 
                 if self.training:
-                    loss += 0.5 * nn.CrossEntropyLoss(reduction='sum')(scores, gold_index)
+                    #smooth_label = self.smooth_one_hot(gold_index,len(scores),smoothing=0.33)
+
+                    #loss += 0.5 * nn.CrossEntropyLoss(reduction='sum')(scores, gold_index)
+                    loss += 0.5 * loss_f(scores, gold_index)
                     if gold_index_hg is not None and scores_hg is not None:
-                        loss += 0.5 * nn.CrossEntropyLoss(reduction='sum')(scores_hg, gold_index_hg)
+                        #smooth_label_hg = self.smooth_one_hot(gold_index_hg, len(scores_hg), smoothing=0.33)
+
+                        #loss += 0.5 * nn.CrossEntropyLoss(reduction='sum')(scores_hg, smooth_label_hg)
+                        loss += 0.5 * loss_f(scores_hg, gold_index_hg)
             pred_heads = self.heads_from_arcs(arcs, curr_sentence_length)
             heads_batch[i, :curr_sentence_length] = pred_heads
 
