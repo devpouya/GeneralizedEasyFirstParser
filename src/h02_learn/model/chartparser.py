@@ -52,19 +52,23 @@ class ChartParser(BertParser):
         self.linear_dep = nn.Linear(self.hidden_size, 200).to(device=constants.device)
 
         self.linear_head = nn.Linear(self.hidden_size, 200).to(device=constants.device)
-        self.biaffine_item = Biaffine(self.hidden_size*2, self.hidden_size*2)
         self.biaffine = Biaffine(200, 200)
         # self.biaffine_h = Biaffine(200, 200)
         self.bilinear_item = Bilinear(200, 200, 1)
-        self.linear_items1 = nn.Linear(self.hidden_size*3, self.hidden_size*2).to(device=constants.device)
-        self.linear_items2 = nn.Linear(self.hidden_size*4, self.hidden_size*2).to(device=constants.device)
+
+        self.linear_items1 = nn.Linear(self.hidden_size * 2, self.hidden_size).to(device=constants.device)
+        self.linear_items11 = nn.Linear(self.hidden_size , 200).to(device=constants.device)
+        self.linear_items2 = nn.Linear(self.hidden_size * 4, self.hidden_size*2).to(device=constants.device)
+        self.linear_items22 = nn.Linear(self.hidden_size * 2, 200).to(device=constants.device)
+        self.biaffine_item = Biaffine(200, 200)
+
         # self.biaffineChart = BiaffineChart(200, 200)
 
         self.linear_labels_dep = nn.Linear(self.hidden_size, 200).to(device=constants.device)
         self.linear_labels_head = nn.Linear(self.hidden_size, 200).to(device=constants.device)
         self.bilinear_label = Bilinear(200, 200, self.num_rels)
 
-        self.lstm = nn.LSTM(868, self.hidden_size, 2, batch_first=True, bidirectional=False).to(device=constants.device)
+        self.lstm = nn.LSTM(868, self.hidden_size, 2, batch_first=True, bidirectional=True).to(device=constants.device)
         self.lstm_tree = nn.LSTM(self.hidden_size, self.hidden_size, 1, batch_first=False, bidirectional=False).to(
             device=constants.device)
 
@@ -104,7 +108,9 @@ class ChartParser(BertParser):
         lstm_out, _ = self.lstm(lstm_in)
         h_t, _ = pad_packed_sequence(lstm_out, batch_first=True)
         h_t = self.dropout(h_t).contiguous()
-        return h_t
+        forward_rep = h_t[:,:,:self.hidden_size]
+        backward_rep = h_t[:,:,self.hidden_size:]
+        return forward_rep,backward_rep
 
     def tree_representation(self, head, modifier, label):
         reprs = torch.cat([head, modifier, label],
@@ -113,17 +119,22 @@ class ChartParser(BertParser):
         c = nn.Tanh()(self.linear_tree(reprs))
         return c
 
+    def span_rep(self, words, words_back, i,j,n):
+        sij = words[j, :] - words[max(i - 1, 0), :]
+        sijb = words_back[min(j + 1, n - 1), :] - words_back[i, :]
 
-
-    def predict_next_prn(self, words, items, hypergraph, oracle_item, prune=True):
+        sij = torch.cat([sij, sijb], dim=-1)
+        return sij
+    def predict_next_prn(self, words,words_back, items, hypergraph, oracle_item, prune=True):
         scores = []
+        n = len(words)
         gold_index = None
         next_item = None
         winner_item = None
         ij_set = []
         h_set = []
         keys_to_delete = []
-        all_embedding = self.item_lstm.embedding()#.squeeze(0)
+        all_embedding = self.item_lstm.embedding()  # .squeeze(0)
 
         for iter, item in enumerate(items.values()):
             i, j, h = item.i, item.j, item.h
@@ -136,8 +147,8 @@ class ChartParser(BertParser):
         h_set = set(h_set)
         unique_ij = len(ij_set)
         unique_h = len(h_set)
-        ij_tens = torch.zeros((unique_ij, self.hidden_size*3)).to(device=constants.device)
-        h_tens = torch.zeros((unique_h, self.hidden_size*4)).to(device=constants.device)
+        ij_tens = torch.zeros((unique_ij, self.hidden_size * 2)).to(device=constants.device)
+        h_tens = torch.zeros((unique_h, self.hidden_size * 4)).to(device=constants.device)
 
         index_matrix = torch.ones((unique_ij, unique_h), dtype=torch.int64).to(device=constants.device) * -1
         ij_counts = {(i, j): 0 for (i, j) in list(ij_set)}
@@ -146,7 +157,8 @@ class ChartParser(BertParser):
         h_col = {}
         ind_ij = 0
         ind_h = 0
-        #prev_scores = []
+        mid_point = int(self.hidden_size/2)
+        # prev_scores = []
         # for k in keys_to_delete:
         #    del items[k]
         for iter, item in enumerate(items.values()):
@@ -158,33 +170,38 @@ class ChartParser(BertParser):
                     gold_index = torch.tensor([iter], dtype=torch.long).to(device=constants.device)
             ij_counts[(i, j)] += 1
             h_counts[h] += 1
-            #prev_scores.append(item.score)
+            # prev_scores.append(item.score)
             if ij_counts[(i, j)] <= 1:
                 ij_rows[(i, j)] = ind_ij
-                w_ij = words[i:j + 1, :].unsqueeze(1).to(device=constants.device)
-                _, (unrootedtree_ij, _) = self.lstm_tree(w_ij)
-                #print_yellow(unrootedtree_ij.squeeze(0).shape)
-                #print_blue(words[i,:].shape)
-                #print_red(all_embedding.shape)
-                rep = torch.cat([unrootedtree_ij.squeeze(0),words[i,:].unsqueeze(0),words[j,:].unsqueeze(0)],dim=-1)
-                ij_tens[ind_ij, :] = rep#unrootedtree_ij.squeeze(0)
+                sij = self.span_rep(words,words_back,i,j,n)#torch.cat([sij,sijb],dim=-1)
+                #w_ij = words[i:j + 1, :].unsqueeze(1).to(device=constants.device)
+                #_, (unrootedtree_ij, _) = self.lstm_tree(w_ij)
+                # print_yellow(unrootedtree_ij.squeeze(0).shape)
+                # print_blue(words[i,:].shape)
+                # print_red(all_embedding.shape)
+                #rep = torch.cat([unrootedtree_ij.squeeze(0), words[i, :].unsqueeze(0), words[j, :].unsqueeze(0)],
+                #                dim=-1)
+                ij_tens[ind_ij, :] = sij#rep  # unrootedtree_ij.squeeze(0)
                 ind_ij += 1
             if h_counts[h] <= 1:
                 h_col[h] = ind_h
-                rep = torch.cat([words[h,:].unsqueeze(0),all_embedding],dim=-1)
-                h_tens[ind_h, :] = rep#words[h, :].unsqueeze(0).to(device=constants.device)
+                rep = torch.cat([words[h, :].unsqueeze(0), all_embedding], dim=-1)
+                h_tens[ind_h, :] = rep  # words[h, :].unsqueeze(0).to(device=constants.device)
                 ind_h += 1
 
             index_matrix[ij_rows[(i, j)], h_col[h]] = iter
 
-        h_ij = self.dropout(F.relu(self.linear_items1(ij_tens))).unsqueeze(0)
-        h_h = self.dropout(F.relu(self.linear_items2(h_tens))).unsqueeze(0)
+        tmp = self.linear_items1(ij_tens)
+        tmp2 = self.linear_items2(h_tens)
+        h_ij = self.dropout(self.linear_items11(self.dropout(F.relu(nn.LayerNorm(tmp.size())(tmp))))).unsqueeze(0)
+        h_h = self.dropout(self.linear_items22(self.dropout(F.relu(nn.LayerNorm(tmp2.size())(tmp2))))).unsqueeze(0)
+        #h_h = self.dropout(F.relu(self.linear_items2(h_tens))).unsqueeze(0)
         item_logits = self.biaffine_item(h_ij, h_h).squeeze(0)
         # prev_scores = torch.stack(prev_scores, dim=-1)
-        scores = item_logits[index_matrix != -1].unsqueeze(0) #+ prev_scores
+        scores = item_logits[index_matrix != -1].unsqueeze(0)  # + prev_scores
 
-        #ind = 0
-        #for iter, item in enumerate(items.values()):
+        # ind = 0
+        # for iter, item in enumerate(items.values()):
         #    if prune:
         #        if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
         #            continue
@@ -205,12 +222,11 @@ class ChartParser(BertParser):
                 next_item = list(items.values())[winner]
         return scores, winner_item, gold_index, hypergraph, next_item, items
 
+    def item_maps(self, n, i, j, h):
+        a = np.array([[i], [j], [h]])
+        return np.ravel_multi_index(a, (n, n + 1, n + 1))
 
-    def item_maps(self, n, i,j,h):
-        a = np.array([[i],[j],[h]])
-        return np.ravel_multi_index(a,(n,n+1,n+1))
-
-    def take_step(self, x, gold_next_item, hypergraph, oracle_agenda, pred_item, pending):
+    def take_step(self, x,x_b, gold_next_item, hypergraph, oracle_agenda, pred_item, pending):
         if self.training:
 
             key = (gold_next_item.i, gold_next_item.j, gold_next_item.h)
@@ -219,7 +235,9 @@ class ChartParser(BertParser):
             di = pred_item
             key = (pred_item.i, pred_item.j, pred_item.h)
 
-        rep = torch.cat([x[di.i, :], x[di.j, :], x[di.h, :]], dim=-1).unsqueeze(0).to(device=constants.device)
+        #rep = torch.cat([x[di.i, :], x[di.j, :], x[di.h, :]], dim=-1).unsqueeze(0).to(device=constants.device)
+        spanij = self.span_rep(x,x_b,di.i,di.j,len(x))
+        rep = torch.cat([spanij,x[di.h,:]],dim=-1).unsqueeze(0)
         self.item_lstm.push(rep)
         made_arc = None
         del pending[key]
@@ -256,7 +274,7 @@ class ChartParser(BertParser):
 
             if len(possible_items) > 0:
 
-                scores, winner_item, gold_index, hypergraph, new_item, _ = self.predict_next_prn(x, possible_items,
+                scores, winner_item, gold_index, hypergraph, new_item, _ = self.predict_next_prn(x,x_b, possible_items,
                                                                                                  hypergraph, None,
                                                                                                  False)
                 if new_item is not None:
@@ -300,7 +318,7 @@ class ChartParser(BertParser):
 
         sent_lens = (x_mapped[:, :, 0] != 0).sum(-1).to(device=constants.device)
         max_len = torch.max(sent_lens)
-        h_t = self.run_lstm(x_mapped, sent_lens)
+        h_t,bh_t = self.run_lstm(x_mapped, sent_lens)
         # initial_weights_logits = self.get_head_logits(h_t, sent_lens)
         h_t_noeos = torch.zeros((h_t.shape[0], heads.shape[1], h_t.shape[2])).to(device=constants.device)
         tree_loss = 0
@@ -317,6 +335,7 @@ class ChartParser(BertParser):
             oracle_agenda = self.init_agenda_oracle(oracle_hypergraph, rels[i])
 
             s = h_t[i, :curr_sentence_length + 1, :]
+            s_b = bh_t[i, :curr_sentence_length + 1, :]
             chart = Chart()
             pending = self.init_pending(curr_sentence_length)
             hypergraph = self.hypergraph(curr_sentence_length, chart, rels[i])
@@ -333,7 +352,8 @@ class ChartParser(BertParser):
 
             right_children = {i: [i] for i in range(curr_sentence_length)}
             left_children = {i: [i] for i in range(curr_sentence_length)}
-            current_representations = s.clone()
+            current_representations = s#.clone()
+            current_representations_back = s_b#.clone()
 
             oracle_hypergraph_picks = oracle_hypergraph[:, -1, :].clone()
             list_oracle_hypergraph_picks = [t for t in oracle_hypergraph_picks]
@@ -348,16 +368,18 @@ class ChartParser(BertParser):
             # oracle_hypergraph_picks = oracle_hypergraph_picks.view(dim1,dim2)
             arc_list = self.init_arc_list(list_oracle_hypergraph_picks, oracle_agenda)
             hypergraph = hypergraph.set_possible_next(arc_list)
-            #possible_items = {}
+            # possible_items = {}
             # want this to hold item reps
             popped = {}
             for step in range(len(oracle_transition_picks)):
                 scores, item_to_make, gold_index, \
                 hypergraph, gold_next_item, pending = self.predict_next_prn(current_representations,
+                                                                            current_representations_back,
                                                                             pending, hypergraph,
                                                                             oracle_transition_picks[step])
                 hypergraph, pending, made_item, \
                 made_arc, scores_hg, gold_index_hg = self.take_step(current_representations,
+                                                                    current_representations_back,
                                                                     gold_next_item,
                                                                     hypergraph,
                                                                     oracle_agenda,
@@ -376,6 +398,10 @@ class ChartParser(BertParser):
                     h_rep = self.tree_lstm(current_representations, left_children[h], right_children[h])
                     current_representations = current_representations.clone()
                     current_representations[h, :] = h_rep
+
+                    h_rep = self.tree_lstm(current_representations_back, left_children[h], right_children[h])
+                    current_representations_back = current_representations_back.clone()
+                    current_representations_back[h, :] = h_rep
 
                 if self.training:
                     loss += 0.5 * nn.CrossEntropyLoss(reduction='sum')(scores, gold_index)
