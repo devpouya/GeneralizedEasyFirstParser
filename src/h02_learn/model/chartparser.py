@@ -161,8 +161,15 @@ class ChartParser(BertParser):
         item_logits = self.biaffine_item(h_ij, h_h).squeeze(0)
         prev_scores = torch.stack(prev_scores,dim=-1)
         scores = item_logits[index_matrix != -1].unsqueeze(0) + prev_scores
+
+        print_yellow(len(scores))
+        ind = 0
         for iter, item in enumerate(items.values()):
-            item.update_score(scores[:,iter])
+            if prune:
+                if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
+                    continue
+            item.update_score(scores[:,ind])
+            ind += 1
 
         winner = torch.argmax(scores, dim=-1)
 
