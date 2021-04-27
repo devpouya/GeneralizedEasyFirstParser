@@ -192,13 +192,12 @@ class ChartParser(BertParser):
             index_matrix[ij_rows[(i, j)], h_col[h]] = iter
         tmp = self.linear_items1(ij_tens)
         tmp2 = self.linear_items2(h_tens)
-        h_ij = self.dropout(self.linear_items11(self.dropout(F.relu(nn.LayerNorm(tmp.size()[1:])(tmp))))).unsqueeze(0)
-        h_h = self.dropout(self.linear_items22(self.dropout(F.relu(nn.LayerNorm(tmp2.size()[1:])(tmp2))))).unsqueeze(0)
+        h_ij = self.dropout(self.linear_items11(self.dropout(F.relu(nn.LayerNorm(self.hidden_size)(tmp))))).unsqueeze(0)
+        h_h = self.dropout(self.linear_items22(self.dropout(F.relu(nn.LayerNorm(self.hidden_size*2)(tmp2))))).unsqueeze(0)
         #h_h = self.dropout(F.relu(self.linear_items2(h_tens))).unsqueeze(0)
         item_logits = self.biaffine_item(h_ij, h_h).squeeze(0)
         # prev_scores = torch.stack(prev_scores, dim=-1)
         scores = item_logits[index_matrix != -1].unsqueeze(0)  # + prev_scores
-        print("JJJ")
         # ind = 0
         # for iter, item in enumerate(items.values()):
         #    if prune:
