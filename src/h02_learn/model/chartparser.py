@@ -62,8 +62,17 @@ class ChartParser(BertParser):
         layers = [linear_items1, nn.ReLU(), nn.Dropout(dropout), linear_items2, nn.ReLU(), nn.Dropout(dropout),
                   linear_items3, nn.Softmax(dim=-1)]
         self.mlp = nn.Sequential(*layers)
+
+
+
+
         self.linear_items22 = nn.Linear(self.hidden_size * 2, 200).to(device=constants.device)
-        self.biaffine_item = Biaffine(200, 200)
+
+        self.linear_ij = nn.Linear(self.hidden_size*2,self.hidden_size).to(device=constants.device)
+        self.linear_h = nn.Linear(self.hidden_size*2,self.hidden_size).to(device=constants.device)
+
+        self.biaffine_item = Biaffine(self.hidden_size, self.hidden_size)
+
         self.ln1 = nn.LayerNorm(self.hidden_size).to(device=constants.device)
         self.ln2 = nn.LayerNorm(self.hidden_size * 2).to(device=constants.device)
         # self.biaffineChart = BiaffineChart(200, 200)
@@ -348,6 +357,62 @@ class ChartParser(BertParser):
 
         return arcs, all_items
 
+    def score_arcs_biaffine(self, possible_arcs, gold_arc, possible_items, words_f, words_b):
+        n = len(words_f)
+        gold_index = None
+        ij_set = []
+        h_set = []
+
+        for iter, item in enumerate(possible_items.values()):
+            i, j, h = item.i, item.j, item.h
+            ij_set.append((i, j))
+            h_set.append(h)
+        ij_set = set(ij_set)
+        h_set = set(h_set)
+        unique_ij = len(ij_set)
+        unique_h = len(h_set)
+        ij_tens = torch.zeros((unique_ij, self.hidden_size * 2)).to(device=constants.device)
+        h_tens = torch.zeros((unique_h, self.hidden_size * 2)).to(device=constants.device)
+
+        index_matrix = torch.ones((unique_ij, unique_h), dtype=torch.int64).to(device=constants.device) * -1
+        ij_counts = {(i, j): 0 for (i, j) in list(ij_set)}
+        h_counts = {h: 0 for h in list(h_set)}
+        ij_rows = {}
+        h_col = {}
+        ind_ij = 0
+        ind_h = 0
+        ga = (gold_arc[0].item(), gold_arc[1].item())
+        index2key = {}
+        for iter, ((u, v), item) in enumerate(zip(possible_arcs, possible_items.values())):
+            i, j, h = item.i, item.j, item.h
+            if (u, v) == ga:
+                gold_index = torch.tensor([iter], dtype=torch.long).to(device=constants.device)
+                gold_key = (i, j, h)
+            index2key[iter] = (i, j, h)
+            ij_counts[(i, j)] += 1
+            h_counts[h] += 1
+            if ij_counts[(i, j)] <= 1:
+                ij_rows[(i, j)] = ind_ij
+                sij = self.span_rep(words_f, words_b, i, j, n)
+                ij_tens[ind_ij, :] = sij
+                ind_ij += 1
+            if h_counts[h] <= 1:
+                h_col[h] = ind_h
+                rep = torch.cat([words_f[h, :].unsqueeze(0),words_b[h, :].unsqueeze(0)], dim=-1)
+                h_tens[ind_h, :] = rep
+                ind_h += 1
+            index_matrix[ij_rows[(i, j)], h_col[h]] = iter
+
+        h_ij = self.dropout(F.relu(self.linear_ij(ij_tens))).unsqueeze(0)
+        h_h = self.dropout(F.relu(self.linear_h(h_tens))).unsqueeze(0)
+        item_logits = self.biaffine_item(h_ij, h_h).squeeze(0)
+        scores = item_logits[index_matrix != -1].unsqueeze(0)
+
+        if not self.training:
+            gold_index = torch.argmax(scores, dim=-1)
+            gold_key = index2key[gold_index.item()]
+        return scores, gold_index, gold_key
+
     def score_arcs(self, possible_arcs, gold_arc, possible_items, words_f, words_b):
         gold_index = None
         gold_key = None
@@ -441,7 +506,7 @@ class ChartParser(BertParser):
                 possible_arcs, items = self.possible_arcs(pending, hypergraph)
                 # print_red(pending)
                 # print_blue(possible_arcs)
-                scores, gold_index, gold_key = self.score_arcs(possible_arcs, gold_arc, items, words_f, words_b)
+                scores, gold_index, gold_key = self.score_arcs_biaffine(possible_arcs, gold_arc, items, words_f, words_b)
                 gind = gold_index.item()
                 made_item = items[gold_key]
                 if (made_item.l.i,made_item.l.j,made_item.l.h) in pending.keys():
