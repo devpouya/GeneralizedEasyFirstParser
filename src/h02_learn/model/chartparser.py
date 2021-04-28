@@ -194,11 +194,17 @@ class ChartParser(BertParser):
                         pending[(i2, j1, h2)] = Item(i2, j1, h2, item_2, item_1)
         """
         for item in pending.values():
-
+            if not self.training:
+                if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
+                    del_keys.update((item.i,item.j,item.h))
+                    continue
             hypergraph = hypergraph.update_chart(item)
         all_new = []
         for item in pending.values():
-
+            if not self.training:
+                if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
+                    del_keys.update((item.i,item.j,item.h))
+                    continue
             new = hypergraph.extend_pending(item)
             if len(new)>0:
                 all_new = all_new+new
@@ -206,7 +212,10 @@ class ChartParser(BertParser):
             pending[(item.i,item.j,item.h)] = item
         for item in list(pending.values()):
             #i,j,h = item.i,item.j, item.h
-
+            if not self.training:
+                if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
+                    del_keys.update((item.i,item.j,item.h))
+                    continue
             #hypergraph = hypergraph.add_bucket(item)
             possible_items, possible_arcs = hypergraph.outgoing(item,arcs)
 
