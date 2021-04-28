@@ -226,7 +226,7 @@ class LazyArcStandard(Hypergraph):
         #pend_increase = {}
         for k in range(0, i + 1):
             for g in range(k, i):
-                if (k, i, g) in self.chart:
+                if (k, i, g) in self.chart and self.chart[(k, i, g)] not in self.bucket:
                     item_l = self.chart[(k, i, g)]
                     item1 = Item(k, j, g, item_l, item)
                     arc1, item1 = self.make_arc(item1)
@@ -246,7 +246,7 @@ class LazyArcStandard(Hypergraph):
         # items to the right
         for k in range(j, self.n + 1):
             for g in range(j, k):
-                if (j, k, g) in self.chart:
+                if (j, k, g) in self.chart and self.chart[(j, k, g)] not in self.bucket:
 
                     item_r = self.chart[(j, k, g)]
 

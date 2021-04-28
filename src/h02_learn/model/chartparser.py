@@ -327,9 +327,8 @@ class ChartParser(BertParser):
                 pending[(made_item.i,made_item.j,made_item.h)] = made_item
                 #hypergraph = hypergraph.update_chart(made_item.l)
                 #hypergraph = hypergraph.update_chart(made_item.r)
-                #hypergraph = hypergraph.add_bucket(made_item.l)
-                hypergraph = hypergraph.add_bucket(made_item)
-                #hypergraph = hypergraph.add_bucket(made_item.r)
+                hypergraph = hypergraph.add_bucket(made_item.l)
+                hypergraph = hypergraph.add_bucket(made_item.r)
                 made_arc = possible_arcs[gind]
 
                 h = made_arc[0]
