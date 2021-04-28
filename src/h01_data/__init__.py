@@ -34,8 +34,13 @@ def get_ud_fname(fpath):
     fname_test = '%s/%s.json' % (fpath, 'test')
     return (fname_train, fname_dev, fname_test)
 
-def get_oracle_actions(fpath,transition):
-    fname_train = '%s/%s_actions_%s.json' % (fpath, transition,'train')
-    fname_dev = '%s/%s_actions_%s.json' % (fpath, transition,'dev')
-    fname_test = '%s/%s_actions_%s.json' % (fpath, transition,'test')
+def get_oracle_actions(fpath,transition,is_agenda=False):
+    if not is_agenda:
+        fname_train = '%s/%s_actions_%s.json' % (fpath, transition,'train')
+        fname_dev = '%s/%s_actions_%s.json' % (fpath, transition,'dev')
+        fname_test = '%s/%s_actions_%s.json' % (fpath, transition,'test')
+    else:
+        fname_train = '%s/agenda-std_actions_%s.json' % (fpath, 'train')
+        fname_dev = '%s/agenda-std_actions_%s.json' % (fpath, 'dev')
+        fname_test = '%s/agenda-std_actions_%s.json' % (fpath, 'test')
     return (fname_train, fname_dev, fname_test)

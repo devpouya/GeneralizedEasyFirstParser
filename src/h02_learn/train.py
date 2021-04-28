@@ -7,7 +7,7 @@ sys.path.append('./src/')
 from h02_learn.dataset import get_data_loaders
 from h02_learn.model import BiaffineParser, MSTParser
 from h02_learn.model import NeuralTransitionParser, EasyFirstParser, ChartParser
-from h02_learn.model import LazyMH4,LazyHybrid,LazyArcEager,LazyArcStandard
+from h02_learn.model import MH4,Hybrid,ArcEager,ArcStandard
 from h02_learn.train_info import TrainInfo
 from h02_learn.algorithm.mst import get_mst_batch
 from utils import constants
@@ -73,7 +73,7 @@ def get_model(vocabs,embeddings,args,max_sent_len):
             .to(device=constants.device)
     elif args.model == 'chart':
         return ChartParser(vocabs=vocabs, embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
-                           hypergraph=LazyArcStandard,dropout=0.33, beam_size=10,max_sent_len=max_sent_len, easy_first=False).to(device=constants.device)
+                           hypergraph=ArcStandard,dropout=0.33, beam_size=10,max_sent_len=max_sent_len).to(device=constants.device)
     elif args.model == 'easy-first':
         return EasyFirstParser(vocabs=vocabs, embedding_size=args.embedding_size,rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
             dropout=args.dropout,
@@ -99,16 +99,16 @@ def get_model(vocabs,embeddings,args,max_sent_len):
             .to(device=constants.device)
     elif args.model == 'agenda-std':
         return ChartParser(vocabs=vocabs, embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
-                           hypergraph=LazyArcStandard,dropout=0.33, beam_size=10,max_sent_len=max_sent_len, easy_first=False).to(device=constants.device)
+                           hypergraph=ArcStandard,dropout=0.33, beam_size=10,max_sent_len=max_sent_len).to(device=constants.device)
     elif args.model == 'agenda-hybrid':
         return ChartParser(vocabs=vocabs, embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
-                           hypergraph=LazyHybrid,dropout=0.33, beam_size=10,max_sent_len=max_sent_len, easy_first=False).to(device=constants.device)
+                           hypergraph=Hybrid,dropout=0.33, beam_size=10,max_sent_len=max_sent_len).to(device=constants.device)
     elif args.model == 'agenda-eager':
         return ChartParser(vocabs=vocabs, embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
-                           hypergraph=LazyArcEager,dropout=0.33, beam_size=10,max_sent_len=max_sent_len, easy_first=False).to(device=constants.device)
+                           hypergraph=ArcEager,dropout=0.33, beam_size=10,max_sent_len=max_sent_len).to(device=constants.device)
     elif args.model == 'agenda-mh4':
         return ChartParser(vocabs=vocabs, embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
-                           hypergraph=LazyMH4,dropout=0.33, beam_size=10,max_sent_len=max_sent_len, easy_first=False).to(device=constants.device)
+                           hypergraph=MH4,dropout=0.33, beam_size=10,max_sent_len=max_sent_len).to(device=constants.device)
     else:
         return BiaffineParser(
             vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size,

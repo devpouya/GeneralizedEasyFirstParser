@@ -73,6 +73,7 @@ class Item(object):
         self.vector_rep = None
         self.score = torch.tensor([0]).to(device=constants.device)
         self.rel = None
+        self.key = (self.i,self.j,self.h)
 
     def set_vector_rep(self, x):
         self.vector_rep = x
@@ -91,6 +92,20 @@ class Item(object):
     def __hash__(self):
         return hash((self.i, self.j, self.h))
 
+class ItemHybrid(Item):
+    def __init__(self, i, j, item_l, item_r, arc):
+        super().__init__(i,j,i,item_l,item_r)
+        self.key = (i,j)
+        self.arc = arc
+
+    def __str__(self):
+        return "Item:\t" + str((self.i, self.j))
+
+    def __repr__(self):
+        return "Item:\t" + str((self.i, self.j))
+
+    def __hash__(self):
+        return hash((self.i, self.j))
 
 class Chart(object):
 

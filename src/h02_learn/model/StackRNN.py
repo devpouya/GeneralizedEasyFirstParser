@@ -9,7 +9,7 @@ from .base import BertParser
 from ..algorithm.transition_parsers import ShiftReduceParser
 from .modules import StackCell, SoftmaxActions, PendingRNN, Agenda, Chart, Item
 from .modules import Biaffine, Bilinear, BiaffineChart
-from .hypergraph import LazyArcStandard, LazyArcEager, LazyHybrid, LazyMH4
+from .hypergraph import ArcStandard, ArcEager, Hybrid, MH4
 from collections import defaultdict
 
 # loool

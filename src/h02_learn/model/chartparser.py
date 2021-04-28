@@ -9,7 +9,7 @@ from .base import BertParser
 from ..algorithm.transition_parsers import ShiftReduceParser
 from .modules import StackCell, SoftmaxActions, PendingRNN, Agenda, Chart, Item, ItemW
 from .modules import Biaffine, Bilinear, LabelSmoothingLoss
-from .hypergraph import LazyArcStandard, LazyArcEager, LazyHybrid, LazyMH4
+from .hypergraph import ArcStandard, ArcEager, Hybrid, MH4
 from collections import defaultdict
 
 # loool
@@ -34,7 +34,7 @@ def print_yellow(s):
 
 class ChartParser(BertParser):
     def __init__(self, vocabs, embedding_size, rel_embedding_size, batch_size, hypergraph,
-                 dropout=0.33, beam_size=10, max_sent_len=190, easy_first=True, eos_token_id=28996):
+                 dropout=0.33, beam_size=10, max_sent_len=190, eos_token_id=28996):
         super().__init__(vocabs, embedding_size, rel_embedding_size, batch_size, dropout=dropout,
                          beam_size=beam_size)
         self.hidden_size = 400
@@ -42,7 +42,6 @@ class ChartParser(BertParser):
         self.hypergraph = hypergraph
         weight_encoder_layer = nn.TransformerEncoderLayer(d_model=embedding_size, nhead=8)
         self.weight_encoder = nn.TransformerEncoder(weight_encoder_layer, num_layers=2)
-        self.prune = True  # easy_first
         self.dropout = nn.Dropout(dropout)
         layers = []
 
@@ -52,7 +51,7 @@ class ChartParser(BertParser):
         self.linear_dep = nn.Linear(self.hidden_size, 200).to(device=constants.device)
 
         self.linear_head = nn.Linear(self.hidden_size, 200).to(device=constants.device)
-        #self.biaffine = Biaffine(200, 200)
+        # self.biaffine = Biaffine(200, 200)
         # self.biaffine_h = Biaffine(200, 200)
         self.bilinear_item = Bilinear(200, 200, 1)
 
@@ -63,15 +62,12 @@ class ChartParser(BertParser):
                   linear_items3]
         self.mlp = nn.Sequential(*layers)
 
-
-
-
         self.linear_items22 = nn.Linear(self.hidden_size * 2, 200).to(device=constants.device)
 
-        self.linear_ij = nn.Linear(self.hidden_size*2,self.hidden_size).to(device=constants.device)
-        self.linear_h = nn.Linear(self.hidden_size*2,self.hidden_size).to(device=constants.device)
+        self.linear_ij = nn.Linear(self.hidden_size * 2, self.hidden_size).to(device=constants.device)
+        self.linear_h = nn.Linear(self.hidden_size * 2, self.hidden_size).to(device=constants.device)
 
-        self.biaffine_item = Biaffine(self.hidden_size, self.hidden_size,self.hidden_size*4)
+        self.biaffine_item = Biaffine(self.hidden_size, self.hidden_size, self.hidden_size * 4)
 
         self.ln1 = nn.LayerNorm(self.hidden_size).to(device=constants.device)
         self.ln2 = nn.LayerNorm(self.hidden_size * 2).to(device=constants.device)
@@ -94,24 +90,23 @@ class ChartParser(BertParser):
                                        bidirectional=False).to(
             device=constants.device)
 
-        input_init = torch.zeros((1, self.hidden_size * 4)).to(
-            device=constants.device)
-        hidden_init = torch.zeros((1, self.hidden_size * 4)).to(
-            device=constants.device)
-        self.empty_initial = nn.Parameter(torch.zeros(1, self.hidden_size * 4)).to(device=constants.device)
+        #input_init = torch.zeros((1, self.hidden_size * 4)).to(
+        #    device=constants.device)
+        #hidden_init = torch.zeros((1, self.hidden_size * 4)).to(
+        #    device=constants.device)
+        #self.empty_initial = nn.Parameter(torch.zeros(1, self.hidden_size * 4)).to(device=constants.device)
 
-        self.lstm_init_state = (nn.init.xavier_uniform_(input_init), nn.init.xavier_uniform_(hidden_init))
-        self.stack_lstm = nn.LSTMCell(self.hidden_size * 4, self.hidden_size*4).to(device=constants.device)
+        #self.lstm_init_state = (nn.init.xavier_uniform_(input_init), nn.init.xavier_uniform_(hidden_init))
+        #self.stack_lstm = nn.LSTMCell(self.hidden_size * 4, self.hidden_size * 4).to(device=constants.device)
 
-        self.item_lstm = StackCell(self.stack_lstm, self.lstm_init_state, self.lstm_init_state, self.dropout,
-                                   self.empty_initial)
+        #self.item_lstm = StackCell(self.stack_lstm, self.lstm_init_state, self.lstm_init_state, self.dropout,
+        #                           self.empty_initial)
 
-    def init_pending(self, n):
+    def init_pending(self, n, hypergraph):
         pending = {}
         for i in range(n):
-            k, j, h = i, i + 1, i
-            pending[(k, j, h)] = Item(k, j, h, k, k)
-            # pending.append(Item(k, j, h, k, k))
+            item = hypergraph.axiom(i)
+            pending[item.key] = item
         return pending
 
     def run_lstm(self, x, sent_lens):
@@ -154,206 +149,16 @@ class ChartParser(BertParser):
     
     """
 
-    def merge_pending(self, pending, hypergraph):
-        nus = {}
-        for item in pending.values():
-            i, j, h = item.i, item.j, item.h
-            for k in range(0, i + 1):
-                for g in range(k, i):
-                    if (k, i, g) in pending.keys():
-                        item_l = pending[(k, i, g)]
-                        if hypergraph.has_head[g] and not hypergraph.has_head[h]:
-                            nu = Item(k, j, h, item_l, item)
-                        elif not hypergraph.has_head[g] and hypergraph.has_head[h]:
-                            nu = Item(k, j, g, item_l, item)
-                        elif hypergraph.has_head[g] and hypergraph.has_head[h]:
-                            nu = Item(k, j, max(g, h), item_l, item)
-                        else:
-                            nu = None
-                        if nu is not None:
-                            nus[(nu.i, nu.j, nu.h)] = nu
-            # items to the right
-            for k in range(j, hypergraph.n + 1):
-                for g in range(j, k):
-                    if (j, k, g) in pending.keys():
-                        item_r = pending[(j, k, g)]
-                        if hypergraph.has_head[g] and not hypergraph.has_head[h]:
-                            nu = Item(i, k, h, item, item_r)
-                        elif not hypergraph.has_head[g] and hypergraph.has_head[h]:
-                            nu = Item(i, k, g, item, item_r)
-                        elif hypergraph.has_head[g] and hypergraph.has_head[h]:
-                            nu = Item(i, k, max(g, h), item, item_r)
-                        else:
-                            nu = None
-                        if nu is not None:
-                            nus[(nu.i, nu.j, nu.h)] = nu
-
-        for item in nus.values():
-            i, j, h = item.i, item.j, item.h
-            il, jl, hl = item.l.i, item.l.j, item.l.h
-            ir, jr, hr = item.r.i, item.r.j, item.r.h
-            pending[(i, j, h)] = item
-            if (il, jl, hl) in pending.keys():
-                del pending[(il, jl, hl)]
-            if (ir, jr, hr) in pending.keys():
-                del pending[(ir, jr, hr)]
-
-        return pending
-
-    """
     def possible_arcs(self, pending, hypergraph):
         arcs = []
         all_items = {}
-        del_keys = set()
-        # delete keys if in bucket
-        possible_items = {}
-        
-        for item_1 in list(pending.values()):
-            i1, j1, h1 = item_1.i, item_1.j, item_1.h
-            #if item_1.l in hypergraph.bucket or item_1.r in hypergraph.bucket:
-            #    del_keys.update((i1,j1,h1))
-            #    print_green("PR")
-            #    continue
-            for item_2 in list(pending.values()):
-                i2,j2,h2 = item_2.i,item_2.j,item_2.h
-                #if item_2.l in hypergraph.bucket or item_2.r in hypergraph.bucket:
-                #    del_keys.update((i2,j2,h2))
-                #    print_red("))")
-                #    continue
 
-                if j1 == i2:
-                    if not hypergraph.has_head[h2]:
-                        arcs.append((h1,h2))
-                        possible_items[(i1, j2, h1)] = Item(i1, j2, h1, item_1, item_2)
-
-                    else:
-                        pending[(i1, j2, h1)] = Item(i1, j2, h1, item_1, item_2)
-                    if not hypergraph.has_head[h1]:
-                        arcs.append((h2,h1))
-                        possible_items[(i1, j2, h2)] = Item(i1, j2, h2, item_1, item_2)
-
-                    else:
-                        pending[(i1, j2, h2)] = Item(i1, j2, h2, item_1, item_2)
-
-                if j2 == i1:
-                    if not hypergraph.has_head[h2]:
-                        arcs.append((h1,h2))
-                        possible_items[(i2, j1, h1)] = Item(i2, j1, h1, item_2, item_1)
-
-                    else:
-                        pending[(i2, j1, h1)] = Item(i2, j1, h1, item_2, item_1)
-                    if not hypergraph.has_head[h1]:
-                        arcs.append((h2,h1))
-                        possible_items[(i2, j1, h2)] = Item(i2, j1, h2, item_2, item_1)
-
-                    else:
-                        pending[(i2, j1, h2)] = Item(i2, j1, h2, item_2, item_1)
-        
-        #for item in pending.values():
-        #    if not self.training:
-        #        if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
-        #            del_keys.update((item.i,item.j,item.h))
-        #            continue
-        #    hypergraph = hypergraph.update_chart(item)
-        #all_new = []
-        #for item in pending.values():
-        #    if not self.training:
-        #        if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
-        #            del_keys.update((item.i,item.j,item.h))
-        #            continue
-        #    new = hypergraph.extend_pending(item)
-        #    if len(new)>0:
-        #        all_new = all_new+new
-        #for item in all_new:
-        #    pending[(item.i,item.j,item.h)] = item
-        for item in list(pending.values()):
-            #i,j,h = item.i,item.j, item.h
-            if not self.training:
-                if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
-                    del_keys.update((item.i,item.j,item.h))
-                    continue
-            #hypergraph = hypergraph.add_bucket(item)
-            possible_items, possible_arcs = hypergraph.outgoing(item,arcs)
-
-            #possible_arcs = ret[1]
-            #possible_items = ret[0]
-            all_items = {**all_items,**possible_items}
-            #all_items[(possible_items.i,possible_items.j,possible_items.h)] = possible_items
-            #hypergraph = hypergraph.delete_from_chart(item)
-            #hypergraph = hypergraph.remove_from_bucket(item)
-            #arcs.append(possible_arcs)
-            arcs = arcs + possible_arcs
-
-
-        return arcs, all_items,list(del_keys),pending,hypergraph
-    """
-
-    def make_arc(self, item):
-        other = item.l.h if item.l.h != item.h else item.r.h
-        arc = (item.h, other)
-        return arc
-
-    def outgoing(self, item, pending, n, arc_prev):
-        items = {}
-        arcs = []
-        i, j, h = item.i, item.j, item.h
-        for k in range(0, i + 1):
-            for g in range(k, i):
-                if (k, i, g) in pending.keys():
-                    item_l = pending[(k, i, g)]
-                    item1 = Item(k, j, g, item_l, item)
-                    arc1 = self.make_arc(item1)
-                    if arc1 not in arc_prev:
-                        arcs.append(arc1)
-                        items[(k, j, g)] = item1
-                    item2 = Item(k, j, h, item_l, item)
-                    arc2 = self.make_arc(item2)
-                    if arc2 not in arc_prev:
-                        arcs.append(arc2)
-                        items[(k, j, h)] = item2
-        # items to the right
-        for k in range(j, n + 1):
-            for g in range(j, k):
-                if (j, k, g) in pending.keys():
-                    item_r = pending[(j, k, g)]
-                    item1 = Item(i, k, h, item, item_r)
-                    arc1 = self.make_arc(item1)
-                    if arc1 not in arc_prev:
-                        arcs.append(arc1)
-                        items[(i, k, h)] = item1
-                    item2 = Item(i, k, g, item, item_r)
-                    arc2 = self.make_arc(item2)
-                    if arc2 not in arc_prev:
-                        arcs.append(arc2)
-                        items[(i, k, g)] = item2
-
-        return items, arcs
-
-    def possible_arcs(self, pending, hypergraph):
-        arcs = []
-        all_items = {}
-        # delete keys if in bucket
-        pending = self.merge_pending(pending, hypergraph)
-        #all_items, arcs = self.outgoing(pending, hypergraph.n)
+        pending = hypergraph.merge_pending(pending)
+        #print_blue(pending)
         for item in pending.values():
-            possible_items, possible_arcs = self.outgoing(item, pending, hypergraph.n,arcs)
+            possible_arcs,possible_items, _ = hypergraph.iterate_spans(item, pending, merge=False, prev_arc=arcs)
             arcs = arcs + possible_arcs
             all_items = {**all_items, **possible_items}
-        #    # i,j,h = item.i,item.j, item.h
-        #    # if item.l in hypergraph.bucket or item.r in hypergraph.bucket:
-        #    #    # del_keys.append((item.i, item.j, item.h))
-        #    #    print_blue("PR {}".format((item.i,item.j,item.h)))
-        #    #    continue
-        #    # hypergraph = hypergraph.add_bucket(item)
-        #    possible_items, possible_arcs = self.outgoing(item, arcs, chart, bucket)
-        #    # possible_arcs = ret[1]
-        #    # possible_items = ret[0]
-        #    all_items = {**all_items, **possible_items}
-        #    # all_items[(possible_items.i,possible_items.j,possible_items.h)] = possible_items
-        #    # hypergraph = hypergraph.delete_from_chart(item)
-        #    # hypergraph = hypergraph.remove_from_bucket(item)
-        #    # arcs.append(possible_arcs)
-        #    arcs = arcs + possible_arcs
 
         return arcs, all_items
 
@@ -399,7 +204,7 @@ class ChartParser(BertParser):
                 ind_ij += 1
             if h_counts[h] <= 1:
                 h_col[h] = ind_h
-                rep = torch.cat([words_f[h, :].unsqueeze(0),words_b[h, :].unsqueeze(0)], dim=-1)
+                rep = torch.cat([words_f[h, :].unsqueeze(0), words_b[h, :].unsqueeze(0)], dim=-1)
                 h_tens[ind_h, :] = rep
                 ind_h += 1
             index_matrix[ij_rows[(i, j)], h_col[h]] = iter
@@ -407,7 +212,7 @@ class ChartParser(BertParser):
         history_rep = self.item_lstm.embedding()
         h_ij = self.dropout(F.relu(self.linear_ij(ij_tens))).unsqueeze(0)
         h_h = self.dropout(F.relu(self.linear_h(h_tens))).unsqueeze(0)
-        item_logits = self.biaffine_item(h_ij, h_h,history_rep).squeeze(0)
+        item_logits = self.biaffine_item(h_ij, h_h, history_rep).squeeze(0)
         scores = item_logits[index_matrix != -1].unsqueeze(0)
 
         if not self.training:
@@ -436,7 +241,6 @@ class ChartParser(BertParser):
             s = self.mlp(rep)
             scores.append(s)
         scores = torch.stack(scores, dim=-1).squeeze(0)
-        scores = nn.Softmax(dim=-1)(scores)
         if not self.training:
             gold_index = torch.argmax(scores, dim=-1)
             gold_key = index2key[gold_index.item()]
@@ -481,12 +285,8 @@ class ChartParser(BertParser):
             mask = (ordered_arcs.sum(dim=1) != -2)
             ordered_arcs = ordered_arcs[mask, :]
 
-            pending = self.init_pending(n)
-
-            chart = Chart()
-            for k in pending.keys():
-                chart[k] = pending[k]
-            hypergraph = self.hypergraph(n, chart, rels[i])
+            hypergraph = self.hypergraph(n)
+            pending = self.init_pending(n, hypergraph)
 
             s = h_t[i, :n + 1, :]
             s_b = bh_t[i, :n + 1, :]
@@ -505,28 +305,32 @@ class ChartParser(BertParser):
             left_children = {i: [i] for i in range(n)}
             words_f = s  # .clone()
             words_b = s_b  # .clone()
+            #print_green(ordered_arcs)
+            #print_red(pending)
             for iter, gold_arc in enumerate(ordered_arcs):
                 possible_arcs, items = self.possible_arcs(pending, hypergraph)
-                # print_red(pending)
-                # print_blue(possible_arcs)
-                scores, gold_index, gold_key = self.score_arcs_biaffine(possible_arcs, gold_arc, items, words_f, words_b)
+                #print_green(possible_arcs)
+                #print_blue(items)
+                scores, gold_index, gold_key = self.score_arcs(possible_arcs, gold_arc, items, words_f, words_b)
 
                 gind = gold_index.item()
                 made_item = items[gold_key]
-                if (made_item.l.i,made_item.l.j,made_item.l.h) in pending.keys():
-                   del pending[(made_item.l.i,made_item.l.j,made_item.l.h)]
-                if (made_item.r.i,made_item.r.j,made_item.r.h) in pending.keys():
-                   del pending[(made_item.r.i,made_item.r.j,made_item.r.h)]
-                pending[(made_item.i, made_item.j, made_item.h)] = made_item
+                #print_yellow(made_item)
+                if made_item.l.key in pending.keys():
+                    del pending[made_item.l.key]
+                if made_item.r.key in pending.keys():
+                    del pending[made_item.r.key]
+                pending[made_item.key] = made_item
                 # push made item rep to history
-                span_rep_made = self.span_rep(words_f,words_b,made_item.i,made_item.j,made_item.h)
-                item_rep = torch.cat([span_rep_made.unsqueeze(0),words_f[made_item.h,:].unsqueeze(0)
-                                         ,words_b[made_item.h,:].unsqueeze(0)],dim=-1).to(device=constants.device)
-                self.item_lstm.push(item_rep)
+                #span_rep_made = self.span_rep(words_f, words_b, made_item.i, made_item.j, made_item.h)
+                #item_rep = torch.cat([span_rep_made.unsqueeze(0), words_f[made_item.h, :].unsqueeze(0)
+                #                         , words_b[made_item.h, :].unsqueeze(0)], dim=-1).to(device=constants.device)
+                #self.item_lstm.push(item_rep)
                 made_arc = possible_arcs[gind]
+                #print_yellow(made_arc)
                 h = made_arc[0]
                 m = made_arc[1]
-                hypergraph.has_head[m] = True
+                hypergraph = hypergraph.set_head(m)
                 arcs.append(made_arc)
 
                 if self.training:
@@ -544,6 +348,7 @@ class ChartParser(BertParser):
                 h_rep = self.tree_lstm(words_b, left_children[h], right_children[h])
                 words_b = words_b.clone()
                 words_b[h, :] = h_rep
+
             loss /= len(ordered_arcs)
 
             pred_heads = self.heads_from_arcs(arcs, n)
@@ -552,7 +357,7 @@ class ChartParser(BertParser):
 
             h_t_noeos[i, :n, :] = h_t[i, :n, :]
             batch_loss += loss
-            self.item_lstm.back_to_init()
+            #self.item_lstm.back_to_init()
         batch_loss /= x_emb.shape[0]
         heads = heads_batch
         # tree_loss /= x_emb.shape[0]

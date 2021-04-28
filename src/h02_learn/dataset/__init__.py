@@ -79,7 +79,11 @@ def get_data_loaders(data_path, language, batch_size, batch_size_eval, transitio
     transitions_train, transitions_dev, transitions_test = None, None, None
 
     if transitions is not None:
-        (transitions_train, transitions_dev, transitions_test) = get_oracle_actions(src_path, transitions)
+        if transition_system == "AGENDA-PARSER":
+            is_agenda=True
+        else:
+            is_agenda=False
+        (transitions_train, transitions_dev, transitions_test) = get_oracle_actions(src_path, transitions,is_agenda)
     vocabs = load_vocabs(src_path)
     embeddings = load_embeddings(src_path)
     tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
