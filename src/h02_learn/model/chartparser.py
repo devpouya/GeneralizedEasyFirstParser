@@ -52,7 +52,7 @@ class ChartParser(BertParser):
         self.linear_dep = nn.Linear(self.hidden_size, 200).to(device=constants.device)
 
         self.linear_head = nn.Linear(self.hidden_size, 200).to(device=constants.device)
-        self.biaffine = Biaffine(200, 200)
+        #self.biaffine = Biaffine(200, 200)
         # self.biaffine_h = Biaffine(200, 200)
         self.bilinear_item = Bilinear(200, 200, 1)
 
@@ -60,7 +60,7 @@ class ChartParser(BertParser):
         linear_items2 = nn.Linear(self.hidden_size * 4, self.hidden_size * 2).to(device=constants.device)
         linear_items3 = nn.Linear(self.hidden_size * 2, 1).to(device=constants.device)
         layers = [linear_items1, nn.ReLU(), nn.Dropout(dropout), linear_items2, nn.ReLU(), nn.Dropout(dropout),
-                  linear_items3, nn.Softmax(dim=-1)]
+                  linear_items3]
         self.mlp = nn.Sequential(*layers)
 
 
@@ -71,7 +71,7 @@ class ChartParser(BertParser):
         self.linear_ij = nn.Linear(self.hidden_size*2,self.hidden_size).to(device=constants.device)
         self.linear_h = nn.Linear(self.hidden_size*2,self.hidden_size).to(device=constants.device)
 
-        self.biaffine_item = Biaffine(self.hidden_size, self.hidden_size)
+        self.biaffine_item = Biaffine(self.hidden_size, self.hidden_size,self.hidden_size*4)
 
         self.ln1 = nn.LayerNorm(self.hidden_size).to(device=constants.device)
         self.ln2 = nn.LayerNorm(self.hidden_size * 2).to(device=constants.device)
@@ -94,14 +94,14 @@ class ChartParser(BertParser):
                                        bidirectional=False).to(
             device=constants.device)
 
-        input_init = torch.zeros((1, self.hidden_size * 3)).to(
+        input_init = torch.zeros((1, self.hidden_size * 4)).to(
             device=constants.device)
-        hidden_init = torch.zeros((1, self.hidden_size * 3)).to(
+        hidden_init = torch.zeros((1, self.hidden_size * 4)).to(
             device=constants.device)
-        self.empty_initial = nn.Parameter(torch.zeros(1, self.hidden_size * 3)).to(device=constants.device)
+        self.empty_initial = nn.Parameter(torch.zeros(1, self.hidden_size * 4)).to(device=constants.device)
 
         self.lstm_init_state = (nn.init.xavier_uniform_(input_init), nn.init.xavier_uniform_(hidden_init))
-        self.stack_lstm = nn.LSTMCell(self.hidden_size * 3, self.hidden_size * 3).to(device=constants.device)
+        self.stack_lstm = nn.LSTMCell(self.hidden_size * 4, self.hidden_size*4).to(device=constants.device)
 
         self.item_lstm = StackCell(self.stack_lstm, self.lstm_init_state, self.lstm_init_state, self.dropout,
                                    self.empty_initial)
@@ -360,6 +360,7 @@ class ChartParser(BertParser):
     def score_arcs_biaffine(self, possible_arcs, gold_arc, possible_items, words_f, words_b):
         n = len(words_f)
         gold_index = None
+        gold_key = None
         ij_set = []
         h_set = []
 
@@ -403,9 +404,10 @@ class ChartParser(BertParser):
                 ind_h += 1
             index_matrix[ij_rows[(i, j)], h_col[h]] = iter
 
+        history_rep = self.item_lstm.embedding()
         h_ij = self.dropout(F.relu(self.linear_ij(ij_tens))).unsqueeze(0)
         h_h = self.dropout(F.relu(self.linear_h(h_tens))).unsqueeze(0)
-        item_logits = self.biaffine_item(h_ij, h_h).squeeze(0)
+        item_logits = self.biaffine_item(h_ij, h_h,history_rep).squeeze(0)
         scores = item_logits[index_matrix != -1].unsqueeze(0)
 
         if not self.training:
@@ -434,6 +436,7 @@ class ChartParser(BertParser):
             s = self.mlp(rep)
             scores.append(s)
         scores = torch.stack(scores, dim=-1).squeeze(0)
+        scores = nn.Softmax(dim=-1)(scores)
         if not self.training:
             gold_index = torch.argmax(scores, dim=-1)
             gold_key = index2key[gold_index.item()]
@@ -507,22 +510,19 @@ class ChartParser(BertParser):
                 # print_red(pending)
                 # print_blue(possible_arcs)
                 scores, gold_index, gold_key = self.score_arcs_biaffine(possible_arcs, gold_arc, items, words_f, words_b)
+
                 gind = gold_index.item()
                 made_item = items[gold_key]
                 if (made_item.l.i,made_item.l.j,made_item.l.h) in pending.keys():
                    del pending[(made_item.l.i,made_item.l.j,made_item.l.h)]
                 if (made_item.r.i,made_item.r.j,made_item.r.h) in pending.keys():
                    del pending[(made_item.r.i,made_item.r.j,made_item.r.h)]
-                # for k in pruned_keys:
-                #    print_yellow("DELETING KEY {}".format(k))
-                #    if k in pending.keys():
-                #        del pending[k]
                 pending[(made_item.i, made_item.j, made_item.h)] = made_item
-                # hypergraph = hypergraph.update_chart(made_item.l)
-                # hypergraph = hypergraph.update_chart(made_item.r)
-                # hypergraph = hypergraph.add_bucket(made_item)
-                #hypergraph = hypergraph.add_bucket(made_item.l)
-                #hypergraph = hypergraph.add_bucket(made_item.r)
+                # push made item rep to history
+                span_rep_made = self.span_rep(words_f,words_b,made_item.i,made_item.j,made_item.h)
+                item_rep = torch.cat([span_rep_made.unsqueeze(0),words_f[made_item.h,:].unsqueeze(0)
+                                         ,words_b[made_item.h,:].unsqueeze(0)],dim=-1).to(device=constants.device)
+                self.item_lstm.push(item_rep)
                 made_arc = possible_arcs[gind]
                 h = made_arc[0]
                 m = made_arc[1]
