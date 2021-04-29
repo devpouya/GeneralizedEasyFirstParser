@@ -83,14 +83,26 @@ class Item(object):
     def add_rel(self, rel):
         self.rel = rel
         return self
+    def __eq__(self, other):
+        return self.key == other.key
     def __str__(self):
-        return "Item:\t" + str((self.i, self.j, self.h))
+        return "Item:\t" + str(self.key)
 
     def __repr__(self):
-        return "Item:\t" + str((self.i, self.j, self.h))
+        return "Item:\t" + str(self.key)
 
     def __hash__(self):
-        return hash((self.i, self.j, self.h))
+        return hash(self.key)
+
+
+class ItemEager(Item):
+    def __init__(self, i,j,h,b,item_l,item_r):
+        super().__init__(i,j,h,item_l,item_r)
+        self.b = b
+
+        self.key = (self.i,self.j,self.h,self.b)
+
+
 
 class ItemHybrid(Item):
     def __init__(self, i, j, item_l, item_r, arc):
@@ -106,6 +118,55 @@ class ItemHybrid(Item):
 
     def __hash__(self):
         return hash((self.i, self.j))
+
+class ItemMH4(object):
+    def __init__(self, heads,l,r):
+        self.heads = heads#[-1]*4
+        self.len = len(heads)
+        self.l = l
+        self.r =r
+        #for i, item in enumerate(sorted(heads)):
+        #    self.heads[i] = heads
+        if self.len == 4:
+            self.key = (self.heads[0],self.heads[1],self.heads[2],self.heads[3])
+        elif self.len == 3:
+            self.key = (self.heads[0], self.heads[1], self.heads[2], -1)
+        elif self.len == 2:
+            self.key = (self.heads[0], self.heads[1], -1, -1)
+        elif self.len == 1:
+            self.key = (self.heads[0], -1, -1, -1)
+
+    def __str__(self):
+        return "Item:\t" + str(self.key)
+
+    def __repr__(self):
+        return "Item:\t" + str(self.key)
+
+    def __hash__(self):
+        return hash(self.key)
+
+class ItemMH4old(object):
+    def __init__(self, h_1, h_2, h_3, h_b, item_prev,item_prev_2=None):
+        self.s_top = h_1
+        self.s_second = h_2
+        self.s_third = h_3
+        self.b_front = h_b
+        self.l = item_prev
+        self.r = item_prev_2
+
+        self.key = (h_1,h_2,h_3,h_b)
+        self.heads = sorted([i for i in [h_1,h_2,h_3,h_b] if i is not None])
+
+
+    def __str__(self):
+        return "Item:\t" + str(self.key)
+
+    def __repr__(self):
+        return "Item:\t" + str(self.key)
+
+    def __hash__(self):
+        return hash(self.key)
+
 
 class Chart(object):
 
