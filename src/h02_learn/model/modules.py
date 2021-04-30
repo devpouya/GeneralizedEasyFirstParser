@@ -122,19 +122,21 @@ class ItemHybrid(Item):
 class ItemMH4(object):
     def __init__(self, heads,l,r):
         self.heads = heads#[-1]*4
-        self.len = len(heads)
         self.l = l
         self.r =r
         #for i, item in enumerate(sorted(heads)):
         #    self.heads[i] = heads
-        if self.len == 4:
+        if len(heads) == 4:
             self.key = (self.heads[0],self.heads[1],self.heads[2],self.heads[3])
-        elif self.len == 3:
+        elif len(heads) == 3:
             self.key = (self.heads[0], self.heads[1], self.heads[2], -1)
-        elif self.len == 2:
+        elif len(heads) == 2:
             self.key = (self.heads[0], self.heads[1], -1, -1)
-        elif self.len == 1:
+        elif len(heads) == 1:
             self.key = (self.heads[0], -1, -1, -1)
+
+
+        #self.degree = len([i for i in self.key if i != -1])
 
     def __str__(self):
         return "Item:\t" + str(self.key)

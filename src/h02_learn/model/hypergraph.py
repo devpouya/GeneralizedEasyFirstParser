@@ -73,7 +73,7 @@ class Hypergraph(object):
 
         for item in nus.values():
             pending[item.key] = item
-            #if not eager:
+            # if not eager:
             if item.l.key in pending.keys():
                 del pending[item.l.key]
             if item.r.key in pending.keys():
@@ -101,7 +101,6 @@ class ArcStandard(Hypergraph):
         other = item.l.h if item.l.h != item.h else item.r.h
         arc = (item.h, other)
         return arc
-
 
     def iterate_spans(self, item, pending, merge=False, prev_arc=None):
         (i, j, h) = item.key
@@ -310,23 +309,23 @@ class ArcEager(Hypergraph):
 
     def make_arc(self, item):
         (i, j, h, b) = item.key
-        if isinstance(item.l,ItemEager) and isinstance(item.r,ItemEager):
+        if isinstance(item.l, ItemEager) and isinstance(item.r, ItemEager):
             if item.l.key == item.r.key:
-                return (item.l.i,item.l.j)
+                return (item.l.i, item.l.j)
             else:
                 # it's a left arc
                 return (j, item.l.j)
         else:
             if item.l == item.r:
-                return (item.l,i)
+                return (item.l, i)
 
     def update_pending(self, pending):
         pending_up = {}
         for item in pending.values():
-            (i,j,h,b) = item.key
+            (i, j, h, b) = item.key
             if self.has_head[i] and b == 0:
-                updated = ItemEager(i,j,h,1,item.l,item.r)
-                pending_up[updated.key]=updated
+                updated = ItemEager(i, j, h, 1, item.l, item.r)
+                pending_up[updated.key] = updated
             else:
                 pending_up[item.key] = item
 
@@ -335,12 +334,11 @@ class ArcEager(Hypergraph):
     def merge_pending(self, pending):
         nus = {}
         pending = self.update_pending(pending)
-        #nus = self.rec_merge(pending,nus)
-        #tmp = pending.copy()
+        # nus = self.rec_merge(pending,nus)
+        # tmp = pending.copy()
         for item in pending.values():
-            _,_,new_items = self.iterate_spans(item,pending,merge=True)
-            nus = {**nus,**new_items}
-
+            _, _, new_items = self.iterate_spans(item, pending, merge=True)
+            nus = {**nus, **new_items}
 
         for item in nus.values():
             pending[item.key] = item
@@ -353,17 +351,17 @@ class ArcEager(Hypergraph):
     def reduce_tree(self, item, pending):
         # has to always be original pending
         pending = self.update_pending(pending)
-        _,_,newly_merged = self.iterate_spans(item,pending,merge=True)
+        _, _, newly_merged = self.iterate_spans(item, pending, merge=True)
 
         pending[item.key] = item
-        if isinstance(item.l,ItemEager):
+        if isinstance(item.l, ItemEager):
             if item.l.key in pending.keys():
                 del pending[item.l.key]
             if item.r.key in pending.keys():
                 del pending[item.r.key]
 
         for item_n in newly_merged.values():
-             pending = self.reduce_tree(item_n,pending)
+            pending = self.reduce_tree(item_n, pending)
         return pending
 
     def merge_pending(self, pending):
@@ -371,24 +369,22 @@ class ArcEager(Hypergraph):
         pendings = []
         pending_orig = self.update_pending(pending)
         for item in pending_orig.values():
-            pending_item = self.reduce_tree(item,pending_orig)
+            pending_item = self.reduce_tree(item, pending_orig)
             pendings.append(pending_item)
-
 
         return pendings
 
     def num_mergable(self, pending):
         ret = 0
         for item in pending.values():
-            (i,j,h,b) = item.key
+            (i, j, h, b) = item.key
             if b == 1:
-                for k in range(i+1):
-                    if (k,i,k,0) in pending.keys():
-                        ret+=1
-                    if (k,i,k,1) in pending.keys():
-                        ret+=1
+                for k in range(i + 1):
+                    if (k, i, k, 0) in pending.keys():
+                        ret += 1
+                    if (k, i, k, 1) in pending.keys():
+                        ret += 1
         return ret
-
 
     def iterate_spans(self, item, pending, merge=False, prev_arc=None):
         (i, j, h, b) = item.key
@@ -420,12 +416,12 @@ class ArcEager(Hypergraph):
                             arcs.append(arc1)
                             items[item1.key] = item1
                     elif b == 1:
-                        item1 = ItemEager(k,j,k,0,item_l,item)
+                        item1 = ItemEager(k, j, k, 0, item_l, item)
                         # add to pending and call again
                         pending[item1.key] = item1
-                        arcs_new,items_new,_ = self.iterate_spans(item1,pending,prev_arc=arcs)
-                        arcs = arcs+arcs_new
-                        items = {**items,**items_new}
+                        arcs_new, items_new, _ = self.iterate_spans(item1, pending, prev_arc=arcs)
+                        arcs = arcs + arcs_new
+                        items = {**items, **items_new}
 
             if (k, i, k, 1) in pending.keys():
                 item_l = pending[(k, i, k, 1)]
@@ -443,7 +439,7 @@ class ArcEager(Hypergraph):
                             arcs.append(arc1)
                             items[item1.key] = item1
                     elif b == 1:
-                        item1 = ItemEager(k,j,k,1,item_l,item)
+                        item1 = ItemEager(k, j, k, 1, item_l, item)
                         pending[item1.key] = item1
                         arcs_new, items_new, _ = self.iterate_spans(item1, pending, prev_arc=arcs)
                         arcs = arcs + arcs_new
@@ -479,25 +475,6 @@ class ArcEager(Hypergraph):
 class MH4(Hypergraph):
     def __init__(self, n):
         super().__init__(n)
-        self.id2act = {
-            0: self.la,
-            1: self.ra,
-            2: self.lap,
-            3: self.rap,
-            4: self.la2,
-            5: self.ra2
-        }
-        self.act2id = {
-            "la": 0,
-            "ra": 1,
-            "lap": 2,
-            "rap": 3,
-            "la2": 4,
-            "ra2": 5
-        }
-
-    # def axiomold(self, i):
-    #    return ItemMH4(i, None, None, i + 1, i)
 
     def axiom(self, i):
         return ItemMH4([i, i + 1], i, i)
@@ -509,160 +486,197 @@ class MH4(Hypergraph):
     def make_arc(self, item):
         pass
 
-    def la(self, item):
-        (s_top, s_second, s_third, b_front) = item.key
-        return ItemMH4(s_second, s_third, None, b_front, item), (b_front, s_top)
+    def combine(self, item, pending):
+        head = item.heads
+        remaining_len = 4 - len(head)
+        all_items = []
+        if len(item.heads) == 1:
+            for other in pending.values():
+                if len(other.heads) < 4:
+                    new_heads = sorted(other.heads + item.heads)
+                    new_item = ItemMH4(new_heads,other,item)
+                    all_items.append(new_item)
+        else:
+            # items to the left
+            # item_l.key == (x0,x1,x2,h3)
+            hm = head[0]
+            hp = head[-1]
+            for k in range(hm):
+                #if not self.has_head[k]:
+                if (k, hm, -1, -1) in pending.keys():
+                    item_l = pending[(k, hm, -1, -1)]
+                    if len(item.heads) == 3:
+                        heads_new = sorted([k, hm, head[1], head[2]])
+                        item_new = ItemMH4(heads_new, item_l, item)
+                        #all_items[item_new.key] = item_new
+                        all_items.append(item_new)
+                    elif len(item.heads) == 2:
+                        heads_new = sorted([k, hm, head[1]])
+                        item_new = ItemMH4(heads_new, item_l, item)
+                        #all_items[item_new.key] = item_new
+                        all_items.append(item_new)
 
-    def ra(self, item):
-        (s_top, s_second, s_third, b_front) = item.key
-        return ItemMH4(s_second, s_third, None, b_front, item), (s_second, s_top)
+                    for j in range(k):
+                        #if not self.has_head[j]:
+                        if (j, k, hm, -1) in pending.keys():
+                            item_l = pending[(j, k, hm, -1)]
+                            if len(item.heads) == 2:
+                                heads_new = sorted([j, k, hm, hp])
+                                item_new = ItemMH4(heads_new, item_l, item)
+                                #all_items[item_new.key] = item_new
+                                all_items.append(item_new)
 
-    def lap(self, item):
-        (s_top, s_second, s_third, b_front) = item.key
-        return ItemMH4(s_top, s_third, None, b_front, item), (s_top, s_second)
+            # items to the right
+            for k in range(hp, self.n):
+                #if not self.has_head[k]:
+                if (hp, k, -1, -1) in pending.keys():
+                    item_r = pending[(hp, k, -1, -1)]
+                    if len(item.heads) == 3:
+                        heads_new = sorted([head[0], head[1], hp, k])
+                        item_new = ItemMH4(heads_new, item, item_r)
+                        #all_items[item_new.key] = item_new
+                        all_items.append(item_new)
+                    if len(item.heads) == 2:
+                        heads_new = sorted([head[0], hp, k])
+                        item_new = ItemMH4(heads_new, item, item_r)
+                        #all_items[item_new.key] = item_new
+                        all_items.append(item_new)
+                    for j in range(k, self.n):
+                        #if not self.has_head[j]:
+                        if (hp, k, j, -1) in pending.keys():
+                            item_r = pending[(hp, k, j, -1)]
+                            if len(item.heads) == 2:
+                                heads_new = sorted([head[0], hp, k, j])
+                                item_new = ItemMH4(heads_new, item, item_r)
+                                #all_items[item_new.key] = item_new
+                                all_items.append(item_new)
 
-    def rap(self, item):
-        (s_top, s_second, s_third, b_front) = item.key
-        return ItemMH4(s_top, s_third, None, b_front, item), (s_third, s_second)
+        return all_items
 
-    def la2(self, item):
-        (s_top, s_second, s_third, b_front) = item.key
-        return ItemMH4(s_top, s_third, None, b_front, item), (b_front, s_second)
+    def link(self, item, prev_arcs):
+        arcs = []
+        all_items = []
+        for i in item.heads:
+            for j in item.heads:
+                if j < self.n:
+                    if not self.has_head[j]:
+                        new_heads = item.heads.copy()
+                        new_heads.remove(j)
+                        new_item = ItemMH4(new_heads, item, item)
+                        new_arc = (i,j)
+                        if new_arc not in prev_arcs:
+                            arcs.append(new_arc)
+                            # all_items[new_item.key] = new_item
+                            all_items.append(new_item)
 
-    def ra2(self, item):
-        (s_top, s_second, s_third, b_front) = item.key
-        return ItemMH4(s_second, s_third, None, b_front, item), (s_third, s_top)
+        #for j in range(1, len(item.heads) - 1):
+        #    for i in range(len(item.heads)):
+        #        if i != j:
+        #            new_heads = item.heads.copy()
+        #            new_heads.pop(j)
+        #            new_item = ItemMH4(new_heads, item, item)
+        #            if not self.has_head[item.heads[j]]:
+        #                new_arc = (item.heads[i], item.heads[j])
+        #                if new_arc not in prev_arcs:
+        #                    arcs.append(new_arc)
+        #                    #all_items[new_item.key] = new_item
+        #                    all_items.append(new_item)
+
+        return arcs, all_items
+
+    def list_to_dict(self, l,pending):
+        for item in l:
+            pending[item.key] = item
+            if item.l.key in pending.keys():
+                del pending[item.l.key]
+            if item.r.key in pending.keys():
+                del pending[item.r.key]
+
+        return pending
+    def recursive_iterate(self, pending, arcs, items,prev_arc,merge_levels):
+
+        for item in pending.copy().values():
+            arcs_new, items_new = self.link(item, arcs + prev_arc)
+            arcs = arcs + arcs_new
+            items = items + items_new
+        for i, item in enumerate(pending.copy().values()):
+            pending_copy = pending.copy()
+            new_merged = self.combine(item, pending)
+            if new_merged not in merge_levels:
+                merge_levels.append(new_merged)
+                for item_new in new_merged:
+                    pending_copy[item_new.key] = item_new
+                    if item_new.l.key in pending_copy.keys():
+                        del pending_copy[item_new.l.key]
+                    if item_new.r.key in pending_copy.keys():
+                        del pending_copy[item_new.r.key]
+                    arcs_new, items_new = self.link(item_new, arcs+prev_arc)
+                    arcs = arcs + arcs_new
+                    items = items + items_new
+
+        for p_i in merge_levels:
+            if len(p_i)>0:
+                d_i = self.list_to_dict(p_i,pending.copy())
+                arcs, items = self.recursive_iterate(d_i, arcs, items,prev_arc,merge_levels)
+
+        return arcs, items
 
     def iterate_spans(self, item, pending, merge=False, prev_arc=None):
-        (a, b, c, d) = item.key
-        heads = item.heads
-        len_heads = item.len
-        nus = {}
-        items = {}
         arcs = []
+        items = []
+        nus = {}
         if merge:
-            for other in pending.values():
-                other_heads = other.heads
-                len_other = other.len
-                # need to check for head first
-                #
-                # other is right item
-                if len_other <= 4 and other_heads[0] == heads[-1]:
-                    new_heads = list(set(heads + other_heads))
-                    new_item = ItemMH4(new_heads, item, pending[other.key])
-                    nus[new_item.key] = new_item
-
-                # other is left item
-                if len_heads <= 4 and other_heads[-1] == heads[0]:
-                    new_heads = list(set(other_heads + other_heads))
-                    new_item = ItemMH4(new_heads, pending[other.key], item)
-                    nus[new_item.key] = new_item
-
+            nus = self.combine(item, pending)
         else:
-            for i in range(len_heads + 1):
-                for j in range(1, len_heads):
-                    if i != j:
-                        arc = (heads[i], heads[j])
-                        new_head = heads.copy()
-                        new_head.pop(j)
-                        new_item = ItemMH4(new_head, item, item)
-                        items[new_item.key] = new_item
-                        arcs.append(arc)
+            #arcs, items = self.recursive_iterate(pending,arcs,items,prev_arc,[])
+            for item in pending.values():
+                possible_arcs, possible_items = self.link(item, arcs)
+                arcs = arcs + possible_arcs
+                items = items + possible_items
+            #for i, item in enumerate(pending.values()):
+            #    new_merged = self.combine(item, pending)
+            #    pending_copy = pending.copy()
+            #    for item_new in new_merged:
+            #        pending_copy[item_new.key] = item_new
+            #        if item_new.l.key in pending_copy.keys():
+            #            del pending_copy[item_new.l.key]
+            #        if item_new.r.key in pending_copy.keys():
+            #            del pending_copy[item_new.r.key]
+
 
         return arcs, items, nus
 
-    def iterate_spans_old_neveragoodsignwhenfunctionnamesarelikethis(self, item, pending, merge=False, prev_arc=None):
-        (h3, h2, h1, h4) = item.key
-        item_heads = item.heads
-        items = {}
-        nus = {}
-        arcs = []
-        if merge:
-            for other in pending.values():
-                heads = other.heads
-                if (heads[0] == item_heads[-1] and heads[-1] <= 4) or (heads[-1] == item_heads[0] and heads[0] <= 4):
-                    new_heads = list(set(heads + item_heads))
-                    b = new_heads[-1]
-                    if len(new_heads) >= 4:
-                        third = new_heads[0]
-                        second = new_heads[1]
-                        top = new_heads[2]
-                    elif len(new_heads) == 3:
-                        third = None
-                        second = new_heads[0]
-                        top = new_heads[1]
-                    elif len(new_heads) == 2:
-                        top = new_heads[0]
-                        second = None
-                        third = None
-                    if heads[0] == item_heads[-1] and heads[-1] <= 4:
-                        new_item = ItemMH4(top, second, third, b, item, pending[other.key])
-                    else:
-                        new_item = ItemMH4(top, second, third, b, pending[other.key], item)
-                    nus[new_item.key] = new_item
 
-            return None, None, nus
-        # la: b_front --> s_top
-        # s_top,None,None,b_front --> None, None, None, b_front
 
-        # ra: s_scond --> s_top
-        # s_top, s_second, None, None --> s_second,None,None,None
+    def clean_pending(self, pending):
+        nu = {}
+        for item in pending.values():
+            h = item.heads
+            updt = h.copy()
+            for j in h:
+                if j < self.n:
+                    if self.has_head[j]:
+                        updt.remove(j)
+            if len(updt)>0:
+                new_item = ItemMH4(updt,item.l,item.r)
+                nu[new_item.key] = new_item
+        return nu
 
-        # la': s_top --> s_second
-        # s_top, s_second, None, None --> s_top, None, None, b_front
 
-        # ra': s_third --> s_second
-        # stop, ssec, sthird, None --> s_top, s_third, None, None
+    def merge_pending(self, pending):
+        nus = []
+        pending = self.clean_pending(pending)
+        for item in pending.values():
+            _, _, new_items = self.iterate_spans(item, pending, merge=True)
+            nus = nus+new_items#{**nus, **new_items}
 
-        # la2: b_front --> s_second
-        # s_top,s_second,None,b_front --> s_top, None,None,b_front
+        for item in nus:#.values():
+            pending[item.key] = item
+            # if not eager:
+            if item.l.key in pending.keys():
+                del pending[item.l.key]
+            if item.r.key in pending.keys():
+                del pending[item.r.key]
 
-        # ra2: s_third --> s_top
-        # top,sec,third,None --> second,third,None,None
-        # illegal_actions = []
-        # if h4 is None:
-        #    illegal_actions.append(self.act2id["la2"])
-        #    illegal_actions.append(self.act2id["la"])
-        # if h3 is None:
-        #    illegal_actions.append(self.act2id["ra2"])
-        #    illegal_actions.append(self.act2id["rap"])
-        # if h2 is None:
-        #    illegal_actions.append(self.act2id["ra2"])
-        #    illegal_actions.append(self.act2id["rap"])
-        #    illegal_actions.append(self.act2id["ra"])
-        #    illegal_actions.append(self.act2id["la2"])
-        # if h1 is None:
-        #    illegal_actions.append(self.act2id["ra2"])
-        #    illegal_actions.append(self.act2id["rap"])
-        # all_actions = set(list((range(6))))
-        # illegal_actions = set(illegal_actions)
-        # legal_actions = list(all_actions.difference(illegal_actions))
-        # for act in legal_actions:
-        #    item_new, arc = self.id2act[act](item)
-        #    items[item_new.key] = item_new
-        #    arcs.append(arc)
+        return pending
 
-        if h3 is not None and h4 is not None:
-            item_new, arc = self.la(item)
-            items[item_new.key] = item_new
-            arcs.append(arc)
-        if h3 is not None and h2 is not None:
-            item_new1, arc1 = self.ra(item)
-            items[item_new1.key] = item_new1
-            arcs.append(arc1)
-            item_new2, arc2 = self.lap(item)
-            items[item_new2.key] = item_new2
-            arcs.append(arc2)
-        if h3 is not None and h2 is not None and h4 is not None:
-            item_new3, arc3 = self.la2(item)
-            items[item_new3.key] = item_new3
-            arcs.append(arc3)
-        if h1 is not None and h3 is not None and h2 is not None:
-            item_new4, arc4 = self.rap(item)
-            items[item_new4.key] = item_new4
-            arcs.append(arc4)
-            item_new5, arc5 = self.ra2(item)
-            items[item_new5.key] = item_new5
-            arcs.append(arc5)
-
-        return arcs, items, nus
