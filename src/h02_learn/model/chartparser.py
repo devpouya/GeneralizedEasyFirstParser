@@ -249,7 +249,7 @@ class ChartParser(BertParser):
             s = self.mlp_mh4(rep)
             scores.append(s)
         scores = torch.stack(scores, dim=-1).squeeze(0)
-        if not self.training:
+        if not self.training or gold_index is None:
             #print_green(scores)
             gold_index = torch.argmax(scores, dim=-1)
             #print_red(gold_index)
@@ -347,8 +347,8 @@ class ChartParser(BertParser):
         gind = gold_index.item()
 
         made_arc = possible_arcs[gind]
-        print(made_arc)
-        print(gold_arc_set)
+        #print(made_arc)
+        #print(gold_arc_set)
         if self.training:
             gold_arc_set.remove(made_arc)
         h = made_arc[0]
