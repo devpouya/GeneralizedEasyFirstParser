@@ -34,7 +34,7 @@ def print_yellow(s):
 
 class ChartParser(BertParser):
     def __init__(self, vocabs, embedding_size, rel_embedding_size, batch_size, hypergraph,
-                 dropout=0.33, beam_size=10, max_sent_len=190, eos_token_id=28996):
+                 dropout=0.33, beam_size=10, max_sent_len=190, eos_token_id=28996,mode="agenda-std"):
         super().__init__(vocabs, embedding_size, rel_embedding_size, batch_size, dropout=dropout,
                          beam_size=beam_size)
         self.hidden_size = 400
@@ -43,8 +43,10 @@ class ChartParser(BertParser):
         weight_encoder_layer = nn.TransformerEncoderLayer(d_model=embedding_size, nhead=8)
         self.weight_encoder = nn.TransformerEncoder(weight_encoder_layer, num_layers=2)
         self.dropout = nn.Dropout(dropout)
-        layers = []
-
+        if mode == "agenda-mh4":
+            self.parse_step_chart = self.parse_step_mh4
+        else:
+            self.parse_step_chart = self.parse_step_std_hyb
         self.linear_tree = nn.Linear(self.hidden_size * 2, self.hidden_size)
         # self.linear_label = nn.Linear(hidden_size * 2, self.rel_embedding_size)
         self.max_size = max_sent_len
@@ -96,17 +98,7 @@ class ChartParser(BertParser):
                                        bidirectional=False).to(
             device=constants.device)
 
-        #input_init = torch.zeros((1, self.hidden_size * 4)).to(
-        #    device=constants.device)
-        #hidden_init = torch.zeros((1, self.hidden_size * 4)).to(
-        #    device=constants.device)
-        #self.empty_initial = nn.Parameter(torch.zeros(1, self.hidden_size * 4)).to(device=constants.device)
 
-        #self.lstm_init_state = (nn.init.xavier_uniform_(input_init), nn.init.xavier_uniform_(hidden_init))
-        #self.stack_lstm = nn.LSTMCell(self.hidden_size * 4, self.hidden_size * 4).to(device=constants.device)
-
-        #self.item_lstm = StackCell(self.stack_lstm, self.lstm_init_state, self.lstm_init_state, self.dropout,
-        #                           self.empty_initial)
 
     def init_pending(self, n, hypergraph):
         pending = {}
@@ -148,72 +140,12 @@ class ChartParser(BertParser):
             item_list[(item.i, item.j, item.h)] = item
         return item_list
 
-    """
-        gereftam:
-        make arc
-        get possible next from grammar
-        repeat
-    
-    """
-
     def gold_arc_set(self,ordered_arcs):
         arcs = []
         for t in ordered_arcs:
             ga = (t[0].item(), t[1].item())
             arcs.append(ga)
         return arcs
-
-    def possible_arcs_eager(self, pending, hypergraph):
-        arcs_all = []
-        all_items_all = []
-        pending_all = hypergraph.merge_pending(pending)
-        for p in pending_all:
-            arcs = []
-            all_items = {}
-            for item in list(p.values()):
-                possible_arcs,possible_items, _ = hypergraph.iterate_spans(item, p, merge=False, prev_arc=arcs)
-                arcs = arcs + possible_arcs
-                all_items = {**all_items, **possible_items}
-            for (dep,item) in zip(arcs,all_items.values()):
-                if dep not in arcs_all:
-                    all_items_all.append(item)
-                    arcs_all.append(dep)
-
-        return arcs_all, all_items_all
-    def found_one(self, arcs, gold_arc_set):
-        if len(arcs) == 0:
-            return False
-        for (u,v) in arcs:
-            if (u,v) in gold_arc_set:
-                return True
-        return False
-    def possible_arcs_mh4_train(self, pending, hypergraph, gold_arc_set):
-        arcs = []
-        items = []
-        for item in pending.values():
-            possible_arcs, possible_items = hypergraph.link(item, arcs)
-            arcs = arcs + possible_arcs
-            items = items + possible_items
-        if not self.found_one(arcs,gold_arc_set):
-            iter = 0
-            while not self.found_one(arcs,gold_arc_set):
-                iter += 1
-                for i, item in enumerate(pending.values()):
-                    new_merged = hypergraph.combine(item, pending)
-                    pending_copy = pending.copy()
-                    for item_new in new_merged:
-                        pending_copy[item_new.key] = item_new
-                        if item_new.l.key in pending_copy.keys():
-                            del pending_copy[item_new.l.key]
-                        if item_new.r.key in pending_copy.keys():
-                            del pending_copy[item_new.r.key]
-                    for item in pending_copy.values():
-                        possible_arcs, possible_items = hypergraph.link(item, arcs)
-                        arcs = arcs + possible_arcs
-                        items = items + possible_items
-                    if self.found_one(arcs, gold_arc_set):
-                        break
-        return arcs,items,pending
 
     def possible_arcs(self, pending, hypergraph):
         arcs = []
@@ -387,16 +319,44 @@ class ChartParser(BertParser):
             gold_key = index2key[gold_index.item()]
         return scores, gold_index, gold_key
 
-    def update_pending_mh4(self, made_item, pending):
+    def parse_step_std_hyb(self,pending, hypergraph,arcs,gold_arc,gold_arc_set,words_f,words_b):
+        possible_arcs, items = self.possible_arcs(pending, hypergraph)
+        scores, gold_index, gold_key = self.score_arcs(possible_arcs,
+                                                           gold_arc, items, words_f, words_b)
+        gind = gold_index.item()
+        made_arc = possible_arcs[gind]
+        made_item = items[gold_key]
+        if made_item.l.key in pending.keys():
+            del pending[made_item.l.key]
+        if made_item.r.key in pending.keys():
+            del pending[made_item.r.key]
         pending[made_item.key] = made_item
-        curr = made_item
-        while isinstance(curr.l,ItemMH4):
-            if curr.l.key in pending.keys():
-                del pending[curr.l.key]
-            if curr.r.key in pending.keys():
-                del pending[curr.r.key]
-            curr = curr.l
-        return pending
+
+        h = made_arc[0]
+        m = made_arc[1]
+        hypergraph = hypergraph.set_head(m)
+        hypergraph.made_arcs.append(made_arc)
+        arcs.append(made_arc)
+        return scores, gold_index, h, m, gold_arc_set, arcs, hypergraph, pending
+
+    def parse_step_mh4(self,pending, hypergraph,arcs,gold_arc,gold_arc_set,words_f,words_b):
+        pending = hypergraph.calculate_pending()
+        possible_arcs, items = self.possible_arcs_mh4(pending, hypergraph, arcs)
+        scores, gold_index, gold_key = self.score_arcs_mh4(possible_arcs, gold_arc_set,
+                                                           gold_arc, items, words_f, words_b)
+        gind = gold_index.item()
+
+        made_arc = possible_arcs[gind]
+        print(made_arc)
+        print(gold_arc_set)
+        if self.training:
+            gold_arc_set.remove(made_arc)
+        h = made_arc[0]
+        m = made_arc[1]
+        hypergraph = hypergraph.set_head(m)
+        hypergraph.made_arcs.append(made_arc)
+        arcs.append(made_arc)
+        return scores, gold_index, h, m, gold_arc_set, arcs, hypergraph, pending
 
     def forward(self, x, transitions, relations, map, heads, rels):
         x_ = x[0][:, 1:]
@@ -424,10 +384,7 @@ class ChartParser(BertParser):
             x_mapped[i, :curr_sentence_length, :] = s
         sent_lens = (x_mapped[:, :, 0] != 0).sum(-1).to(device=constants.device)
         h_t, bh_t = self.run_lstm(x_mapped, sent_lens)
-        # initial_weights_logits = self.get_head_logits(h_t, sent_lens)
-
         h_t_noeos = torch.zeros((h_t.shape[0], heads.shape[1], h_t.shape[2])).to(device=constants.device)
-        tree_loss = 0
 
         for i in range(h_t.shape[0]):
 
@@ -446,67 +403,22 @@ class ChartParser(BertParser):
             loss = 0
             popped = []
 
-            # 1. compute tree
-            # gold_tree = self.compute_tree(s, heads[i, :curr_sentence_length], rels[i, :curr_sentence_length])
-            # s_wrong = s.clone().detach()
-
             right_children = {i: [i] for i in range(n)}
             left_children = {i: [i] for i in range(n)}
             words_f = s  # .clone()
             words_b = s_b  # .clone()
             gold_arc_set = self.gold_arc_set(ordered_arcs)
-            #print_green(ordered_arcs)
-            #print_green(n)
             hypergraph = self.hypergraph(n, gold_arc_set)
             pending = self.init_pending(n, hypergraph)
             for iter, gold_arc in enumerate(ordered_arcs):
-                pending = hypergraph.calculate_pending()
-                #print_yellow(pending)
 
-                possible_arcs, items = self.possible_arcs_mh4(pending, hypergraph,arcs)
-                #possible_arcs, items = self.possible_arcs(pending.copy(), hypergraph)
-                #
-                #print_red(gold_arc_set)
-                #print_blue(len(possible_arcs))
-                #print_yellow(len(list(set(possible_arcs))))
-                #print_green(items)
-
-                scores, gold_index, gold_key = self.score_arcs_mh4(possible_arcs, gold_arc_set,
-                                                                   gold_arc, items, words_f, words_b)
-                #print_yellow(gold_arc)
-                #scores, gold_index, gold_key = self.score_arcs_eager(possible_arcs,
-                #                                                     gold_arc_set, gold_arc, items, words_f, words_b)
-                #items = {}
-                #for d in all_items:
-                #    items = {**items, **d}
-                #possible_arcs = [item for sublist in possible_arcs_all for item in sublist]
-                gind = gold_index.item()
-                #made_item = items[gold_key]
-                made_item = items[gind]
-                #pending = self.update_pending_mh4(made_item,pending)
-                #if made_item.l.key in pending.keys():
-                #    del pending[made_item.l.key]
-                #if made_item.r is not None:
-                #    if made_item.r.key in pending.keys():
-                #        del pending[made_item.r.key]
-                ###if made_item.item_prev in pending.keys():
-                ###    del pending[made_item.item_prev.key]
-                #pending[made_item.key] = made_item
-                # push made item rep to history
-                #span_rep_made = self.span_rep(words_f, words_b, made_item.i, made_item.j, made_item.h)
-                #item_rep = torch.cat([span_rep_made.unsqueeze(0), words_f[made_item.h, :].unsqueeze(0)
-                #                         , words_b[made_item.h, :].unsqueeze(0)], dim=-1).to(device=constants.device)
-                #self.item_lstm.push(item_rep)
-                made_arc = possible_arcs[gind]
-                #print_green(made_arc)
-                if self.training:
-                    gold_arc_set.remove(made_arc)
-                h = made_arc[0]
-                m = made_arc[1]
-                hypergraph = hypergraph.set_head(m)
-                hypergraph.made_arcs.append(made_arc)
-                arcs.append(made_arc)
-                pending = hypergraph.clean_pending(pending, m)
+                scores, gold_index, h, m, gold_arc_set, arcs, hypergraph,pending = self.parse_step_chart(pending,
+                                                                                                         hypergraph,
+                                                                                                         arcs,
+                                                                                                         gold_arc,
+                                                                                                         gold_arc_set,
+                                                                                                         words_f,
+                                                                                                         words_b)
 
                 if self.training:
                     loss += nn.CrossEntropyLoss(reduction='sum')(scores, gold_index)
@@ -532,16 +444,12 @@ class ChartParser(BertParser):
 
             h_t_noeos[i, :n, :] = h_t[i, :n, :]
             batch_loss += loss
-            #self.item_lstm.back_to_init()
         batch_loss /= x_emb.shape[0]
         heads = heads_batch
-        #print_yellow(batch_loss)
-        # tree_loss /= x_emb.shape[0]
+
         l_logits = self.get_label_logits(h_t_noeos, heads)
         rels_batch = torch.argmax(l_logits, dim=-1)
-        # rels_batch = rels_batch.permute(1, 0)
         batch_loss += self.loss(batch_loss, l_logits, rels)
-        # batch_loss += tree_loss
         return batch_loss, heads_batch, rels_batch
 
     def get_head_logits(self, h_t, sent_lens):
