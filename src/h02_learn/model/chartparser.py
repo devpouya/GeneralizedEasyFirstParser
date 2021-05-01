@@ -37,7 +37,7 @@ class ChartParser(BertParser):
                  dropout=0.33, beam_size=10, max_sent_len=190, eos_token_id=28996,mode="agenda-std"):
         super().__init__(vocabs, embedding_size, rel_embedding_size, batch_size, dropout=dropout,
                          beam_size=beam_size)
-        self.hidden_size = 400
+        self.hidden_size = 100
         self.eos_token_id = eos_token_id
         self.hypergraph = hypergraph
         weight_encoder_layer = nn.TransformerEncoderLayer(d_model=embedding_size, nhead=8)
@@ -63,7 +63,7 @@ class ChartParser(BertParser):
         layers = [linear_items1, nn.ReLU(), nn.Dropout(dropout), linear_items2, nn.ReLU(), nn.Dropout(dropout),
                   linear_items3]
 
-        linear_items1mh4 = nn.Linear(self.hidden_size * 5, self.hidden_size * 2).to(device=constants.device)
+        linear_items1mh4 = nn.Linear(self.hidden_size * 4, self.hidden_size * 2).to(device=constants.device)
         linear_items2mh4 = nn.Linear(self.hidden_size * 2, 1).to(device=constants.device)
         layers_mh4 = [linear_items1mh4, nn.ReLU(), nn.Dropout(dropout), linear_items2mh4]
         self.mlp = nn.Sequential(*layers)
@@ -219,7 +219,7 @@ class ChartParser(BertParser):
                 gold_index = torch.tensor([iter], dtype=torch.long).to(device=constants.device)
                 gold_key = item.key
         for iter, ((u, v), item) in enumerate(zip(possible_arcs, possible_items)):
-            (h1, h2, h3, h4, h5) = item.key
+            (h1, h2, h3, h4) = item.key
             #if gold_index is None:
             #    if (u, v) in gold_arc_set:
             #        gold_index = torch.tensor([iter], dtype=torch.long).to(device=constants.device)
@@ -246,16 +246,16 @@ class ChartParser(BertParser):
             else:
                 rh4 = torch.zeros_like(words_b[0,:].unsqueeze(0)).to(device=constants.device)
 
-            if h5 !=-1:
-                rh5 = torch.cat([words_f[h5,:].unsqueeze(0),words_b[h5,:].unsqueeze(0)],dim=-1)
-                rh5 = self.dropout(F.relu(self.linear_1(rh5)))
-            else:
-                rh5 = torch.zeros_like(words_b[0,:].unsqueeze(0)).to(device=constants.device)
-            rep = torch.cat([rh1,rh2,rh3,rh4,rh5],dim=-1)
+            #if h5 !=-1:
+            #    rh5 = torch.cat([words_f[h5,:].unsqueeze(0),words_b[h5,:].unsqueeze(0)],dim=-1)
+            #    rh5 = self.dropout(F.relu(self.linear_1(rh5)))
+            #else:
+            #    rh5 = torch.zeros_like(words_b[0,:].unsqueeze(0)).to(device=constants.device)
+            rep = torch.cat([rh1,rh2,rh3,rh4],dim=-1)
             s = self.mlp_mh4(rep)
             scores.append(s)
         scores = torch.stack(scores, dim=-1).squeeze(0)
-        if not self.training:
+        if not self.training or gold_index is None:
             #print_green(scores)
             gold_index = torch.argmax(scores, dim=-1)
             #print_red(gold_index)
@@ -353,11 +353,13 @@ class ChartParser(BertParser):
         gind = gold_index.item()
 
         made_arc = possible_arcs[gind]
-        #print(made_arc)
-        if self.training:
-            gold_arc_set.remove(made_arc)
+        #if self.training:
+        #    gold_arc_set.remove(made_arc)
         h = made_arc[0]
         m = made_arc[1]
+        h = min(h,hypergraph.n-1)
+        m = min(m,hypergraph.n-1)
+
         hypergraph = hypergraph.set_head(m)
         hypergraph.made_arcs.append(made_arc)
         arcs.append(made_arc)

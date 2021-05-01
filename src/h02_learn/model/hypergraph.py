@@ -12,7 +12,6 @@ from termcolor import colored
 from itertools import combinations
 
 
-
 class Hypergraph(object):
 
     def __init__(self, n):
@@ -480,6 +479,7 @@ class MH4(Hypergraph):
         super().__init__(n)
         self.true_arcs = true_arcs
         self.made_arcs = []
+
     def axiom(self, i):
         return ItemMH4([i, i + 1], i, i)
 
@@ -634,27 +634,27 @@ class MH4(Hypergraph):
                 arcs, items = self.recursive_iterate(d_i, arcs, items, prev_arc, merge_levels)
 
         return arcs, items
+
     def calculate_pending(self):
         remaining = []
         pending = {}
         for i in range(self.n):
             if not self.has_head[i]:
                 remaining.append(i)
-        if len(remaining)<=2:
-            new_item = ItemMH4(remaining,0,0)
-            pending[new_item.key]=new_item
+        if len(remaining) <= 2:
+            new_item = ItemMH4(remaining, 0, 0)
+            pending[new_item.key] = new_item
             return pending
         combs = []
         for w in range(1, len(remaining) + 1):
-            for i in range(len(remaining)-w+1):
+            for i in range(len(remaining) - w + 1):
                 l = remaining[i:i + w]
-                if len(l) > 1 and len(l) <= 5:
+                if 1 < len(l) <= 4:
                     combs.append(l)
         for h in combs:
-            new_item = ItemMH4(h, 0,0)
+            new_item = ItemMH4(h, 0, 0)
             pending[new_item.key] = new_item
         return pending
-
 
     def iterate_spans(self, item, pending, merge=False, prev_arc=None):
         arcs = []
@@ -666,15 +666,14 @@ class MH4(Hypergraph):
 
             for item in pending.values():
                 possible_arcs, possible_items = self.link(item, arcs)
-                for (pa,pi) in zip(possible_arcs,possible_items):
+                for (pa, pi) in zip(possible_arcs, possible_items):
                     if pa not in arcs:
                         arcs.append(pa)
                         items.append(pi)
-                #arcs = arcs + possible_arcs
-                #items = items + possible_items
+                # arcs = arcs + possible_arcs
+                # items = items + possible_items
 
         return arcs, items, nus
-
 
     def combine(self, item, pending):
         if len(item.heads) == 3:
@@ -721,12 +720,11 @@ class MH4(Hypergraph):
                     all_items.append(new_item)
         return all_items
 
-
     def link(self, item, prev_arcs):
         all_items = []
         arcs = []
         if len(item.heads) > 2:
-            for j in range(len(item.heads)-1):
+            for j in range(len(item.heads) - 1):
                 for i in range(len(item.heads)):
                     if i != j:
                         if not self.has_head[item.heads[j]]:
@@ -748,19 +746,18 @@ class MH4(Hypergraph):
                                         arcs.append(new_arc)
                                         all_items.append(new_item)
         else:
-                new_arc_1 = (item.heads[1],item.heads[0])
-                new_item_1 = ItemMH4([item.heads[1]],item,item)
-                if new_arc_1 not in prev_arcs:
-                    arcs.append(new_arc_1)
-                    all_items.append(new_item_1)
-                new_arc_2 = (item.heads[0],item.heads[1])
-                new_item_2 = ItemMH4([item.heads[0]], item, item)
-                if new_arc_2 not in prev_arcs:
-                    arcs.append(new_arc_2)
-                    all_items.append(new_item_2)
+            new_arc_1 = (item.heads[1], item.heads[0])
+            new_item_1 = ItemMH4([item.heads[1]], item, item)
+            if new_arc_1 not in prev_arcs:
+                arcs.append(new_arc_1)
+                all_items.append(new_item_1)
+            new_arc_2 = (item.heads[0], item.heads[1])
+            new_item_2 = ItemMH4([item.heads[0]], item, item)
+            if new_arc_2 not in prev_arcs:
+                arcs.append(new_arc_2)
+                all_items.append(new_item_2)
 
         return arcs, all_items
-
 
     def clean_pending(self, pending, dep):
         nu = {}
@@ -768,20 +765,17 @@ class MH4(Hypergraph):
             h = item.heads
             if dep in h:
                 h.remove(dep)
-                if len(h)>=2:
+                if len(h) >= 2:
                     new_item = ItemMH4(h, item.l, item.r)
                     nu[new_item.key] = new_item
             else:
                 nu[item.key] = item
 
-
         return nu
-
-
 
     def merge_pending(self, pending):
         nus = []
-        #pending = self.clean_pending(pending)
+        # pending = self.clean_pending(pending)
         for item in pending.values():
             _, _, new_items = self.iterate_spans(item, pending, merge=True)
             nus = nus + new_items  # {**nus, **new_items}
