@@ -648,7 +648,7 @@ class MH4(Hypergraph):
         for w in range(1, len(remaining) + 1):
             for i in range(len(remaining)-w+1):
                 l = remaining[i:i + w]
-                if len(l) > 1 and len(l) <= 4:
+                if len(l) > 1 and len(l) <= 5:
                     combs.append(l)
         for h in combs:
             new_item = ItemMH4(h, 0,0)
