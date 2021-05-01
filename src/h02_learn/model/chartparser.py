@@ -241,13 +241,28 @@ class ChartParser(BertParser):
             if pa not in prev_arcs:
                 arcs.append(pa)
                 all_items.append(pi)
-        pending = hypergraph.merge_pending(pending)
+        #pending = hypergraph.merge_pending(pending)
         #prev_arcs = prev_arcs + arcs
-        arcs_new, all_items_new, _ = hypergraph.iterate_spans(None, pending, merge=False, prev_arc=prev_arcs)
-        for (pa, pi) in zip(arcs_new, all_items_new):
-            if pa not in arcs:
-                arcs.append(pa)
-                all_items.append(pi)
+        #print_green(arcs)
+        #arcs_new, all_items_new, _ = hypergraph.iterate_spans(None, pending, merge=False, prev_arc=prev_arcs)
+        #for (pa, pi) in zip(arcs_new, all_items_new):
+        #    if pa not in arcs:
+        #        arcs.append(pa)
+        #        all_items.append(pi)
+        #pending = hypergraph.merge_pending(pending)
+        ## prev_arcs = prev_arcs + arcs
+        #arcs_new, all_items_new, _ = hypergraph.iterate_spans(None, pending, merge=False, prev_arc=prev_arcs)
+        #for (pa, pi) in zip(arcs_new, all_items_new):
+        #    if pa not in arcs:
+        #        arcs.append(pa)
+        #        all_items.append(pi)
+        #pending = hypergraph.merge_pending(pending)
+        # prev_arcs = prev_arcs + arcs
+        #arcs_new, all_items_new, _ = hypergraph.iterate_spans(None, pending, merge=False, prev_arc=prev_arcs)
+        #for (pa, pi) in zip(arcs_new, all_items_new):
+        #    if pa not in arcs:
+        #        arcs.append(pa)
+        #        all_items.append(pi)
         #arcs = arcs + arcs_new
         #all_items = all_items + all_items_new
 
@@ -445,9 +460,12 @@ class ChartParser(BertParser):
             hypergraph = self.hypergraph(n, gold_arc_set)
             pending = self.init_pending(n, hypergraph)
             for iter, gold_arc in enumerate(ordered_arcs):
+                pending = hypergraph.calculate_pending()
+                #print_yellow(pending)
+
                 possible_arcs, items = self.possible_arcs_mh4(pending, hypergraph,arcs)
                 #possible_arcs, items = self.possible_arcs(pending.copy(), hypergraph)
-                #print_yellow(pending)
+                #
                 #print_red(gold_arc_set)
                 #print_blue(len(possible_arcs))
                 #print_yellow(len(list(set(possible_arcs))))
@@ -466,14 +484,14 @@ class ChartParser(BertParser):
                 #made_item = items[gold_key]
                 made_item = items[gind]
                 #pending = self.update_pending_mh4(made_item,pending)
-                if made_item.l.key in pending.keys():
-                    del pending[made_item.l.key]
-                if made_item.r is not None:
-                    if made_item.r.key in pending.keys():
-                        del pending[made_item.r.key]
-                ##if made_item.item_prev in pending.keys():
-                ##    del pending[made_item.item_prev.key]
-                pending[made_item.key] = made_item
+                #if made_item.l.key in pending.keys():
+                #    del pending[made_item.l.key]
+                #if made_item.r is not None:
+                #    if made_item.r.key in pending.keys():
+                #        del pending[made_item.r.key]
+                ###if made_item.item_prev in pending.keys():
+                ###    del pending[made_item.item_prev.key]
+                #pending[made_item.key] = made_item
                 # push made item rep to history
                 #span_rep_made = self.span_rep(words_f, words_b, made_item.i, made_item.j, made_item.h)
                 #item_rep = torch.cat([span_rep_made.unsqueeze(0), words_f[made_item.h, :].unsqueeze(0)
