@@ -128,15 +128,15 @@ class ItemMH4(object):
         #for i, item in enumerate(sorted(heads)):
         #    self.heads[i] = heads
         if len(heads) == 4:
-            self.key = (self.heads[0],self.heads[1],self.heads[2])
+            self.key = (self.heads[0],self.heads[1],self.heads[2],self.heads[3],-1)
         elif len(heads) == 3:
-            self.key = (self.heads[0], self.heads[1], self.heads[2], -1)
+            self.key = (self.heads[0], self.heads[1], self.heads[2], -1,-1)
         elif len(heads) == 2:
-            self.key = (self.heads[0], self.heads[1], -1, -1)
+            self.key = (self.heads[0], self.heads[1], -1, -1,-1)
         elif len(heads) == 1:
-            self.key = (self.heads[0], -1, -1, -1)
-        #elif len(heads) == 5:
-        #    self.key = (self.heads[0], self.heads[1], self.heads[2], self.heads[3],heads[4])
+            self.key = (self.heads[0], -1, -1, -1,-1)
+        elif len(heads) == 5:
+            self.key = (self.heads[0], self.heads[1], self.heads[2], self.heads[3],heads[4])
 
 
         #self.degree = len([i for i in self.key if i != -1])
