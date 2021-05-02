@@ -8,7 +8,7 @@ sys.path.append('./src/')
 from h01_data import Vocab, save_vocabs, save_embeddings
 from h01_data.oracle import arc_standard_oracle, arc_eager_oracle, hybrid_oracle, easy_first_arc_standard, \
     easy_first_hybrid, easy_first_arc_eager, easy_first_mh4, mh4_oracle, easy_first_pending, priority_queue_oracle
-from h01_data.oracle import is_projective, is_good
+from h01_data.oracle import is_projective,projectivize,projectivize_mh4,get_arcs
 from utils import utils
 from utils import constants
 from h01_data.item_oracle import item_arc_standard_oracle,build_easy_first,build_easy_first_mh4
@@ -24,8 +24,8 @@ def get_args():
     parser.add_argument('--min-vocab-count', type=int, default=2)
     parser.add_argument('--transition', type=str, choices=['arc-standard', 'arc-eager', 'easy-first',
                                                            'hybrid', 'mh4', 'easy-first-std',
-                                                           'easy-first-hybrid', 'easy-first-eager', 'easy-first-mh4',
-                                                           'agenda-std'],
+                                                           'easy-first-hybrid',
+                                                           'agenda-std','agenda-hybrid','agenda-mh4'],
                         default='agenda-std')
     return parser.parse_args()
 
@@ -107,66 +107,43 @@ def process_data(in_fname_base, out_path, mode, vocabs, oracle=None, transition_
     step = 0
     faileds = []
     with open(in_fname, 'r') as file:
+        step = 0
         for sentence in get_sentence(file):
             step+=1
-            #if step >= 500:
-            #    break
-            print(step)
-            sent_processed, heads, relations, rel2id = process_sentence(sentence, vocabs)
+            sent_processed, heads, relations,rel2id = process_sentence(sentence, vocabs)
             heads_proper = [0] + heads
 
-            # print(heads_proper)
-            # print(relations)
-            arc2label = {arc: rel for (arc, rel) in zip(list(range(len(heads))), relations)}
-            # relations = ['root'] + relations
-            # print(len(heads_proper))
-            # print(len(relations))
             sentence_proper = list(range(len(heads_proper)))
-            # word2headrels = {w: (h, r) for (w, h, r) in zip(sentence_proper, heads_proper, relations)}
-            # print(word2headrels)
+
             word2head = {w: h for (w, h) in zip(sentence_proper, heads_proper)}
-            if transition_name == 'agenda-std' or transition_name == 'easy-first-mh4':
-                if is_projective(word2head) or transition_name == 'easy-first-mh4':
-                    step += 1
-                    if is_projective(word2head):
-                        hypergraph, good = build_easy_first(sentence_proper, word2head)
-                    else:
-                        hypergraph, good = build_easy_first_mh4(sentence_proper, word2head)
-
-                    relation_ids = [rel2id[rel] for rel in relations]
-                    if good:
-                        right += 1
-                    else:
-                        faileds.append(step)
-                        wrong += 1
-                    actions_processed = {'transition':hypergraph, 'relations':relation_ids}
-                    # actions_processed = {'transition': actions, 'relations':relation_ids,}
-                    utils.append_json(out_fname_history, actions_processed)
-                    utils.append_json(out_fname, sent_processed)
-                else:
-                    continue
-            elif is_projective(word2head) or transition_name == 'mh4':
-                step += 1
-                actions, relations_order, good = oracle(sentence_proper, word2head, relations)
-                relation_ids = [rel2id[rel] for rel in relations_order]
-                if good:
-                    right += 1
-                else:
-                    faileds.append(step)
-                    wrong += 1
-                labeled_actions = labeled_action_pairs(actions,relation_ids.copy())
-                actions_processed = {'transition': actions, 'relations':relation_ids,'labeled_actions':labeled_actions}
-                # actions_processed = {'transition': actions, 'relations':relation_ids,}
-                utils.append_json(out_fname_history, actions_processed)
-                utils.append_json(out_fname, sent_processed)
-
+            if is_projective(word2head) or transition_name == 'mh4' or transition_name == 'agenda-mh4':
+                true_arcs = get_arcs(word2head)
             else:
-                continue
+                true_arcs = projectivize(word2head)
+            if transition_name == 'mh4' or transition_name == 'agenda-mh4':
+                good = False
+                while not good:
+                    _, _, good = mh4_oracle(sentence_proper, word2head, relations,true_arcs)
+                    if good:
+                        break
+                    else:
+                        word2head, true_arcs = projectivize_mh4(word2head,true_arcs)
+                actions, _, good = oracle(sentence_proper, word2head, relations, true_arcs)
+            else:
+                actions, _, good = oracle(sentence_proper, word2head, relations, true_arcs)
+
+            relation_ids = [rel2id[rel] for rel in relations]
+            if good:
+                right += 1
+            else:
+                faileds.append(step)
+                wrong += 1
+            actions_processed = {'transition': actions, 'relations':relation_ids,}
+            utils.append_json(out_fname_history, actions_processed)
+            utils.append_json(out_fname, sent_processed)
 
     print("GOOD {}".format(right))
     print("BAD {}".format(wrong))
-    print("fails {}".format(faileds))
-
 
 def add_sentence_vocab(sentence, words, tags, rels):
     for token in sentence:
@@ -268,7 +245,7 @@ def main():
         oracle = hybrid_oracle
     elif args.transition == 'mh4':
         oracle = mh4_oracle
-    elif args.transition == 'agenda-std':
+    elif args.transition == 'agenda-std' or args.transition == 'agenda-hybrid':
         #oracle = item_arc_standard_oracle
         oracle = build_easy_first
     elif args.transition == "easy-first-std":
@@ -278,7 +255,7 @@ def main():
         oracle = easy_first_hybrid
     elif args.transition == "easy-first-eager":
         oracle = easy_first_arc_eager
-    elif args.transition == 'easy-first-mh4':
+    elif args.transition == 'agenda-mh4':
         oracle = build_easy_first_mh4
     elif args.transition == 'easy-first':
         oracle = easy_first_pending
