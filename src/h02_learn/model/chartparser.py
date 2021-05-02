@@ -387,12 +387,10 @@ class ChartParser(BertParser):
         sent_lens = (x_mapped[:, :, 0] != 0).sum(-1).to(device=constants.device)
         h_t, bh_t = self.run_lstm(x_mapped, sent_lens)
         h_t_noeos = torch.zeros((h_t.shape[0], heads.shape[1], h_t.shape[2])).to(device=constants.device)
-
         for i in range(h_t.shape[0]):
 
             n = int(sent_lens[i] - 1)
             ordered_arcs = transitions[i]
-
             mask = (ordered_arcs.sum(dim=1) != -2)
             ordered_arcs = ordered_arcs[mask, :]
 
@@ -443,9 +441,7 @@ class ChartParser(BertParser):
                 words_b[h, :] = h_rep
 
             loss /= len(ordered_arcs)
-
             pred_heads = self.heads_from_arcs(arcs, n)
-
             heads_batch[i, :n] = pred_heads
 
             h_t_noeos[i, :n, :] = h_t[i, :n, :]
@@ -517,7 +513,7 @@ class ChartParser(BertParser):
     def heads_from_arcs(self, arcs, sent_len):
         heads = [0] * sent_len
         for (u, v) in arcs:
-            heads[v] = u  # .item()
+            heads[min(v,sent_len-1)] = u  # .item()
         return torch.tensor(heads).to(device=constants.device)
 
     def loss(self, batch_loss, l_logits, rels):
@@ -636,6 +632,7 @@ class ChartParser(BertParser):
             else:
                 gold_index = None
                 next_item = list(items.values())[winner]
+
         return scores, winner_item, gold_index, hypergraph, next_item, items
 
     def smooth_one_hot(self, true_labels, classes, smoothing=0.0):
