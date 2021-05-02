@@ -97,7 +97,7 @@ def contains_cycles(heads):
     return False
 
 
-# adapted from NLTK (copy pasted out of laziness...will fix)
+# adapted from NLTK
 def is_projective(word2head):
     arc_list = get_arcs(word2head)
     # for i, (u,v) in enumerate(arc_list):
@@ -121,6 +121,107 @@ def is_projective(word2head):
                         return False
     return True
 
+def is_projective_arc(arc_list):
+    # for i, (u,v) in enumerate(arc_list):
+    #    if u == "ROOT":
+    #        arc_list[i] = (0,v)
+    # print(arc_list)
+    for (parentIdx, childIdx) in arc_list:
+        # Ensure that childIdx < parentIdx
+        if childIdx == parentIdx:
+            continue
+        if childIdx > parentIdx:
+            temp = childIdx
+            childIdx = parentIdx
+            parentIdx = temp
+        for k in range(childIdx + 1, parentIdx):
+            for m in range(len(arc_list)):
+                if (m < childIdx) or (m > parentIdx):
+                    if (k, m) in arc_list:
+                        return False
+                    if (m, k) in arc_list:
+                        return False
+    return True
+
+
+
+def dist(u,v):
+
+    if u == 0 or v == 0:
+        return 10000000
+    else:
+        return abs(u-v)
+
+
+def non_projective_arcs(arc_list):
+    non_projectives = []
+    for (parent_ind, child_ind) in arc_list:
+        if child_ind == parent_ind:
+            continue
+        if child_ind > parent_ind:
+            temp = child_ind
+            child_ind = parent_ind
+            parent_ind = temp
+        for k in range(child_ind + 1, parent_ind):
+            for m in range(len(arc_list)):
+                if (m < child_ind) or (m > parent_ind):
+                    if (k, m) in arc_list:
+                        non_projectives.append((k,m))
+                    if (m, k) in arc_list:
+                        non_projectives.append((m,k))
+    non_projectives = list(set(non_projectives))
+    arc_d = [((u,v),dist(u,v)) for (u,v) in non_projectives]
+    arc_d_sorted = sorted(arc_d, key=lambda x: x[1])
+    return arc_d_sorted#[0][0]
+
+def projectivize_mh4(word2head, true_arcs):
+    arcs = true_arcs.copy()
+    arc_d_sorted = non_projective_arcs(arcs)
+    arc_np = arc_d_sorted[0][0]
+    arcs.remove(arc_np)
+    #if arc_np[0] == 0:
+    #    h_orig = arc_np[1]
+    h_orig = word2head[arc_np[0]]
+    arcs.append((h_orig, arc_np[1]))
+    #word2head[arc_np[1]] = h_orig
+    has_root = False
+    for (u,v) in arcs:
+        if u == v:
+            has_root=True
+            break
+    if not has_root:
+        arcs.append((0,0))
+    return word2head,arcs
+def projectivize(word2head):
+    arcs = get_arcs(word2head)
+    #arcs.remove((0,0))
+    #arc_d = non_projective_arcs(word2head)
+    #arc_d_sorted = sorted(arc_d,key=lambda x: x[1])
+    #print(arcs)
+    #print(arc_d_sorted)
+    head2word = {h:w for (h,w) in arcs}
+
+    while not is_projective_arc(arcs):
+        arc_d_sorted = non_projective_arcs(arcs)
+        if len(arc_d_sorted) == 0:
+            break
+        arc_np = arc_d_sorted[0][0]
+        arcs.remove(arc_np)
+        #if arc_np[0] == 0:
+        #    h_orig = arc_np[1]
+
+        h_orig = word2head[arc_np[0]]
+        arcs.append((h_orig, arc_np[1]))
+        #word2head[arc_np[1]] = h_orig
+    has_root = False
+    for (u,v) in arcs:
+        if u == v:
+            has_root=True
+            break
+    if not has_root:
+        arcs.append((0,0))
+
+    return arcs
 
 def is_good(heads):
     return is_projective(heads) and not contains_cycles(heads)
@@ -151,7 +252,7 @@ def find_corresponding_relation(labeled_arcs, arc):
             return r
 
 
-def arc_standard_oracle(sentence, word2head, relations):
+def arc_standard_oracle(sentence, word2head, relations,true_arcs):
     # (head,tail)
     # heads[a] == b --> (b,a)
 
@@ -159,7 +260,7 @@ def arc_standard_oracle(sentence, word2head, relations):
     buffer = sentence.copy()  # BaseBuffer(sentence)
     # true_arcs_no_label = get_arcs(word2head)
     # true_arcs_labeled = get_labeled_arcs(word2headrels)
-    true_arcs = get_arcs(word2head)
+    #true_arcs = get_arcs(word2head)
     built_arcs = []
     built_labeled_arcs = []
     # labeled_arcs = arcs_with_relations(true_arcs, relations)
@@ -176,15 +277,6 @@ def arc_standard_oracle(sentence, word2head, relations):
         if len(stack) > 1:
             top = stack[-1]
             second = stack[-2]
-            # if (top, top) in true_arcs and have_completed_expected_children(top, true_arcs, built_arcs):
-            #    action_history.append(constants.reduce_r)
-            #    built_arcs.append((top, top))
-            #    relations_in_order.append(find_corresponding_relation(labeled_arcs, (top, top)))
-            #    # built_labeled_arcs.append((top, top, relations[0]))
-            #    # relations.pop(0)
-            #    stack.pop(-1)
-            #    continue
-
             if (top, second) in true_arcs:
                 action_history.append(constants.reduce_l)
                 built_arcs.append((top, second))
@@ -216,14 +308,7 @@ def arc_standard_oracle(sentence, word2head, relations):
         else:
             stack.append(buffer.pop(0))
             action_history.append(constants.shift)
-            # if len(buffer) == 0:
-            #    top = stack.pop(-1)
-            #    if (top, top) in true_arcs:
-            #        built_arcs.append((top, top))
-            #        # built_labeled_arcs.append((top, top, relations[0]))
-            #        # relations.pop(0)
-            #        action_history.append(None)
-            #        # relations_in_order.append(find_corresponding_relation(labeled_arcs, (top, top)))
+
 
     built_arcs.append((0, 0))
 
@@ -231,7 +316,7 @@ def arc_standard_oracle(sentence, word2head, relations):
     return action_history, relations_in_order, set(built_arcs) == set(true_arcs) and cond
 
 
-def arc_standard_oracle2(sentence, word2head, relations):
+def arc_standard_oracle2(sentence, word2head, relations,true_arcs):
     # (head,tail)
     # heads[a] == b --> (b,a)
 
@@ -239,7 +324,7 @@ def arc_standard_oracle2(sentence, word2head, relations):
     buffer = sentence.copy()  # BaseBuffer(sentence)
     # true_arcs_no_label = get_arcs(word2head)
     # true_arcs_labeled = get_labeled_arcs(word2headrels)
-    true_arcs = get_arcs(word2head)
+    #true_arcs = get_arcs(word2head)
     built_arcs = []
     built_labeled_arcs = []
     # labeled_arcs = arcs_with_relations(true_arcs, relations)
@@ -329,12 +414,12 @@ def test_oracle_arc_eager(action_history, sentence, true_arcs):
     return set(arcs) == set(true_arcs)
 
 
-def arc_eager_oracle(sentence, word2head, relations):
+def arc_eager_oracle(sentence, word2head, relations,true_arcs):
     stack = []  # BaseStack()
     buffer = sentence.copy()  # BaseBuffer(sentence)
     # true_arcs_no_label = get_arcs(word2head)
     # true_arcs_labeled = get_labeled_arcs(word2headrels)
-    true_arcs = get_arcs(word2head)
+    #true_arcs = get_arcs(word2head)
     built_arcs = []
     built_labeled_arcs = []
     # labeled_arcs = arcs_with_relations(true_arcs, relations)
@@ -397,17 +482,17 @@ def test_oracle_hybrid(action_history, sentence, true_arcs):
         elif action == constants.reduce_r:
             arcs.append((sigma[-2], sigma[-1]))
             sigma.pop(-1)
-    # arcs.append((0,0))
+    arcs.append((0,0))
     # print(arcs)
     return set(arcs) == set(true_arcs)
 
 
-def hybrid_oracle(sentence, word2head, relations):
+def hybrid_oracle(sentence, word2head, relations,true_arcs):
     stack = []  # BaseStack()
     buffer = sentence.copy()  # BaseBuffer(sentence)
     # true_arcs_no_label = get_arcs(word2head)
     # true_arcs_labeled = get_labeled_arcs(word2headrels)
-    true_arcs = get_arcs(word2head)
+    #true_arcs = get_arcs(word2head)
     built_arcs = []
     built_labeled_arcs = []
     # labeled_arcs = arcs_with_relations(true_arcs, relations)
@@ -491,11 +576,11 @@ def test_oracle_mh4(action_history, sentence, true_arcs):
     # print(arcs)
     return set(arcs) == set(true_arcs)
 
-def mh4_oracle(sentence, word2head, relations):
+def mh4_oracle(sentence, word2head, relations,true_arcs):
     stack = []
     buffer = sentence.copy()
 
-    true_arcs = get_arcs(word2head)
+    #true_arcs = get_arcs(word2head)
     built_arcs = []
     action_history = []
 

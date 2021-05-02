@@ -8,7 +8,7 @@ sys.path.append('./src/')
 from h01_data import Vocab, save_vocabs, save_embeddings
 from h01_data.oracle import arc_standard_oracle, arc_eager_oracle, hybrid_oracle,easy_first_arc_standard,\
     easy_first_hybrid,easy_first_arc_eager,easy_first_mh4,mh4_oracle
-from h01_data.oracle import is_projective, is_good
+from h01_data.oracle import is_projective, is_good,projectivize,projectivize_mh4,get_arcs
 from utils import utils
 from utils import constants
 
@@ -103,7 +103,9 @@ def process_data(in_fname_base, out_path, mode, vocabs, oracle=None, transition_
     step = 0
     faileds = []
     with open(in_fname, 'r') as file:
+        step = 0
         for sentence in get_sentence(file):
+            step+=1
             sent_processed, heads, relations,rel2id = process_sentence(sentence, vocabs)
             heads_proper = [0] + heads
             #if len(sentence) > 6 or len(sentence) <= 2:
@@ -118,28 +120,52 @@ def process_data(in_fname_base, out_path, mode, vocabs, oracle=None, transition_
             #word2headrels = {w: (h, r) for (w, h, r) in zip(sentence_proper, heads_proper, relations)}
             # print(word2headrels)
             word2head = {w: h for (w, h) in zip(sentence_proper, heads_proper)}
-            if is_projective(word2head) or transition_name == 'mh4' or transition_name == 'easy-first-mh4':
-                step+=1
-                actions,relations_order,good = oracle(sentence_proper, word2head,relations)
-                relation_ids = [rel2id[rel] for rel in relations_order]
-                if good:
-                    right += 1
-                else:
-                    faileds.append(step)
-                    wrong += 1
-                #labeled_actions = labeled_action_pairs(actions,relation_ids.copy())
-                #actions_processed = {'transition': actions, 'relations':relation_ids,'labeled_actions':labeled_actions}
-                actions_processed = {'transition': actions, 'relations':relation_ids,}
-                utils.append_json(out_fname_history, actions_processed)
-                utils.append_json(out_fname, sent_processed)
+            if not is_projective(word2head) and transition_name != 'mh4':
+                true_arcs = projectivize(word2head)
 
             else:
-                continue
+                true_arcs = get_arcs(word2head)
+            if transition_name == 'mh4':
+                good = False
+                while not good:
+                    actions, relations_order, good = oracle(sentence_proper, word2head, relations,true_arcs)
+                    if good:
+                        break
+                    word2hear, true_arcs = projectivize_mh4(word2head,true_arcs)
+            else:
+                actions, relations_order, good = oracle(sentence_proper, word2head, relations, true_arcs)
+            #print(relations_order)
+            #print(actions)
+            relation_ids = [rel2id[rel] for rel in relations_order]
+            if good:
+                right += 1
+            else:
+                faileds.append(step)
+                wrong += 1
+            actions_processed = {'transition': actions, 'relations':relation_ids,}
+            utils.append_json(out_fname_history, actions_processed)
+            utils.append_json(out_fname, sent_processed)
+            #if is_projective(word2head) or transition_name == 'mh4' or transition_name == 'easy-first-mh4':
+            #    step+=1
+            #    actions,relations_order,good = oracle(sentence_proper, word2head,relations)
+            #    relation_ids = [rel2id[rel] for rel in relations_order]
+            #    if good:
+            #        right += 1
+            #    else:
+            #        faileds.append(step)
+            #        wrong += 1
+            #    #labeled_actions = labeled_action_pairs(actions,relation_ids.copy())
+            #    #actions_processed = {'transition': actions, 'relations':relation_ids,'labeled_actions':labeled_actions}
+            #    actions_processed = {'transition': actions, 'relations':relation_ids,}
+            #    utils.append_json(out_fname_history, actions_processed)
+            #    utils.append_json(out_fname, sent_processed)
+            #else:
+            #    continue
 
 
     print("GOOD {}".format(right))
     print("BAD {}".format(wrong))
-    print("fails {}".format(faileds))
+    #print("fails {}".format(faileds))
 
 def add_sentence_vocab(sentence, words, tags, rels):
     for token in sentence:
