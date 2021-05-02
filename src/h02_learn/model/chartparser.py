@@ -285,7 +285,7 @@ class ChartParser(BertParser):
             s = self.mlp(rep)
             scores.append(s)
         scores = torch.stack(scores, dim=-1).squeeze(0)
-        if not self.training:# or gold_index is None:
+        if not self.training or gold_index is None:
             #print_green(scores)
             gold_index = torch.argmax(scores, dim=-1)
             #print_red(gold_index)
@@ -340,7 +340,7 @@ class ChartParser(BertParser):
         return scores, gold_index, h, m, gold_arc_set, arcs, hypergraph, pending
 
     def parse_step_mh4(self,pending, hypergraph,arcs,gold_arc,gold_arc_set,words_f,words_b):
-        pending = hypergraph.calculate_pending()
+        #pending = hypergraph.calculate_pending()
 
         possible_arcs, items = self.possible_arcs_mh4(pending, hypergraph, arcs)
         scores, gold_index, gold_key = self.score_arcs_mh4(possible_arcs, gold_arc_set,
@@ -354,7 +354,7 @@ class ChartParser(BertParser):
         m = made_arc[1]
         h = min(h,hypergraph.n-1)
         m = min(m,hypergraph.n-1)
-        #pending = hypergraph.calculate_pending(pending, m)
+        pending = hypergraph.calculate_pending(pending, m)
         hypergraph = hypergraph.set_head(m)
         hypergraph.made_arcs.append(made_arc)
         arcs.append(made_arc)
@@ -411,11 +411,11 @@ class ChartParser(BertParser):
             words_b = s_b  # .clone()
             gold_arc_set = self.gold_arc_set(ordered_arcs)
             hypergraph = self.hypergraph(n, gold_arc_set)
-            #if self.mode == "agenda-mh4":
-            #    pending = hypergraph.calculate_pending_init()
-            #else:
-            #    pending = self.init_pending(n, hypergraph)
-            pending = self.init_pending(n, hypergraph)
+            if self.mode == "agenda-mh4":
+                pending = hypergraph.calculate_pending_init()
+            else:
+                pending = self.init_pending(n, hypergraph)
+            #pending = self.init_pending(n, hypergraph)
             for iter, gold_arc in enumerate(ordered_arcs):
 
                 scores, gold_index, h, m, gold_arc_set, arcs, hypergraph,pending = self.parse_step_chart(pending,
