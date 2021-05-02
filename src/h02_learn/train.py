@@ -6,7 +6,7 @@ import torch.optim as optim
 sys.path.append('./src/')
 from h02_learn.dataset import get_data_loaders
 from h02_learn.model import BiaffineParser, MSTParser
-from h02_learn.model import NeuralTransitionParser, EasyFirstParser, ChartParser
+from h02_learn.model import NeuralTransitionParser, ChartParser
 from h02_learn.model import MH4,Hybrid,ArcEager,ArcStandard
 from h02_learn.train_info import TrainInfo
 from h02_learn.algorithm.mst import get_mst_batch
@@ -74,11 +74,7 @@ def get_model(vocabs,embeddings,args,max_sent_len):
     elif args.model == 'chart':
         return ChartParser(vocabs=vocabs, embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
                            hypergraph=ArcStandard,dropout=0.33, beam_size=10,max_sent_len=max_sent_len).to(device=constants.device)
-    elif args.model == 'easy-first':
-        return EasyFirstParser(vocabs=vocabs, embedding_size=args.embedding_size,rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
-            dropout=args.dropout,
-            transition_system=constants.easy_first) \
-            .to(device=constants.device)
+
     elif args.model == 'arc-eager':
         return NeuralTransitionParser(
             vocabs=vocabs, embedding_size=args.embedding_size,rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
