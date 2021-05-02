@@ -607,35 +607,27 @@ class MH4(Hypergraph):
 
         return pending
 
-    def recursive_iterate(self, pending, arcs, items, prev_arc, merge_levels):
+    def calculate_pending(self,pending,updated):
+        pending_new = {}
+        window_lower = updated-3
+        window_upper = updated+4
 
-        for item in pending.copy().values():
-            arcs_new, items_new = self.link(item, arcs + prev_arc)
-            arcs = arcs + arcs_new
-            items = items + items_new
-        for i, item in enumerate(pending.copy().values()):
-            pending_copy = pending.copy()
-            new_merged = self.combine(item, pending)
-            if new_merged not in merge_levels:
-                merge_levels.append(new_merged)
-                for item_new in new_merged:
-                    pending_copy[item_new.key] = item_new
-                    if item_new.l.key in pending_copy.keys():
-                        del pending_copy[item_new.l.key]
-                    if item_new.r.key in pending_copy.keys():
-                        del pending_copy[item_new.r.key]
-                    arcs_new, items_new = self.link(item_new, arcs + prev_arc)
-                    arcs = arcs + arcs_new
-                    items = items + items_new
+        for item in pending.values():
+            if updated in item.heads:
+                new_heads = item.heads.copy()
+                new_heads.remove(updated)
+                if updated < self.n:
+                    new_heads.append(updated+1)
+                new_heads = sorted(list(set(new_heads)))
+                if len(new_heads)> 1 and len(new_heads)<=4:
+                    item_new = ItemMH4(new_heads,0,0)
+                    pending_new[item_new.key] = item_new
+            else:
+                pending_new[item.key] = item
+        return pending_new
 
-        for p_i in merge_levels:
-            if len(p_i) > 0:
-                d_i = self.list_to_dict(p_i, pending.copy())
-                arcs, items = self.recursive_iterate(d_i, arcs, items, prev_arc, merge_levels)
 
-        return arcs, items
-
-    def calculate_pending(self):
+    def calculate_pending_init(self):
         remaining = []
         pending = {}
         for i in range(self.n):

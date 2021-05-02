@@ -43,6 +43,7 @@ class ChartParser(BertParser):
         weight_encoder_layer = nn.TransformerEncoderLayer(d_model=embedding_size, nhead=8)
         self.weight_encoder = nn.TransformerEncoder(weight_encoder_layer, num_layers=2)
         self.dropout = nn.Dropout(dropout)
+        self.mode = mode
         if mode == "agenda-mh4":
             self.parse_step_chart = self.parse_step_mh4
         else:
@@ -284,49 +285,13 @@ class ChartParser(BertParser):
             s = self.mlp(rep)
             scores.append(s)
         scores = torch.stack(scores, dim=-1).squeeze(0)
-        if not self.training or gold_index is None:
+        if not self.training:# or gold_index is None:
             #print_green(scores)
             gold_index = torch.argmax(scores, dim=-1)
             #print_red(gold_index)
             gold_key = index2key[gold_index.item()]
         return scores, gold_index, gold_key
 
-    def score_arcs_eager(self, possible_arcs, gold_arc_set, gold_arc_oracle, possible_items, words_f, words_b):
-        gold_index = None
-        gold_key = None
-        n = len(words_b)
-        all_scores = []
-        index2key = {}
-        ga = (gold_arc_oracle[0].item(), gold_arc_oracle[1].item())
-        #for iter_mother , (possible_arcs, possible_items) in enumerate(zip(possible_arcs_all,possible_items_all)):
-        scores = []
-        for iter, ((u, v), item) in enumerate(zip(possible_arcs, possible_items)):
-            if (u, v) == ga:
-                gold_index = torch.tensor([iter], dtype=torch.long).to(device=constants.device)
-                gold_key = item.key
-        for iter, ((u, v), item) in enumerate(zip(possible_arcs, possible_items)):
-            i, j, h = item.i, item.j, item.h
-            #if gold_index is None:
-            #    if (u,v) in gold_arc_set:
-            #        gold_index = torch.tensor([iter], dtype=torch.long).to(device=constants.device)
-            #        gold_key = item.key
-            index2key[iter] = item.key
-
-            span = self.span_rep(words_f, words_b, i, j, n).unsqueeze(0)
-            fwd_rep = torch.cat([words_f[u, :], words_f[v, :]], dim=-1).unsqueeze(0)
-            bckw_rep = torch.cat([words_b[u, :], words_b[v, :]], dim=-1).unsqueeze(0)
-            rep = torch.cat([span, fwd_rep, bckw_rep], dim=-1)
-            s = self.mlp(rep)
-            scores.append(s)
-        scores = torch.stack(scores, dim=-1).squeeze(0)
-        all_scores.append(scores)
-
-        #scores = torch.cat([s for s in all_scores],dim=-1)
-
-        if not self.training:
-            gold_index = torch.argmax(scores, dim=-1)
-            gold_key = index2key[gold_index.item()]
-        return scores, gold_index, gold_key
 
     def score_arcs(self, possible_arcs, gold_arc, possible_items, words_f, words_b):
         gold_index = None
@@ -375,7 +340,8 @@ class ChartParser(BertParser):
         return scores, gold_index, h, m, gold_arc_set, arcs, hypergraph, pending
 
     def parse_step_mh4(self,pending, hypergraph,arcs,gold_arc,gold_arc_set,words_f,words_b):
-        pending = hypergraph.calculate_pending()
+        #pending = hypergraph.calculate_pending()
+
         possible_arcs, items = self.possible_arcs_mh4(pending, hypergraph, arcs)
         scores, gold_index, gold_key = self.score_arcs_mh4(possible_arcs, gold_arc_set,
                                                            gold_arc, items, words_f, words_b)
@@ -388,7 +354,7 @@ class ChartParser(BertParser):
         m = made_arc[1]
         h = min(h,hypergraph.n-1)
         m = min(m,hypergraph.n-1)
-
+        pending = hypergraph.calculate_pending(pending, m)
         hypergraph = hypergraph.set_head(m)
         hypergraph.made_arcs.append(made_arc)
         arcs.append(made_arc)
@@ -445,7 +411,10 @@ class ChartParser(BertParser):
             words_b = s_b  # .clone()
             gold_arc_set = self.gold_arc_set(ordered_arcs)
             hypergraph = self.hypergraph(n, gold_arc_set)
-            pending = self.init_pending(n, hypergraph)
+            if self.mode == "agenda-mh4":
+                pending = hypergraph.calculate_pending_init()
+            else:
+                pending = self.init_pending(n, hypergraph)
             for iter, gold_arc in enumerate(ordered_arcs):
 
                 scores, gold_index, h, m, gold_arc_set, arcs, hypergraph,pending = self.parse_step_chart(pending,
