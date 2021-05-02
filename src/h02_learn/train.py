@@ -127,7 +127,7 @@ def _evaluate(evalloader, model):
         heads, rels = heads.to(device=constants.device), rels.to(device=constants.device)
         transitions = transitions.to(device=constants.device)
         relations_in_order = relations_in_order.to(device=constants.device)
-        loss, predicted_heads, predicted_rels = model((text, pos), transitions, relations_in_order,maps, mode='eval')
+        loss, predicted_heads, predicted_rels = model((text, pos), transitions, relations_in_order,maps)
 
         #print("çççççççççççççççççççççççççççççççç")
         #print("predicted heads {}".format(predicted_heads))
@@ -167,7 +167,7 @@ def train_batch(text, pos, heads, rels, transitions, relations_in_order, maps,mo
     transitions = transitions.to(device=constants.device)
     relations_in_order = relations_in_order.to(device=constants.device)
 
-    loss, pred_h, pred_rel = model((text, pos), transitions, relations_in_order,maps, mode='train')
+    loss, pred_h, pred_rel = model((text, pos), transitions, relations_in_order,maps)
     #print("çççççççççççççççççççççççççççççççç")
     #print(pred_h)
     #print(heads)
