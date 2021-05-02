@@ -219,40 +219,69 @@ class ChartParser(BertParser):
                 gold_index = torch.tensor([iter], dtype=torch.long).to(device=constants.device)
                 gold_key = item.key
         for iter, ((u, v), item) in enumerate(zip(possible_arcs, possible_items)):
-            (h1, h2, h3, h4) = item.key
+            #(h1, h2, h3, h4) = item.key
+            if len(item.heads) == 2:
+                i = item.heads[0]
+                j = item.heads[1]
+                span = self.span_rep(words_f, words_b, i, j, n).unsqueeze(0)
+            elif len(item.heads) == 3:
+                i = item.heads[0]
+                mid = item.heads[1]
+                j = item.heads[2]
+                span_1 = self.span_rep(words_f, words_b, i, mid, n).unsqueeze(0)
+                span_2 = self.span_rep(words_f, words_b, mid, j, n).unsqueeze(0)
+                span = span_1-span_2
+            elif len(item.heads)==4:
+                i1 = item.heads[0]
+                j1 = item.heads[1]
+                i2 = item.heads[2]
+                j2 = item.heads[3]
+                span_1 = self.span_rep(words_f, words_b, i1, j1, n).unsqueeze(0)
+                span_2 = self.span_rep(words_f, words_b, i2, j2, n).unsqueeze(0)
+                span = span_1-span_2
+            else:
+                # len == 1:
+                i = item.heads[0]
+                span = torch.cat([words_f[i,:], words_b[i,:]], dim=-1).to(device=constants.device).unsqueeze(0)
+
+
             #if gold_index is None:
             #    if (u, v) in gold_arc_set:
             #        gold_index = torch.tensor([iter], dtype=torch.long).to(device=constants.device)
             #        gold_key = item.key
             index2key[iter] = item.key
-            if h1 !=-1:
-                rh1 = torch.cat([words_f[h1,:].unsqueeze(0),words_b[h1,:].unsqueeze(0)],dim=-1)
-                rh1 = self.dropout(F.relu(self.linear_1(rh1)))
-            else:
-                rh1 = torch.zeros_like(words_b[0,:].unsqueeze(0)).to(device=constants.device)
-            if h2 !=-1:
-                rh2 = torch.cat([words_f[h2,:].unsqueeze(0),words_b[h2,:].unsqueeze(0)],dim=-1)
-                rh2 = self.dropout(F.relu(self.linear_1(rh2)))
-            else:
-                rh2 = torch.zeros_like(words_b[0,:].unsqueeze(0)).to(device=constants.device)
-            if h3 !=-1:
-                rh3 = torch.cat([words_f[h3,:].unsqueeze(0),words_b[h3,:].unsqueeze(0)],dim=-1)
-                rh3 = self.dropout(F.relu(self.linear_1(rh3)))
-            else:
-                rh3 = torch.zeros_like(words_b[0,:].unsqueeze(0)).to(device=constants.device)
-            if h4 !=-1:
-                rh4 = torch.cat([words_f[h4,:].unsqueeze(0),words_b[h4,:].unsqueeze(0)],dim=-1)
-                rh4 = self.dropout(F.relu(self.linear_1(rh4)))
-            else:
-                rh4 = torch.zeros_like(words_b[0,:].unsqueeze(0)).to(device=constants.device)
-
+            #if h1 !=-1:
+            #    rh1 = torch.cat([words_f[h1,:].unsqueeze(0),words_b[h1,:].unsqueeze(0)],dim=-1)
+            #    rh1 = self.dropout(F.relu(self.linear_1(rh1)))
+            #else:
+            #    rh1 = torch.zeros_like(words_b[0,:].unsqueeze(0)).to(device=constants.device)
+            #if h2 !=-1:
+            #    rh2 = torch.cat([words_f[h2,:].unsqueeze(0),words_b[h2,:].unsqueeze(0)],dim=-1)
+            #    rh2 = self.dropout(F.relu(self.linear_1(rh2)))
+            #else:
+            #    rh2 = torch.zeros_like(words_b[0,:].unsqueeze(0)).to(device=constants.device)
+            #if h3 !=-1:
+            #    rh3 = torch.cat([words_f[h3,:].unsqueeze(0),words_b[h3,:].unsqueeze(0)],dim=-1)
+            #    rh3 = self.dropout(F.relu(self.linear_1(rh3)))
+            #else:
+            #    rh3 = torch.zeros_like(words_b[0,:].unsqueeze(0)).to(device=constants.device)
+            #if h4 !=-1:
+            #    rh4 = torch.cat([words_f[h4,:].unsqueeze(0),words_b[h4,:].unsqueeze(0)],dim=-1)
+            #    rh4 = self.dropout(F.relu(self.linear_1(rh4)))
+            #else:
+            #    rh4 = torch.zeros_like(words_b[0,:].unsqueeze(0)).to(device=constants.device)
             #if h5 !=-1:
             #    rh5 = torch.cat([words_f[h5,:].unsqueeze(0),words_b[h5,:].unsqueeze(0)],dim=-1)
             #    rh5 = self.dropout(F.relu(self.linear_1(rh5)))
             #else:
             #    rh5 = torch.zeros_like(words_b[0,:].unsqueeze(0)).to(device=constants.device)
-            rep = torch.cat([rh1,rh2,rh3,rh4],dim=-1)
-            s = self.mlp_mh4(rep)
+            #rep = torch.cat([rh1,rh2,rh3,rh4],dim=-1)
+            #s = self.mlp_mh4(rep)
+            #scores.append(s)
+            fwd_rep = torch.cat([words_f[u, :], words_f[v, :]], dim=-1).unsqueeze(0)
+            bckw_rep = torch.cat([words_b[u, :], words_b[v, :]], dim=-1).unsqueeze(0)
+            rep = torch.cat([span, fwd_rep, bckw_rep], dim=-1)
+            s = self.mlp(rep)
             scores.append(s)
         scores = torch.stack(scores, dim=-1).squeeze(0)
         if not self.training or gold_index is None:
@@ -453,7 +482,6 @@ class ChartParser(BertParser):
             batch_loss += loss
         batch_loss /= x_emb.shape[0]
         heads = heads_batch
-
         l_logits = self.get_label_logits(h_t_noeos, heads)
         rels_batch = torch.argmax(l_logits, dim=-1)
         batch_loss += self.loss(batch_loss, l_logits, rels)
