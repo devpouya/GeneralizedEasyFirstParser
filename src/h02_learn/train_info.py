@@ -1,4 +1,4 @@
-
+import wandb
 class TrainInfo:
     # pylint: disable=too-many-instance-attributes
     batch_id = 0
@@ -67,6 +67,10 @@ class TrainInfo:
 
     def print_progress(self, dev_results,file):
         dev_loss, dev_las, dev_uas = dev_results
+        log_dict = {'(%05d/%05d) Training loss: %.4f Dev loss: %.4f Dev las: %.4f Dev uas: %.4f' %
+              (self.batch_id, self.max_epochs, self.avg_loss, dev_loss, dev_las, dev_uas)}
+        wandb.log(log_dict)
+
         print('(%05d/%05d) Training loss: %.4f Dev loss: %.4f Dev las: %.4f Dev uas: %.4f' %
               (self.batch_id, self.max_epochs, self.avg_loss, dev_loss, dev_las, dev_uas))
         file.write('(%05d/%05d) Training loss: %.4f Dev loss: %.4f Dev las: %.4f Dev uas: %.4f' %

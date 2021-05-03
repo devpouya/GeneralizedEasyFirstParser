@@ -14,6 +14,9 @@ from utils import constants
 from utils import utils
 
 
+import wandb
+wandb.login()
+
 def get_args():
     parser = argparse.ArgumentParser()
     # Data
@@ -23,6 +26,7 @@ def get_args():
     parser.add_argument('--batch-size-eval', type=int, default=128)
     # Model
     parser.add_argument('--embedding-size', type=int, default=768)
+    parser.add_argument('--hidden-size', type=int, default=400)
     parser.add_argument('--rel-embedding-size', type=int, default=100)
     parser.add_argument('--dropout', type=float, default=.33)
     parser.add_argument('--weight-decay', type=float, default=0.01)
@@ -94,16 +98,16 @@ def get_model(vocabs,embeddings,args,max_sent_len):
             transition_system=constants.mh4) \
             .to(device=constants.device)
     elif args.model == 'agenda-std':
-        return ChartParser(vocabs=vocabs, hidden_size = 400,embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
+        return ChartParser(vocabs=vocabs, hidden_size = args.hidden_size,embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
                            hypergraph=ArcStandard,dropout=0.33, beam_size=10,max_sent_len=max_sent_len,mode=args.model).to(device=constants.device)
     elif args.model == 'agenda-hybrid':
-        return ChartParser(vocabs=vocabs, hidden_size = 400,embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
+        return ChartParser(vocabs=vocabs, hidden_size = args.hidden_size,embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
                            hypergraph=Hybrid,dropout=0.33, beam_size=10,max_sent_len=max_sent_len,mode=args.modelwa).to(device=constants.device)
     elif args.model == 'agenda-eager':
-        return ChartParser(vocabs=vocabs, hidden_size = 400,embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
+        return ChartParser(vocabs=vocabs, hidden_size = args.hidden_size,embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
                            hypergraph=ArcEager,dropout=0.33, beam_size=10,max_sent_len=max_sent_len).to(device=constants.device)
     elif args.model == 'agenda-mh4':
-        return ChartParser(vocabs=vocabs, hidden_size = 400,embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
+        return ChartParser(vocabs=vocabs, hidden_size = args.hidden_size,embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
                            hypergraph=MH4,dropout=0.33, beam_size=10,max_sent_len=max_sent_len,mode=args.model).to(device=constants.device)
     else:
         return BiaffineParser(
@@ -232,6 +236,8 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
                     train_info.print_progress(dev_results,file)
                     break
                 train_info.print_progress(dev_results,file)
+            if steps>=1:
+                break
 
     model.recover_best()
 
@@ -354,9 +360,14 @@ def main():
                          transition_system=transition_system, bert_model=args.bert_model)
     print('Train size: %d Dev size: %d Test size: %d' %
           (len(trainloader.dataset), len(devloader.dataset), len(testloader.dataset)))
-    file1 = open("final_output.txt", "w")
-
+    save_name = "final_output_%s.txt".format(args.model)
+    file1 = open(save_name, "w")
+    WANDB_PROJECT = "%s_%s".format(args.language,args.model)
     model = get_model(vocabs, embeddings, args,max_sent_len)
+    run = wandb.init(project=WANDB_PROJECT,config={'wandb_nb':'wandb_three_in_one_hm'})
+
+    # Start tracking your model's gradients
+    wandb.watch(model)
     #if args.model != 'agenda-std':
     train(trainloader, devloader, model, args.eval_batches, args.wait_iterations,
           args.optim, args.lr_decay, args.weight_decay, args.save_path, args.save_periodically,file=file1)
@@ -379,8 +390,14 @@ def main():
           (train_las, dev_las, test_las))
     file1.write('Final Training uas: %.4f Dev uas: %.4f Test uas: %.4f' %
           (train_uas, dev_uas, test_uas))
-
+    wandb.log({'Final Training loss: %.4f Dev loss: %.4f Test loss: %.4f' %
+          (train_loss, dev_loss, test_loss)})
+    wandb.log({'Final Training las: %.4f Dev las: %.4f Test las: %.4f' %
+          (train_las, dev_las, test_las)})
+    wandb.log({'Final Training uas: %.4f Dev uas: %.4f Test uas: %.4f' %
+          (train_uas, dev_uas, test_uas)})
     file1.close()
+    wandb.finish()
     print('Final Training loss: %.4f Dev loss: %.4f Test loss: %.4f' %
           (train_loss, dev_loss, test_loss))
     print('Final Training las: %.4f Dev las: %.4f Test las: %.4f' %
