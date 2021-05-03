@@ -5,7 +5,7 @@ from h01_data import load_vocabs, load_embeddings, get_ud_fname, get_oracle_acti
 from utils import constants
 from .syntax import SyntaxDataset
 from transformers import BertTokenizer, BertTokenizerFast
-
+from transformers import AutoTokenizer
 
 
 def generate_batch(batch,transition_system):
@@ -85,14 +85,21 @@ def get_data_loaders(data_path, language, batch_size, batch_size_eval, transitio
             is_agenda=False
         (transitions_train, transitions_dev, transitions_test) = get_oracle_actions(src_path, transitions,is_agenda)
     vocabs = load_vocabs(src_path)
+
+
+
+
     #embeddings = load_embeddings(src_path)
     if language == "en":
-        tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
+        tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
     elif language == "de":
         tokenizer = BertTokenizer.from_pretrained('bert-base-german-cased')
+    elif language == "cs":
+        #tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased')
+        tokenizer = AutoTokenizer.from_pretrained("DeepPavlov/bert-base-bg-cs-pl-ru-cased")
     else:
-        tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased')
-
+        # Basque
+        tokenizer = AutoTokenizer.from_pretrained("ixa-ehu/berteus-base-cased")
 
     trainloader, max_sent_len_train = get_data_loader(fname_train, transitions_train, transition_system, tokenizer,
                                                       batch_size,

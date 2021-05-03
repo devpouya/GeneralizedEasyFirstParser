@@ -99,22 +99,18 @@ def get_model(vocabs,args,max_sent_len):
             transition_system=constants.mh4) \
             .to(device=constants.device)
     elif args.model == 'agenda-std':
-        return ChartParser(vocabs=vocabs, hidden_size = args.hidden_size,embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
+        return ChartParser(language=args.language,vocabs=vocabs, hidden_size = args.hidden_size,embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
                            hypergraph=ArcStandard,dropout=0.33, beam_size=10,max_sent_len=max_sent_len,mode=args.model).to(device=constants.device)
     elif args.model == 'agenda-hybrid':
-        return ChartParser(vocabs=vocabs, hidden_size = args.hidden_size,embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
+        return ChartParser(language=args.language,vocabs=vocabs, hidden_size = args.hidden_size,embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
                            hypergraph=Hybrid,dropout=0.33, beam_size=10,max_sent_len=max_sent_len,mode=args.modelwa).to(device=constants.device)
     elif args.model == 'agenda-eager':
-        return ChartParser(vocabs=vocabs, hidden_size = args.hidden_size,embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
+        return ChartParser(language=args.language,vocabs=vocabs, hidden_size = args.hidden_size,embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
                            hypergraph=ArcEager,dropout=0.33, beam_size=10,max_sent_len=max_sent_len).to(device=constants.device)
     elif args.model == 'agenda-mh4':
-        return ChartParser(vocabs=vocabs, hidden_size = args.hidden_size,embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
+        return ChartParser(language=args.language,vocabs=vocabs, hidden_size = args.hidden_size,embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
                            hypergraph=MH4,dropout=0.33, beam_size=10,max_sent_len=max_sent_len,mode=args.model).to(device=constants.device)
-    else:
-        return BiaffineParser(
-            vocabs, args.embedding_size, args.hidden_size, args.arc_size, args.label_size,
-            nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings) \
-            .to(device=constants.device)
+
 
 def calculate_attachment_score(heads_tgt, heads, predicted_rels, rels):
     predicted_rels = predicted_rels.permute(1,0)

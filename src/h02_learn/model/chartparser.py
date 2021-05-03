@@ -33,9 +33,9 @@ def print_yellow(s):
 
 
 class ChartParser(BertParser):
-    def __init__(self, vocabs, hidden_size, embedding_size, rel_embedding_size, batch_size, hypergraph,
+    def __init__(self, language, vocabs, hidden_size, embedding_size, rel_embedding_size, batch_size, hypergraph,
                  dropout=0.33, beam_size=10, max_sent_len=190, eos_token_id=28996,mode="agenda-std"):
-        super().__init__(vocabs, embedding_size=embedding_size, rel_embedding_size=rel_embedding_size,
+        super().__init__(language, vocabs, embedding_size=embedding_size, rel_embedding_size=rel_embedding_size,
                          batch_size=batch_size, dropout=dropout,
                          beam_size=beam_size)
         self.eos_token_id = eos_token_id
@@ -63,22 +63,22 @@ class ChartParser(BertParser):
         layers = [linear_items1, nn.ReLU(), nn.Dropout(dropout), linear_items2, nn.ReLU(), nn.Dropout(dropout),
                   linear_items3]
 
-        linear_items1mh4 = nn.Linear(self.hidden_size * 4, self.hidden_size * 2).to(device=constants.device)
-        linear_items2mh4 = nn.Linear(self.hidden_size * 2, 1).to(device=constants.device)
-        layers_mh4 = [linear_items1mh4, nn.ReLU(), nn.Dropout(dropout), linear_items2mh4]
+        #linear_items1mh4 = nn.Linear(self.hidden_size * 4, self.hidden_size * 2).to(device=constants.device)
+        #linear_items2mh4 = nn.Linear(self.hidden_size * 2, 1).to(device=constants.device)
+        #layers_mh4 = [linear_items1mh4, nn.ReLU(), nn.Dropout(dropout), linear_items2mh4]
         self.mlp = nn.Sequential(*layers)
-        self.mlp_mh4 = nn.Sequential(*layers_mh4)
+        #self.mlp_mh4 = nn.Sequential(*layers_mh4)
 
-        self.linear_items22 = nn.Linear(self.hidden_size * 2, 200).to(device=constants.device)
+        #self.linear_items22 = nn.Linear(self.hidden_size * 2, 200).to(device=constants.device)
 
-        self.linear_ij = nn.Linear(self.hidden_size * 2, self.hidden_size).to(device=constants.device)
-        self.linear_h = nn.Linear(self.hidden_size * 2, self.hidden_size).to(device=constants.device)
-        self.linear_1 = nn.Linear(self.hidden_size * 2, self.hidden_size).to(device=constants.device)
+        #self.linear_ij = nn.Linear(self.hidden_size * 2, self.hidden_size).to(device=constants.device)
+        #self.linear_h = nn.Linear(self.hidden_size * 2, self.hidden_size).to(device=constants.device)
+        #self.linear_1 = nn.Linear(self.hidden_size * 2, self.hidden_size).to(device=constants.device)
 
-        self.biaffine_item = Biaffine(self.hidden_size, self.hidden_size, self.hidden_size * 4)
+        #self.biaffine_item = Biaffine(self.hidden_size, self.hidden_size, self.hidden_size * 4)
 
-        self.ln1 = nn.LayerNorm(self.hidden_size).to(device=constants.device)
-        self.ln2 = nn.LayerNorm(self.hidden_size * 2).to(device=constants.device)
+        #self.ln1 = nn.LayerNorm(self.hidden_size).to(device=constants.device)
+        #self.ln2 = nn.LayerNorm(self.hidden_size * 2).to(device=constants.device)
         # self.biaffineChart = BiaffineChart(200, 200)
 
         self.linear_labels_dep = nn.Linear(self.hidden_size, 200).to(device=constants.device)
@@ -89,14 +89,13 @@ class ChartParser(BertParser):
         self.lstm_tree = nn.LSTM(self.hidden_size, self.hidden_size, 1, batch_first=False, bidirectional=False).to(
             device=constants.device)
 
-        encoder_layer = nn.TransformerEncoderLayer(d_model=868, nhead=4)
-        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=2)
-
-        self.lstm_tree_left = nn.LSTM(self.hidden_size, self.hidden_size, 1, batch_first=False, bidirectional=False).to(
-            device=constants.device)
-        self.lstm_tree_right = nn.LSTM(self.hidden_size, self.hidden_size, 1, batch_first=False,
-                                       bidirectional=False).to(
-            device=constants.device)
+        #encoder_layer = nn.TransformerEncoderLayer(d_model=868, nhead=4)
+        #self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=2)
+        #self.lstm_tree_left = nn.LSTM(self.hidden_size, self.hidden_size, 1, batch_first=False, bidirectional=False).to(
+        #    device=constants.device)
+        #self.lstm_tree_right = nn.LSTM(self.hidden_size, self.hidden_size, 1, batch_first=False,
+        #                               bidirectional=False).to(
+        #    device=constants.device)
 
 
 

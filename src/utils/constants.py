@@ -20,6 +20,7 @@ UD_LANG_FOLDERS = {
     # 'gl': 'UD_Galician-TreeGal/gl_treegal-ud-%s.conllu',
     'cu': 'UD_Old_Church_Slavonic-PROIEL/cu_proiel-ud-%s.conllu',
     'ar': 'UD_Arabic-PADT/ar_padt-ud-%s.conllu',
+    #'de': 'UD_German-GSD/de_gsd-ud-%s.conllu',
     'de': 'UD_German-HDT/de_hdt-ud-%s.conllu',
     'fro': 'UD_Old_French-SRCMF/fro_srcmf-ud-%s.conllu',
     'hy': 'UD_Armenian-ArmTDP/hy_armtdp-ud-%s.conllu',
