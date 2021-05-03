@@ -220,7 +220,9 @@ def build_easy_first(sentence, word2head,relations,true_arcs):
             if item == -1:
                 pending.remove(-1)
     ordered_arcs = list(built_arcs.values())  # []
-    return ordered_arcs, [],set(ordered_arcs)==set(true_arcs)
+    cond = set(ordered_arcs) == set(true_arcs)
+    ordered_arcs.remove((0, 0))
+    return ordered_arcs, [],cond
 
 
 def build_easy_first_mh4(sentence, word2head,relations,true_arcs):
@@ -307,8 +309,10 @@ def build_easy_first_mh4(sentence, word2head,relations,true_arcs):
             if item == -1:
                 pending.remove(-1)
     ordered_arcs = list(built_arcs.values())  # []
+    cond = set(ordered_arcs) == set(true_arcs)
+    ordered_arcs.remove((0,0))
     #ordered_arcs = true_arcs#list(built_arcs.values())  # []
-    return ordered_arcs, [],set(ordered_arcs)==set(true_arcs)
+    return ordered_arcs, [],cond#set(ordered_arcs)==set(true_arcs)
 
 
 def build_eager_easy_first(sentence, true_arcs):

@@ -203,7 +203,7 @@ class ChartParser(BertParser):
 
         return arcs, all_items
 
-    def score_arcs_mh4(self, possible_arcs, gold_arc_set, gold_arc, possible_items, words_f, words_b):
+    def score_arcs_mh4(self, possible_arcs, gold_arc, possible_items, words_f, words_b):
         gold_index = None
         gold_key = None
         n = len(words_b)
@@ -316,12 +316,16 @@ class ChartParser(BertParser):
             gold_key = index2key[gold_index.item()]
         return scores, gold_index, gold_key
 
-    def parse_step_std_hyb(self,pending, hypergraph,arcs,gold_arc,gold_arc_set,words_f,words_b):
+    def parse_step_std_hyb(self,pending, hypergraph,arcs,gold_arc,words_f,words_b):
+        #print(pending)
         possible_arcs, items = self.possible_arcs(pending, hypergraph)
+        #print(possible_arcs)
         scores, gold_index, gold_key = self.score_arcs(possible_arcs,
                                                            gold_arc, items, words_f, words_b)
         gind = gold_index.item()
         made_arc = possible_arcs[gind]
+        #print_green(made_arc)
+        #print_red(gold_arc)
         made_item = items[gold_key]
         if made_item.l.key in pending.keys():
             del pending[made_item.l.key]
@@ -331,16 +335,18 @@ class ChartParser(BertParser):
 
         h = made_arc[0]
         m = made_arc[1]
+        #gold_arc_set.remove((h,m))
+        #print_yellow(gold_arc_set)
         hypergraph = hypergraph.set_head(m)
-        hypergraph.made_arcs.append(made_arc)
+        #hypergraph.made_arcs.append(made_arc)
         arcs.append(made_arc)
-        return scores, gold_index, h, m, gold_arc_set, arcs, hypergraph, pending
+        return scores, gold_index, h, m, arcs, hypergraph, pending
 
-    def parse_step_mh4(self,pending, hypergraph,arcs,gold_arc,gold_arc_set,words_f,words_b):
+    def parse_step_mh4(self,pending, hypergraph,arcs,gold_arc,words_f,words_b):
         #pending = hypergraph.calculate_pending()
 
         possible_arcs, items = self.possible_arcs_mh4(pending, hypergraph, arcs)
-        scores, gold_index, gold_key = self.score_arcs_mh4(possible_arcs, gold_arc_set,
+        scores, gold_index, gold_key = self.score_arcs_mh4(possible_arcs,
                                                            gold_arc, items, words_f, words_b)
         gind = gold_index.item()
 
@@ -353,9 +359,9 @@ class ChartParser(BertParser):
         m = min(m,hypergraph.n-1)
         pending = hypergraph.calculate_pending(pending, m)
         hypergraph = hypergraph.set_head(m)
-        hypergraph.made_arcs.append(made_arc)
+        #hypergraph.made_arcs.append(made_arc)
         arcs.append(made_arc)
-        return scores, gold_index, h, m, gold_arc_set, arcs, hypergraph, pending
+        return scores, gold_index, h, m, arcs, hypergraph, pending
 
     def forward(self, x, transitions, relations, map, heads, rels):
         x_ = x[0][:, 1:]
@@ -404,8 +410,9 @@ class ChartParser(BertParser):
             left_children = {i: [i] for i in range(n)}
             words_f = s  # .clone()
             words_b = s_b  # .clone()
-            gold_arc_set = self.gold_arc_set(ordered_arcs)
-            hypergraph = self.hypergraph(n, gold_arc_set)
+            #gold_arc_set = self.gold_arc_set(ordered_arcs)
+            hypergraph = self.hypergraph(n)
+            #hypergraph = self.hypergraph(n, gold_arc_set)
             if self.mode == "agenda-mh4":
                 pending = hypergraph.calculate_pending_init()
             else:
@@ -413,13 +420,12 @@ class ChartParser(BertParser):
             #pending = self.init_pending(n, hypergraph)
             for iter, gold_arc in enumerate(ordered_arcs):
 
-                scores, gold_index, h, m, gold_arc_set, arcs, hypergraph,pending = self.parse_step_chart(pending,
-                                                                                                         hypergraph,
-                                                                                                         arcs,
-                                                                                                         gold_arc,
-                                                                                                         gold_arc_set,
-                                                                                                         words_f,
-                                                                                                         words_b)
+                scores, gold_index, h, m, arcs, hypergraph,pending = self.parse_step_chart(pending,
+                                                                                            hypergraph,
+                                                                                            arcs,
+                                                                                            gold_arc,
+                                                                                            words_f,
+                                                                                            words_b)
 
                 if self.training:
                     loss += nn.CrossEntropyLoss(reduction='sum')(scores, gold_index)
@@ -448,6 +454,7 @@ class ChartParser(BertParser):
         l_logits = self.get_label_logits(h_t_noeos, heads)
         rels_batch = torch.argmax(l_logits, dim=-1)
         batch_loss += self.loss(batch_loss, l_logits, rels)
+        #print(batch_loss)
         return batch_loss, heads_batch, rels_batch
 
     def get_head_logits(self, h_t, sent_lens):

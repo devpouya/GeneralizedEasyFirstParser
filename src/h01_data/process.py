@@ -18,7 +18,7 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--language', type=str, required=True)
     parser.add_argument('--data-path', type=str, default='data/')
-    parser.add_argument('--save-path', type=str, default='data_nonproj/')
+    parser.add_argument('--save-path', type=str, default='data/')
     parser.add_argument('--glove-file', type=str, required=False)
     parser.add_argument('--bert-model', type=str, default='bert-base-cased')
     parser.add_argument('--min-vocab-count', type=int, default=2)
@@ -95,9 +95,9 @@ def labeled_action_pairs(actions, relations):
 
 def process_data(in_fname_base, out_path, mode, vocabs, oracle=None, transition_name=None):
     in_fname = in_fname_base % mode
-    out_fname = '%s/%s_small.json' % (out_path, mode)
+    out_fname = '%s/%s_.json' % (out_path, mode)
     if oracle is not None:
-        out_fname_history = '%s/%s_actions_small%s.json' % (out_path, transition_name, mode)
+        out_fname_history = '%s/%s_actions_%s.json' % (out_path, transition_name, mode)
         utils.remove_if_exists(out_fname_history)
 
     utils.remove_if_exists(out_fname)
@@ -110,8 +110,8 @@ def process_data(in_fname_base, out_path, mode, vocabs, oracle=None, transition_
         step = 0
         for sentence in get_sentence(file):
             step+=1
-            if step >= 50:
-                break
+            #if step >= 50:
+            #    break
             sent_processed, heads, relations,rel2id = process_sentence(sentence, vocabs)
             heads_proper = [0] + heads
 

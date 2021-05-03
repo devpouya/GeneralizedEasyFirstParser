@@ -475,9 +475,8 @@ class ArcEager(Hypergraph):
 
 
 class MH4(Hypergraph):
-    def __init__(self, n, true_arcs):
+    def __init__(self, n):
         super().__init__(n)
-        self.true_arcs = true_arcs
         self.made_arcs = []
 
     def axiom(self, i):
