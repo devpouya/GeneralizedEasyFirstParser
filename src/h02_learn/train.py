@@ -395,12 +395,13 @@ def main():
           (train_las, dev_las, test_las))
     file1.write('Final Training uas: %.4f Dev uas: %.4f Test uas: %.4f' %
           (train_uas, dev_uas, test_uas))
-    wandb.log({'Final Training loss: %.4f Dev loss: %.4f Test loss: %.4f' %
-          (train_loss, dev_loss, test_loss)})
-    wandb.log({'Final Training las: %.4f Dev las: %.4f Test las: %.4f' %
-          (train_las, dev_las, test_las)})
-    wandb.log({'Final Training uas: %.4f Dev uas: %.4f Test uas: %.4f' %
-          (train_uas, dev_uas, test_uas)})
+
+    log_dict_loss = {'Training loss': train_loss, 'Dev Loss': dev_loss, 'Test Loss': test_loss}
+    wandb.log(log_dict_loss)
+    log_dict_las = {"Training LAS":train_las,"Dev LAS":dev_las,"Test LAS":test_las}
+    wandb.log(log_dict_las)
+    log_dict_uas = {"Training UAS":train_uas,"Dev UAS":dev_uas,"Test UAS":test_uas}
+    wandb.log(log_dict_uas)
     file1.close()
     wandb.finish()
     print('Final Training loss: %.4f Dev loss: %.4f Test loss: %.4f' %
