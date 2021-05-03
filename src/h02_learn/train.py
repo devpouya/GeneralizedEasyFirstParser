@@ -94,16 +94,16 @@ def get_model(vocabs,embeddings,args,max_sent_len):
             transition_system=constants.mh4) \
             .to(device=constants.device)
     elif args.model == 'agenda-std':
-        return ChartParser(vocabs=vocabs, embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
+        return ChartParser(vocabs=vocabs, hidden_size = 400,embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
                            hypergraph=ArcStandard,dropout=0.33, beam_size=10,max_sent_len=max_sent_len,mode=args.model).to(device=constants.device)
     elif args.model == 'agenda-hybrid':
-        return ChartParser(vocabs=vocabs, embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
+        return ChartParser(vocabs=vocabs, hidden_size = 400,embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
                            hypergraph=Hybrid,dropout=0.33, beam_size=10,max_sent_len=max_sent_len,mode=args.modelwa).to(device=constants.device)
     elif args.model == 'agenda-eager':
-        return ChartParser(vocabs=vocabs, embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
+        return ChartParser(vocabs=vocabs, hidden_size = 400,embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
                            hypergraph=ArcEager,dropout=0.33, beam_size=10,max_sent_len=max_sent_len).to(device=constants.device)
     elif args.model == 'agenda-mh4':
-        return ChartParser(vocabs=vocabs, embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
+        return ChartParser(vocabs=vocabs, hidden_size = 400,embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
                            hypergraph=MH4,dropout=0.33, beam_size=10,max_sent_len=max_sent_len,mode=args.model).to(device=constants.device)
     else:
         return BiaffineParser(

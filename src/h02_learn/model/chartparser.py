@@ -33,15 +33,12 @@ def print_yellow(s):
 
 
 class ChartParser(BertParser):
-    def __init__(self, vocabs, embedding_size, rel_embedding_size, batch_size, hypergraph,
+    def __init__(self, vocabs, hidden_size, embedding_size, rel_embedding_size, batch_size, hypergraph,
                  dropout=0.33, beam_size=10, max_sent_len=190, eos_token_id=28996,mode="agenda-std"):
-        super().__init__(vocabs, embedding_size, rel_embedding_size, batch_size, dropout=dropout,
+        super().__init__(vocabs, hidden_size, embedding_size, rel_embedding_size, batch_size, dropout=dropout,
                          beam_size=beam_size)
-        self.hidden_size = 100
         self.eos_token_id = eos_token_id
         self.hypergraph = hypergraph
-        weight_encoder_layer = nn.TransformerEncoderLayer(d_model=embedding_size, nhead=8)
-        self.weight_encoder = nn.TransformerEncoder(weight_encoder_layer, num_layers=2)
         self.dropout = nn.Dropout(dropout)
         self.mode = mode
         if mode == "agenda-mh4":

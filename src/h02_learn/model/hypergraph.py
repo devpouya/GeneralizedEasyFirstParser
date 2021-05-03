@@ -738,17 +738,16 @@ class MH4(Hypergraph):
                                         arcs.append(new_arc)
                                         all_items.append(new_item)
         else:
-            if item.heads[1] < self.n and item.heads[0] < self.n:
-                new_arc_1 = (item.heads[1], item.heads[0])
-                new_item_1 = ItemMH4([item.heads[1]], item, item)
-                if new_arc_1 not in prev_arcs:
-                    arcs.append(new_arc_1)
-                    all_items.append(new_item_1)
-                new_arc_2 = (item.heads[0], item.heads[1])
-                new_item_2 = ItemMH4([item.heads[0]], item, item)
-                if new_arc_2 not in prev_arcs:
-                    arcs.append(new_arc_2)
-                    all_items.append(new_item_2)
+            new_arc_1 = (item.heads[1], item.heads[0])
+            new_item_1 = ItemMH4([item.heads[1]], item, item)
+            if new_arc_1 not in prev_arcs:
+                arcs.append(new_arc_1)
+                all_items.append(new_item_1)
+            new_arc_2 = (item.heads[0], item.heads[1])
+            new_item_2 = ItemMH4([item.heads[0]], item, item)
+            if new_arc_2 not in prev_arcs:
+                arcs.append(new_arc_2)
+                all_items.append(new_item_2)
 
         return arcs, all_items
 
