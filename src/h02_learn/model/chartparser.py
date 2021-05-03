@@ -35,9 +35,11 @@ def print_yellow(s):
 class ChartParser(BertParser):
     def __init__(self, vocabs, hidden_size, embedding_size, rel_embedding_size, batch_size, hypergraph,
                  dropout=0.33, beam_size=10, max_sent_len=190, eos_token_id=28996,mode="agenda-std"):
-        super().__init__(vocabs, hidden_size, embedding_size, rel_embedding_size, batch_size, dropout=dropout,
+        super().__init__(vocabs, embedding_size=embedding_size, rel_embedding_size=rel_embedding_size,
+                         batch_size=batch_size, dropout=dropout,
                          beam_size=beam_size)
         self.eos_token_id = eos_token_id
+        self.hidden_size = hidden_size
         self.hypergraph = hypergraph
         self.dropout = nn.Dropout(dropout)
         self.mode = mode
@@ -454,7 +456,7 @@ class ChartParser(BertParser):
         l_logits = self.get_label_logits(h_t_noeos, heads)
         rels_batch = torch.argmax(l_logits, dim=-1)
         batch_loss += self.loss(batch_loss, l_logits, rels)
-        #print(batch_loss)
+        print_yellow(batch_loss)
         return batch_loss, heads_batch, rels_batch
 
     def get_head_logits(self, h_t, sent_lens):

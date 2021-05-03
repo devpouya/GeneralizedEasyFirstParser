@@ -85,8 +85,15 @@ def get_data_loaders(data_path, language, batch_size, batch_size_eval, transitio
             is_agenda=False
         (transitions_train, transitions_dev, transitions_test) = get_oracle_actions(src_path, transitions,is_agenda)
     vocabs = load_vocabs(src_path)
-    embeddings = load_embeddings(src_path)
-    tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
+    #embeddings = load_embeddings(src_path)
+    if language == "en":
+        tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
+    elif language == "de":
+        tokenizer = BertTokenizer.from_pretrained('bert-base-german-cased')
+    else:
+        tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased')
+
+
     trainloader, max_sent_len_train = get_data_loader(fname_train, transitions_train, transition_system, tokenizer,
                                                       batch_size,
                                                       shuffle=True)
@@ -98,4 +105,4 @@ def get_data_loaders(data_path, language, batch_size, batch_size_eval, transitio
                                                     shuffle=False)
 
     max_sent_len = max(max_sent_len_dev, max_sent_len_test, max_sent_len_train)
-    return trainloader, devloader, testloader, vocabs, embeddings, max_sent_len
+    return trainloader, devloader, testloader, vocabs, max_sent_len

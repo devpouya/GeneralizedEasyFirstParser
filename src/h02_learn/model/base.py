@@ -63,13 +63,12 @@ class BaseParser(nn.Module, ABC):
 
 
 class BertParser(BaseParser):
-    def __init__(self, vocabs, hidden_size, embedding_size, rel_embedding_size, batch_size,
+    def __init__(self, vocabs, embedding_size, rel_embedding_size, batch_size,
                  dropout=0.33, beam_size=10, transition_system=None):
         super().__init__()
         # basic parameters
         self.vocabs = vocabs
         self.embedding_size = embedding_size
-        self.hidden_size = hidden_size
         self.batch_size = batch_size
         self.dropout_prob = dropout
         self.bert = BertModel.from_pretrained('bert-base-cased', output_hidden_states=True).to(device=constants.device)
@@ -149,8 +148,6 @@ class BertParser(BaseParser):
         # self.tag_embeddings()
         return torch.cat([s, tags], dim=-1).to(device=constants.device)
 
-    def batch_bert_embeddings(self, mapping, sentence, tags):
-        s = []
 
 
     def labeled_action_pairs(self, actions, relations):
@@ -194,7 +191,6 @@ class BertParser(BaseParser):
         return {
             'vocabs': self.vocabs,
             'embedding_size': self.embedding_size,
-            'hidden_size':self.hidden_size,
             'rel_embedding_size': self.rel_embedding_size,
             'dropout': self.dropout_prob,
             'batch_size': self.batch_size,

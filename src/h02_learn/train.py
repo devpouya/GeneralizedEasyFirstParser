@@ -68,7 +68,7 @@ def get_optimizer(paramters, optim_alg, lr_decay, weight_decay):
     return optimizer, lr_scheduler
 
 
-def get_model(vocabs,embeddings,args,max_sent_len):
+def get_model(vocabs,args,max_sent_len):
 
     if args.model == 'arc-standard': # or args.model=='easy-first':
         return NeuralTransitionParser(
@@ -149,20 +149,7 @@ def _evaluate(evalloader, model):
         transitions = transitions.to(device=constants.device)
         relations_in_order = relations_in_order.to(device=constants.device)
         loss, predicted_heads, predicted_rels = model((text, pos), transitions, relations_in_order,maps,heads=heads,rels=rels)
-        #print("EEEEEEVAAAAAAALLLLLLLLLLEVAAAAALLLLLLLLLEVALLLL")
-        #print("predicted heads {}".format(predicted_heads))
-        #print("real heads {}".format(heads))
-        ##print(torch.all(torch.eq(heads, predicted_heads)))
-        #print("--------------------------------")
-        #print("predicted rels {}".format(predicted_rels))
-        #print("real rels {}".format(rels))
-        ##print(torch.all(torch.eq(predicted_rels, rels)))
-        #print("EEEEEEVAAAAAAALLLLLLLLLLEVAAAAALLLLLLLLLEVALLLL")
 
-        #jhjh
-        # loss = model.loss(h_logits, l_logits, heads, rels)
-        lengths = (text != 0).sum(-1)
-        # heads_tgt = get_mst_batch(h_logits, lengths)
         las, uas = calculate_attachment_score(predicted_heads, heads, predicted_rels, rels)
         batch_size = text.shape[0]
         dev_loss += (loss * batch_size)
@@ -191,17 +178,8 @@ def train_batch(text, pos, heads, rels, transitions, relations_in_order, maps,mo
     relations_in_order = relations_in_order.to(device=constants.device)
 
     loss, pred_h, pred_rel = model((text, pos), transitions, relations_in_order,maps,heads=heads,rels=rels)
-    #print("çççççççççççççççççççççççççççççççç")
-    #print(pred_h)
-    #print(heads)
-    ##(torch.all(torch.eq(heads,pred_h)))
-    #print("--------------------------------")
-    #print(pred_rel)
-    #print(rels)
-    ##(torch.all(torch.eq(pred_rel,rels)))
-    #print("çççççççççççççççççççççççççççççççç")
-    las, uas = calculate_attachment_score(pred_h, heads, pred_rel, rels)
-    #print("LAAAS {}".format(las))
+
+    #las, uas = calculate_attachment_score(pred_h, heads, pred_rel, rels)
     loss.backward()
     optimizer.step()
 
@@ -250,17 +228,6 @@ def train_batch_chart(text,pos, heads, rels, maps, model, optimizer):
     heads, rels = heads.to(device=constants.device), rels.to(device=constants.device)
 
     loss, pred_h, pred_rel = model((text, pos),maps,heads,rels)
-    #print("çççççççççççççççççççççççççççççççç")
-    #print(pred_h)
-    #print(heads)
-    #print(torch.all(torch.eq(heads, pred_h[0])))
-    #print("--------------------------------")
-    ## print(pred_rel)
-    ## print(rels)
-    #print(rels.shape)
-    #print(pred_rel.shape)
-    ##print(torch.all(torch.eq(pred_rel, rels)))
-    #print("çççççççççççççççççççççççççççççççç")
 
     loss.backward()
     optimizer.step()
@@ -306,16 +273,6 @@ def _evaluate_chart(evalloader, model):
         heads, rels = heads.to(device=constants.device), rels.to(device=constants.device)
         loss, predicted_heads, predicted_rels = model((text, pos), maps, heads, rels) # model((text, pos), maps,rels)
 
-        #print("EEEEEEVAAAAAAALLLLLLLLLLEVAAAAALLLLLLLLLEVALLLL")
-        #print("predicted heads {}".format(predicted_heads))
-        #print("real heads {}".format(heads))
-        #print(torch.all(torch.eq(heads, predicted_heads)))
-        #print("--------------------------------")
-        #print("predicted rels {}".format(predicted_rels.shape))
-        #print("real rels {}".format(rels.shape))
-        #print(torch.all(torch.eq(predicted_rels, rels)))
-        #print("EEEEEEVAAAAAAALLLLLLLLLLEVAAAAALLLLLLLLLEVALLLL")
-        # loss = model.loss(h_logits, l_logits, heads, rels)
         lengths = (text != 0).sum(-1)
         # heads_tgt = get_mst_batch(h_logits, lengths)
         las, uas = calculate_attachment_score(predicted_heads, heads, predicted_rels, rels)
@@ -359,7 +316,7 @@ def main():
         fname = "arc-standard"
     else:
         fname = args.model
-    trainloader, devloader, testloader, vocabs, embeddings,max_sent_len = \
+    trainloader, devloader, testloader, vocabs,max_sent_len = \
         get_data_loaders(args.data_path, args.language, args.batch_size, args.batch_size_eval, fname,
                          transition_system=transition_system, bert_model=args.bert_model)
     print('Train size: %d Dev size: %d Test size: %d' %
@@ -368,7 +325,7 @@ def main():
     file1 = open(save_name, "w")
     WANDB_PROJECT = f"{args.language}_{args.model}"
     #WANDB_PROJECT = "%s_%s".format(args.language,args.model)
-    model = get_model(vocabs, embeddings, args,max_sent_len)
+    model = get_model(vocabs, args,max_sent_len)
     run = wandb.init(project=WANDB_PROJECT,config={'wandb_nb':'wandb_three_in_one_hm'},settings=wandb.Settings(start_method="fork"))
 
     # Start tracking your model's gradients
@@ -380,14 +337,6 @@ def main():
     train_loss, train_las, train_uas = evaluate(trainloader, model)
     dev_loss, dev_las, dev_uas = evaluate(devloader, model)
     test_loss, test_las, test_uas = evaluate(testloader, model)
-    #else:
-    #    model = get_model(vocabs, embeddings, args,max_sent_len)
-    #    train_chart(trainloader, devloader, model, args.eval_batches, args.wait_iterations,
-    #          args.optim, args.lr_decay, args.weight_decay, args.save_path, args.save_periodically)
-    #    model.save(args.save_path)
-    #    train_loss, train_las, train_uas = evaluate_chart(trainloader, model)
-    #    dev_loss, dev_las, dev_uas = evaluate_chart(devloader, model)
-    #    test_loss, test_las, test_uas = evaluate_chart(testloader, model)
 
     file1.write('Final Training loss: %.4f Dev loss: %.4f Test loss: %.4f' %
           (train_loss, dev_loss, test_loss))
