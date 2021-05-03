@@ -21,10 +21,10 @@ from termcolor import colored
 
 
 class NeuralTransitionParser(BertParser):
-    def __init__(self, vocabs, embedding_size, rel_embedding_size, batch_size,
-                 dropout=0.33, beam_size=10, transition_system=None):
-        super().__init__(vocabs, embedding_size, rel_embedding_size, batch_size,
-                         dropout=dropout, beam_size=beam_size, transition_system=transition_system)
+    def __init__(self, language, vocabs, embedding_size, rel_embedding_size, batch_size,
+                 dropout=0.33, transition_system=None):
+        super().__init__(language, vocabs, embedding_size, rel_embedding_size, batch_size,
+                         dropout=dropout,transition_system=transition_system)
 
         # neural model parameters
         self.dropout = nn.Dropout(self.dropout_prob)
@@ -309,4 +309,19 @@ class NeuralTransitionParser(BertParser):
 
         batch_loss = self.loss(probs_action_batch, targets_action_batch, probs_rel_batch, targets_rel_batch)
 
+        l_logits = self.get_label_logits(h_t_noeos, heads_batch)
+        rels_batch = torch.argmax(l_logits, dim=-1)
+        batch_loss += self.loss(batch_loss, l_logits, rels)
         return batch_loss, heads_batch, rels_batch
+
+    def get_label_logits(self, h_t, head):
+        l_dep = self.dropout(F.relu(self.linear_labels_dep(h_t)))
+        l_head = self.dropout(F.relu(self.linear_labels_head(h_t)))
+        # head_int = torch.zeros_like(head,dtype=torch.int64)
+        head_int = head.clone().type(torch.int64)
+        if self.training:
+            assert head is not None, 'During training head should not be None'
+        l_head = l_head.gather(dim=1, index=head_int.unsqueeze(2).expand(l_head.size()))
+
+        l_logits = self.bilinear_label(l_dep, l_head)
+        return l_logits

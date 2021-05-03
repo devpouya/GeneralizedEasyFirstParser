@@ -99,7 +99,7 @@ def get_model(vocabs, args, max_sent_len):
                            hypergraph=hg, dropout=args.dropout,mode=args.model).to(
             device=constants.device)
     else:
-        return NeuralTransitionParser(
+        return NeuralTransitionParser(language=args.language,
             vocabs=vocabs, embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size,
             batch_size=args.batch_size,
             dropout=args.dropout,

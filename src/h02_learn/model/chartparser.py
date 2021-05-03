@@ -172,34 +172,7 @@ class ChartParser(BertParser):
             if pa not in prev_arcs:
                 arcs.append(pa)
                 all_items.append(pi)
-        #pending = hypergraph.merge_pending(pending)
-        #prev_arcs = prev_arcs + arcs
-        #print_green(arcs)
-        #arcs_new, all_items_new, _ = hypergraph.iterate_spans(None, pending, merge=False, prev_arc=prev_arcs)
-        #for (pa, pi) in zip(arcs_new, all_items_new):
-        #    if pa not in arcs:
-        #        arcs.append(pa)
-        #        all_items.append(pi)
-        #pending = hypergraph.merge_pending(pending)
-        ## prev_arcs = prev_arcs + arcs
-        #arcs_new, all_items_new, _ = hypergraph.iterate_spans(None, pending, merge=False, prev_arc=prev_arcs)
-        #for (pa, pi) in zip(arcs_new, all_items_new):
-        #    if pa not in arcs:
-        #        arcs.append(pa)
-        #        all_items.append(pi)
-        #pending = hypergraph.merge_pending(pending)
-        # prev_arcs = prev_arcs + arcs
-        #arcs_new, all_items_new, _ = hypergraph.iterate_spans(None, pending, merge=False, prev_arc=prev_arcs)
-        #for (pa, pi) in zip(arcs_new, all_items_new):
-        #    if pa not in arcs:
-        #        arcs.append(pa)
-        #        all_items.append(pi)
-        #arcs = arcs + arcs_new
-        #all_items = all_items + all_items_new
 
-        #arcs_new, all_items_new, _ = hypergraph.iterate_spans(None, pending, merge=False, prev_arc=arcs)
-        #arcs = arcs + arcs_new
-        #all_items = all_items + all_items_new
 
         return arcs, all_items
 
