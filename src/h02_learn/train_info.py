@@ -1,3 +1,4 @@
+import wandb
 
 class TrainInfo:
     # pylint: disable=too-many-instance-attributes
@@ -65,8 +66,15 @@ class TrainInfo:
     def reset_loss(self):
         self.running_loss = []
 
-    def print_progress(self, dev_results):
+    def print_progress(self, dev_results,file):
         dev_loss, dev_las, dev_uas = dev_results
+
+        log_dict = {'Training loss':self.avg_loss,'Dev Loss':dev_loss,'Dev LAS':dev_las,
+                    'Dev UAS':dev_uas,'batch_id':self.batch_id,'max_epochs':self.max_epochs}
+        wandb.log(log_dict)
+
         print('(%05d/%05d) Training loss: %.4f Dev loss: %.4f Dev las: %.4f Dev uas: %.4f' %
+              (self.batch_id, self.max_epochs, self.avg_loss, dev_loss, dev_las, dev_uas))
+        file.write('(%05d/%05d) Training loss: %.4f Dev loss: %.4f Dev las: %.4f Dev uas: %.4f' %
               (self.batch_id, self.max_epochs, self.avg_loss, dev_loss, dev_las, dev_uas))
         self.reset_loss()

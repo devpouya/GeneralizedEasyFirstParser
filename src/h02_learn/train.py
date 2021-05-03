@@ -11,6 +11,7 @@ from h02_learn.train_info import TrainInfo
 from h02_learn.algorithm.mst import get_mst_batch
 from utils import constants
 from utils import utils
+import wandb
 
 
 def get_args():
@@ -20,6 +21,8 @@ def get_args():
     parser.add_argument('--data-path', type=str, default='data/')
     parser.add_argument('--batch-size', type=int, default=32)
     parser.add_argument('--batch-size-eval', type=int, default=128)
+    parser.add_argument('--key', type=str)
+
     # Model
     parser.add_argument('--embedding-size', type=int, default=768)
     parser.add_argument('--rel-embedding-size', type=int, default=100)
@@ -61,32 +64,32 @@ def get_optimizer(paramters, optim_alg, lr_decay, weight_decay):
     return optimizer, lr_scheduler
 
 
-def get_model(vocabs,embeddings,args):
+def get_model(vocabs,args):
     if args.model == 'mst':
         return MSTParser(
             vocabs, args.embedding_size,args.rel_embedding_size, args.hidden_size, args.arc_size, args.label_size,
             nlayers=args.nlayers, dropout=args.dropout, pretrained_embeddings=embeddings) \
             .to(device=constants.device)
     if args.model == 'arc-standard' or args.model=='easy-first':
-        return NeuralTransitionParser(
+        return NeuralTransitionParser(language=args.language,
             vocabs=vocabs, embedding_size=args.embedding_size,rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
             dropout=args.dropout,
             transition_system=constants.arc_standard) \
             .to(device=constants.device)
     elif args.model == 'arc-eager':
-        return NeuralTransitionParser(
+        return NeuralTransitionParser(language=args.language,
             vocabs=vocabs, embedding_size=args.embedding_size,rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
             dropout=args.dropout,
             transition_system=constants.arc_eager) \
             .to(device=constants.device)
     elif args.model == 'hybrid' or args.model == 'easy-first-hybrid':
-        return NeuralTransitionParser(
+        return NeuralTransitionParser(language=args.language,
             vocabs=vocabs, embedding_size=args.embedding_size,rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
             dropout=args.dropout,
             transition_system=constants.hybrid) \
             .to(device=constants.device)
     elif args.model == 'mh4' or args.model == 'easy-first-mh4':
-        return NeuralTransitionParser(
+        return NeuralTransitionParser(language=args.language,
             vocabs=vocabs, embedding_size=args.embedding_size,rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
             dropout=args.dropout,
             transition_system=constants.mh4) \
@@ -185,7 +188,7 @@ def train_batch(text, pos, heads, rels, transitions, relations_in_order, maps,mo
 
 
 def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_alg, lr_decay, weight_decay,
-          save_path, save_batch=False):
+          save_path, save_batch=False,file=None):
     # pylint: disable=too-many-locals,too-many-arguments
     torch.autograd.set_detect_anomaly(True)
 
@@ -210,9 +213,9 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
                     model.recover_best()
                     print('\tReduced lr')
                 elif train_info.finish:
-                    train_info.print_progress(dev_results)
+                    train_info.print_progress(dev_results,file)
                     break
-                train_info.print_progress(dev_results)
+                train_info.print_progress(dev_results,file)
 
     model.recover_best()
 
@@ -220,6 +223,8 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
 def main():
     # pylint: disable=too-many-locals
     args = get_args()
+    wandb.login(key=args.key)
+
     if args.model == "arc-standard" or args.model == "easy-first":
         transition_system = constants.arc_standard
     elif args.model == "arc-eager":
@@ -228,30 +233,54 @@ def main():
         transition_system = constants.hybrid
     elif args.model == "mh4" or args.model == 'easy-first-mh4':
         transition_system = constants.mh4
-
-    trainloader, devloader, testloader,vocabs,embeddings = \
+    if args.model == 'chart':
+        fname = "arc-standard"
+    else:
+        fname = args.model
+    trainloader, devloader, testloader,vocabs = \
         get_data_loaders(args.data_path, args.language, args.batch_size, args.batch_size_eval, args.model,
                          transition_system=transition_system,bert_model=args.bert_model)
     print('Train size: %d Dev size: %d Test size: %d' %
           (len(trainloader.dataset), len(devloader.dataset), len(testloader.dataset)))
+    save_name = "final_output_%s.txt".format(args.model)
+    file1 = open(save_name, "w")
+    WANDB_PROJECT = f"{args.language}_{args.model}"
+    # WANDB_PROJECT = "%s_%s".format(args.language,args.model)
+    model = get_model(vocabs,args)
+    run = wandb.init(project=WANDB_PROJECT, config={'wandb_nb': 'wandb_three_in_one_hm'},
+                     settings=wandb.Settings(start_method="fork"))
 
-    model = get_model(vocabs,embeddings,args)
+    # Start tracking your model's gradients
+    wandb.watch(model)
+    # if args.model != 'agenda-std':
     train(trainloader, devloader, model, args.eval_batches, args.wait_iterations,
-          args.optim, args.lr_decay, args.weight_decay, args.save_path, args.save_periodically)
-
+          args.optim, args.lr_decay, args.weight_decay, args.save_path, args.save_periodically, file=file1)
     model.save(args.save_path)
-
     train_loss, train_las, train_uas = evaluate(trainloader, model)
     dev_loss, dev_las, dev_uas = evaluate(devloader, model)
     test_loss, test_las, test_uas = evaluate(testloader, model)
 
+    file1.write('Final Training loss: %.4f Dev loss: %.4f Test loss: %.4f' %
+                (train_loss, dev_loss, test_loss))
+    file1.write('Final Training las: %.4f Dev las: %.4f Test las: %.4f' %
+                (train_las, dev_las, test_las))
+    file1.write('Final Training uas: %.4f Dev uas: %.4f Test uas: %.4f' %
+                (train_uas, dev_uas, test_uas))
+
+    log_dict_loss = {'Training loss': train_loss, 'Dev Loss': dev_loss, 'Test Loss': test_loss}
+    wandb.log(log_dict_loss)
+    log_dict_las = {"Training LAS": train_las, "Dev LAS": dev_las, "Test LAS": test_las}
+    wandb.log(log_dict_las)
+    log_dict_uas = {"Training UAS": train_uas, "Dev UAS": dev_uas, "Test UAS": test_uas}
+    wandb.log(log_dict_uas)
+    file1.close()
+    wandb.finish()
     print('Final Training loss: %.4f Dev loss: %.4f Test loss: %.4f' %
           (train_loss, dev_loss, test_loss))
     print('Final Training las: %.4f Dev las: %.4f Test las: %.4f' %
           (train_las, dev_las, test_las))
     print('Final Training uas: %.4f Dev uas: %.4f Test uas: %.4f' %
           (train_uas, dev_uas, test_uas))
-
 
 if __name__ == '__main__':
     main()

@@ -14,11 +14,12 @@ from .modules import Biaffine, Bilinear, StackLSTM
 from .word_embedding import WordEmbedding, ActionEmbedding
 from ..algorithm.transition_parsers import ShiftReduceParser
 from .modules import StackRNN, StackCell, SoftmaxLegal, SoftmaxActions
-from transformers import BertModel
+from transformers import BertModel, AutoModel
+
 
 
 class NeuralTransitionParser(BaseParser):
-    def __init__(self, vocabs, embedding_size, rel_embedding_size, batch_size,
+    def __init__(self, language, vocabs, embedding_size, rel_embedding_size, batch_size,
                  dropout=0.33,transition_system=None):
         super().__init__()
         # basic parameters
@@ -26,7 +27,20 @@ class NeuralTransitionParser(BaseParser):
         self.embedding_size = embedding_size
         self.batch_size = batch_size
         self.dropout_prob = dropout
-        self.bert = BertModel.from_pretrained('bert-base-cased', output_hidden_states=True).to(device=constants.device)
+        #self.bert = BertModel.from_pretrained('bert-base-cased', output_hidden_states=True).to(device=constants.device)
+        if language == "en":
+            self.bert = BertModel.from_pretrained('bert-base-uncased', output_hidden_states=True).to(
+                device=constants.device)
+        elif language == "de":
+            self.bert = BertModel.from_pretrained('bert-base-german-cased', output_hidden_states=True).to(
+                device=constants.device)
+        elif language == "cs":
+            self.bert = AutoModel.from_pretrained("DeepPavlov/bert-base-bg-cs-pl-ru-cased",
+                                                  output_hidden_states=True).to(device=constants.device)
+        else:
+            self.bert = AutoModel.from_pretrained("ixa-ehu/berteus-base-cased", output_hidden_states=True).to(
+                device=constants.device)
+
         self.bert.eval()
         for param in self.bert.parameters():
             param.requires_grad = True
