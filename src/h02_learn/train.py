@@ -215,8 +215,8 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
                     train_info.print_progress(dev_results,file)
                     break
                 train_info.print_progress(dev_results,file)
-            if steps>=1:
-                break
+                if steps>=1:
+                    break
 
     model.recover_best()
 
