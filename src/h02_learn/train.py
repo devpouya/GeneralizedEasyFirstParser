@@ -15,7 +15,6 @@ from utils import utils
 
 
 import wandb
-wandb.login()
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -24,7 +23,9 @@ def get_args():
     parser.add_argument('--data-path', type=str, default='data/')
     parser.add_argument('--batch-size', type=int, default=32)
     parser.add_argument('--batch-size-eval', type=int, default=128)
+    parser.add_argument('--key', type=str)
     # Model
+
     parser.add_argument('--embedding-size', type=int, default=768)
     parser.add_argument('--hidden-size', type=int, default=400)
     parser.add_argument('--rel-embedding-size', type=int, default=100)
@@ -337,7 +338,10 @@ def evaluate_chart(evalloader, model):
 def main():
     #sys.stdout = open("test.txt", "w")
     # pylint: disable=too-many-locals
+
     args = get_args()
+    wandb.login(key=[args.key])
+
     if args.model == "arc-standard":  # or args.model == "easy-first":
         transition_system = constants.arc_standard
     elif args.model == "easy-first":
