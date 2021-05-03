@@ -189,30 +189,30 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
 
     optimizer, lr_scheduler = get_optimizer(model.parameters(), optim_alg, lr_decay, weight_decay)
     train_info = TrainInfo(wait_iterations, eval_batches)
-    while not train_info.finish:
-        steps = 0
-        for (text, pos), (heads, rels), (transitions, relations_in_order),maps in trainloader:
-            steps += 1
-            # maps are used to average the split embeddings from BERT
-            loss = train_batch(text, pos, heads, rels, transitions, relations_in_order, maps,model, optimizer)
-            train_info.new_batch(loss)
-            if train_info.eval:
-                dev_results = evaluate(devloader, model)
-                if train_info.is_best(dev_results):
-                    model.set_best()
-                    if save_batch:
-                        model.save(save_path)
-                elif train_info.reduce_lr:
-                    lr_scheduler.step()
-                    optimizer.state.clear()
-                    model.recover_best()
-                    print('\tReduced lr')
-                elif train_info.finish:
-                    train_info.print_progress(dev_results,file)
-                    break
+    #while not train_info.finish:
+    steps = 0
+    for (text, pos), (heads, rels), (transitions, relations_in_order),maps in trainloader:
+        steps += 1
+        # maps are used to average the split embeddings from BERT
+        loss = train_batch(text, pos, heads, rels, transitions, relations_in_order, maps,model, optimizer)
+        train_info.new_batch(loss)
+        if train_info.eval:
+            dev_results = evaluate(devloader, model)
+            if train_info.is_best(dev_results):
+                model.set_best()
+                if save_batch:
+                    model.save(save_path)
+            elif train_info.reduce_lr:
+                lr_scheduler.step()
+                optimizer.state.clear()
+                model.recover_best()
+                print('\tReduced lr')
+            elif train_info.finish:
                 train_info.print_progress(dev_results,file)
-                if steps>=1:
-                    break
+                break
+            train_info.print_progress(dev_results,file)
+        if steps>=1:
+            break
 
     model.recover_best()
 
