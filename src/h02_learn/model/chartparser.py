@@ -34,7 +34,7 @@ def print_yellow(s):
 
 class ChartParser(BertParser):
     def __init__(self, language, vocabs, hidden_size, embedding_size, rel_embedding_size, batch_size, hypergraph,
-                 dropout=0.33, beam_size=10, max_sent_len=190, eos_token_id=28996,mode="agenda-std"):
+                 dropout=0.33, beam_size=10, max_sent_len=190, eos_token_id=28996,mode="agenda-std",transition_system=None):
         super().__init__(language, vocabs, embedding_size=embedding_size, rel_embedding_size=rel_embedding_size,
                          batch_size=batch_size, dropout=dropout,
                          beam_size=beam_size)
