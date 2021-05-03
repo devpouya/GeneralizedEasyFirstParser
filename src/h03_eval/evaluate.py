@@ -3,7 +3,7 @@ import argparse
 
 sys.path.append('./src/')
 from h02_learn.dataset import get_data_loaders
-from h02_learn.model import NeuralTransitionParser
+from h02_learn.model import NeuralTransitionParser, ChartParser
 from h02_learn.train import evaluate
 from utils import constants
 
@@ -27,7 +27,7 @@ def get_args():
 
 def load_model(checkpoints_path, language,model,name):
     load_path = '%s/%s/%s/%s/' % (checkpoints_path, language,model,name)
-    return NeuralTransitionParser.load(load_path).to(device=constants.device)
+    return ChartParser.load(load_path).to(device=constants.device)
 
 
 def main():
@@ -44,7 +44,7 @@ def main():
     else:
         transition_system = "AGENDA-PARSER"
 
-    trainloader, devloader, testloader, _, _, _ = \
+    trainloader, devloader, testloader,_, _ = \
         get_data_loaders(args.data_path, args.language, args.batch_size,args.batch_size, args.model,
                          transition_system=transition_system, bert_model='bert-base-cased')
     print('Train size: %d Dev size: %d Test size: %d' %
