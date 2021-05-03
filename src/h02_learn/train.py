@@ -366,7 +366,8 @@ def main():
           (len(trainloader.dataset), len(devloader.dataset), len(testloader.dataset)))
     save_name = "final_output_%s.txt".format(args.model)
     file1 = open(save_name, "w")
-    WANDB_PROJECT = "%s_%s".format(args.language,args.model)
+    WANDB_PROJECT = f"{args.language}_{args.model}"
+    #WANDB_PROJECT = "%s_%s".format(args.language,args.model)
     model = get_model(vocabs, embeddings, args,max_sent_len)
     run = wandb.init(project=WANDB_PROJECT,config={'wandb_nb':'wandb_three_in_one_hm'},settings=wandb.Settings(start_method="fork"))
 
