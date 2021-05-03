@@ -606,7 +606,7 @@ class MH4(Hypergraph):
 
         return pending
 
-    def calculate_pending(self,pending,updated):
+    def calculate_pending_help(self,pending,updated):
         pending_new = {}
         window_lower = updated-3
         window_upper = updated+4
@@ -626,7 +626,7 @@ class MH4(Hypergraph):
         return pending_new
 
 
-    def calculate_pending_init(self):
+    def calculate_pending(self):
         remaining = []
         pending = {}
         for i in range(self.n):
