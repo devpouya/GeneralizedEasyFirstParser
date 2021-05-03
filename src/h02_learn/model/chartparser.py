@@ -33,11 +33,11 @@ def print_yellow(s):
 
 
 class ChartParser(BertParser):
-    def __init__(self,vocabs, embedding_size, rel_embedding_size, batch_size,hidden_size=400, hypergraph=ArcStandard,language="en",
-                 dropout=0.33, beam_size=10, max_sent_len=190, eos_token_id=28996,mode="agenda-std",transition_system=None):
-        super().__init__(language, vocabs, embedding_size=embedding_size, rel_embedding_size=rel_embedding_size,
-                         batch_size=batch_size, dropout=dropout,
-                         beam_size=beam_size)
+    def __init__(self,vocabs, embedding_size, rel_embedding_size, batch_size,hidden_size=100, hypergraph=ArcStandard,language="en",
+                 dropout=0.33, eos_token_id=28996,mode="agenda-std",transition_system=None):
+        super().__init__(language, vocabs,
+                         embedding_size=embedding_size, rel_embedding_size=rel_embedding_size,
+                         batch_size=batch_size, dropout=dropout)
         self.eos_token_id = eos_token_id
         self.hidden_size = hidden_size
         self.hypergraph = hypergraph
@@ -49,7 +49,6 @@ class ChartParser(BertParser):
             self.parse_step_chart = self.parse_step_std_hyb
         self.linear_tree = nn.Linear(self.hidden_size * 2, self.hidden_size)
         # self.linear_label = nn.Linear(hidden_size * 2, self.rel_embedding_size)
-        self.max_size = max_sent_len
         self.linear_dep = nn.Linear(self.hidden_size, 200).to(device=constants.device)
 
         self.linear_head = nn.Linear(self.hidden_size, 200).to(device=constants.device)
@@ -455,7 +454,6 @@ class ChartParser(BertParser):
         l_logits = self.get_label_logits(h_t_noeos, heads)
         rels_batch = torch.argmax(l_logits, dim=-1)
         batch_loss += self.loss(batch_loss, l_logits, rels)
-        print_yellow(batch_loss)
         return batch_loss, heads_batch, rels_batch
 
     def get_head_logits(self, h_t, sent_lens):
@@ -774,3 +772,15 @@ class ChartParser(BertParser):
             gold_index = torch.argmax(scores, dim=-1)
             gold_key = index2key[gold_index.item()]
         return scores, gold_index, gold_key
+
+    def get_args(self):
+        return {
+            'language':self.language,
+            'hidden_size':self.hidden_size,
+            'hypergraph':self.hypergraph,
+            'vocabs': self.vocabs,
+            'embedding_size': self.embedding_size,
+            'rel_embedding_size': self.rel_embedding_size,
+            'dropout': self.dropout_prob,
+            'batch_size': self.batch_size,
+        }

@@ -40,7 +40,7 @@ def get_oracle_actions(fpath,transition,is_agenda=False):
         fname_dev = '%s/%s_actions_%s.json' % (fpath, transition,'dev')
         fname_test = '%s/%s_actions_%s.json' % (fpath, transition,'test')
     else:
-        fname_train = '%s/agenda-std_actions_small%s.json' % (fpath, 'train')
-        fname_dev = '%s/agenda-std_actions_small%s.json' % (fpath, 'dev')
-        fname_test = '%s/agenda-std_actions_small%s.json' % (fpath, 'test')
+        fname_train = '%s/agenda_actions_%s.json' % (fpath, 'train')
+        fname_dev = '%s/agenda_actions_%s.json' % (fpath, 'dev')
+        fname_test = '%s/agenda_actions_%s.json' % (fpath, 'test')
     return (fname_train, fname_dev, fname_test)

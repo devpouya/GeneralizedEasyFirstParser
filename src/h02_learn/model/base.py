@@ -64,8 +64,9 @@ class BaseParser(nn.Module, ABC):
 
 class BertParser(BaseParser):
     def __init__(self, language, vocabs, embedding_size, rel_embedding_size, batch_size,
-                 dropout=0.33, beam_size=10, transition_system=None):
+                 dropout=0.33, transition_system=None):
         super().__init__()
+        self.language=language
         # basic parameters
         self.vocabs = vocabs
         self.embedding_size = embedding_size
@@ -81,7 +82,6 @@ class BertParser(BaseParser):
             self.bert = AutoModel.from_pretrained("ixa-ehu/berteus-base-cased", output_hidden_states=True).to(device=constants.device)
 
         self.bert.eval()
-        self.beam_size = beam_size
         for param in self.bert.parameters():
             param.requires_grad = True
 

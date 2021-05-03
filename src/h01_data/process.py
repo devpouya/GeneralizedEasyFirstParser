@@ -95,7 +95,7 @@ def labeled_action_pairs(actions, relations):
 
 def process_data(in_fname_base, out_path, mode, vocabs, oracle=None, transition_name=None):
     in_fname = in_fname_base % mode
-    out_fname = '%s/%s_.json' % (out_path, mode)
+    out_fname = '%s/%s.json' % (out_path, mode)
     if oracle is not None:
         out_fname_history = '%s/%s_actions_%s.json' % (out_path, transition_name, mode)
         utils.remove_if_exists(out_fname_history)
@@ -112,6 +112,7 @@ def process_data(in_fname_base, out_path, mode, vocabs, oracle=None, transition_
             step+=1
             #if step >= 50:
             #    break
+            print(step)
             sent_processed, heads, relations,rel2id = process_sentence(sentence, vocabs)
             heads_proper = [0] + heads
 

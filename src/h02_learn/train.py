@@ -7,14 +7,14 @@ sys.path.append('./src/')
 from h02_learn.dataset import get_data_loaders
 from h02_learn.model import BiaffineParser, MSTParser
 from h02_learn.model import NeuralTransitionParser, ChartParser
-from h02_learn.model import MH4,Hybrid,ArcEager,ArcStandard
+from h02_learn.model import MH4, Hybrid, ArcEager, ArcStandard
 from h02_learn.train_info import TrainInfo
 from h02_learn.algorithm.mst import get_mst_batch
 from utils import constants
 from utils import utils
 
-
 import wandb
+
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -27,15 +27,16 @@ def get_args():
     # Model
 
     parser.add_argument('--embedding-size', type=int, default=768)
-    parser.add_argument('--hidden-size', type=int, default=400)
+    parser.add_argument('--hidden-size', type=int, default=100)
     parser.add_argument('--rel-embedding-size', type=int, default=100)
     parser.add_argument('--dropout', type=float, default=.33)
     parser.add_argument('--weight-decay', type=float, default=0.01)
-    parser.add_argument('--model', choices=['easy-first','easy-first-hybrid','biaffine', 'mst', 'arc-standard',
-                                            'arc-eager', 'hybrid', 'mh4','easy-first-mh4','chart','agenda-std',
+    parser.add_argument('--model', choices=['easy-first', 'easy-first-hybrid', 'biaffine', 'mst', 'arc-standard',
+                                            'arc-eager', 'hybrid', 'mh4', 'easy-first-mh4', 'chart', 'agenda-std',
                                             'agenda-hybrid', 'agenda-eager', 'agenda-mh4'],
                         default='agenda-std')
-    parser.add_argument('--bert-model',type=str,default='bert-base-cased')
+    parser.add_argument('--mode', choices=['shift-reduce', 'easy-first'], default='easy-first')
+    parser.add_argument('--bert-model', type=str, default='bert-base-cased')
     # Optimization
     parser.add_argument('--optim', choices=['adam', 'adamw', 'sgd'], default='adamw')
     parser.add_argument('--eval-batches', type=int, default=20)
@@ -64,67 +65,62 @@ def get_optimizer(paramters, optim_alg, lr_decay, weight_decay):
         optimizer = optim.SGD(paramters, lr=0.01)
 
     lr_scheduler = optim.lr_scheduler.ExponentialLR(optimizer, lr_decay)
-    #lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, "max")
+    # lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, "max")
     return optimizer, lr_scheduler
 
 
-def get_model(vocabs,args,max_sent_len):
-
-    if args.model == 'arc-standard': # or args.model=='easy-first':
-        return NeuralTransitionParser(
-            vocabs=vocabs, embedding_size=args.embedding_size,rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
-            dropout=args.dropout,
-            transition_system=constants.arc_standard) \
-            .to(device=constants.device)
-    elif args.model == 'chart':
-        return ChartParser(vocabs=vocabs, embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
-                           hypergraph=ArcStandard,dropout=0.33, beam_size=10,max_sent_len=max_sent_len).to(device=constants.device)
-
+def get_model(vocabs, args, max_sent_len):
+    if args.model == 'arc-standard':  # or args.model=='easy-first':
+        tr = constants.arc_standard
+        hg = None
     elif args.model == 'arc-eager':
-        return NeuralTransitionParser(
-            vocabs=vocabs, embedding_size=args.embedding_size,rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
-            dropout=args.dropout,
-            transition_system=constants.arc_eager) \
-            .to(device=constants.device)
-    elif args.model == 'hybrid' or args.model == 'easy-first-hybrid':
-        return NeuralTransitionParser(
-            vocabs=vocabs, embedding_size=args.embedding_size,rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
-            dropout=args.dropout,
-            transition_system=constants.hybrid) \
-            .to(device=constants.device)
-    elif args.model == 'mh4' or args.model == 'easy-first-mh4':
-        return NeuralTransitionParser(
-            vocabs=vocabs, embedding_size=args.embedding_size,rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
-            dropout=args.dropout,
-            transition_system=constants.mh4) \
-            .to(device=constants.device)
+        tr = constants.arc_eager
+        hg = None
+    elif args.model == 'hybrid':
+        tr = constants.hybrid
+        hg = None
+    elif args.model == 'mh4':
+        tr = constants.mh4
+        hg = None
     elif args.model == 'agenda-std':
-        return ChartParser(language=args.language,vocabs=vocabs, hidden_size = args.hidden_size,embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
-                           hypergraph=ArcStandard,dropout=0.33, beam_size=10,max_sent_len=max_sent_len,mode=args.model).to(device=constants.device)
+        hg = ArcStandard
+        tr = None
     elif args.model == 'agenda-hybrid':
-        return ChartParser(language=args.language,vocabs=vocabs, hidden_size = args.hidden_size,embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
-                           hypergraph=Hybrid,dropout=0.33, beam_size=10,max_sent_len=max_sent_len,mode=args.modelwa).to(device=constants.device)
-    elif args.model == 'agenda-eager':
-        return ChartParser(language=args.language,vocabs=vocabs, hidden_size = args.hidden_size,embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
-                           hypergraph=ArcEager,dropout=0.33, beam_size=10,max_sent_len=max_sent_len).to(device=constants.device)
+        hg = Hybrid
+        tr = None
     elif args.model == 'agenda-mh4':
-        return ChartParser(language=args.language,vocabs=vocabs, hidden_size = args.hidden_size,embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size, batch_size=args.batch_size,
-                           hypergraph=MH4,dropout=0.33, beam_size=10,max_sent_len=max_sent_len,mode=args.model).to(device=constants.device)
+        hg = MH4
+        tr = None
+
+    if args.mode == 'easy-first':
+        return ChartParser(language=args.language, vocabs=vocabs, hidden_size=args.hidden_size,
+                           embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size,
+                           batch_size=args.batch_size,
+                           hypergraph=hg, dropout=args.dropout,mode=args.model).to(
+            device=constants.device)
+    else:
+        return NeuralTransitionParser(
+            vocabs=vocabs, embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size,
+            batch_size=args.batch_size,
+            dropout=args.dropout,
+            transition_system=tr) \
+            .to(device=constants.device)
 
 
 def calculate_attachment_score(heads_tgt, heads, predicted_rels, rels):
-    predicted_rels = predicted_rels.permute(1,0)
+    predicted_rels = predicted_rels.permute(1, 0)
     acc_h = (heads_tgt == heads)[heads != -1]
-    #predicted_rels = predicted_rels[predicted_rels != -1]
-    #rels = rels[rels != -1]
-    #print(predicted_rels.shape)
-    #print(rels.shape)
-    rels = rels.permute(1,0)
+    # predicted_rels = predicted_rels[predicted_rels != -1]
+    # rels = rels[rels != -1]
+    # print(predicted_rels.shape)
+    # print(rels.shape)
+    rels = rels.permute(1, 0)
     acc_l = (predicted_rels == rels)[rels != 0]
 
     uas = acc_h.float().mean().item()
     las = (acc_h & acc_l).float().mean().item()
     return las, uas
+
 
 def simple_attachment_scores(predicted_heads, heads, lengths):
     correct = torch.eq(predicted_heads[:, lengths], heads[:, lengths]).sum().item()
@@ -137,14 +133,15 @@ def _evaluate(evalloader, model):
     # pylint: disable=too-many-locals
     dev_loss, dev_las, dev_uas, n_instances = 0, 0, 0, 0
     steps = 0
-    for (text, pos), (heads, rels), (transitions, relations_in_order),maps in evalloader:
+    for (text, pos), (heads, rels), (transitions, relations_in_order), maps in evalloader:
         steps += 1
         maps = maps.to(device=constants.device)
         text, pos = text.to(device=constants.device), pos.to(device=constants.device)
         heads, rels = heads.to(device=constants.device), rels.to(device=constants.device)
         transitions = transitions.to(device=constants.device)
         relations_in_order = relations_in_order.to(device=constants.device)
-        loss, predicted_heads, predicted_rels = model((text, pos), transitions, relations_in_order,maps,heads=heads,rels=rels)
+        loss, predicted_heads, predicted_rels = model((text, pos), transitions, relations_in_order, maps, heads=heads,
+                                                      rels=rels)
 
         las, uas = calculate_attachment_score(predicted_heads, heads, predicted_rels, rels)
         batch_size = text.shape[0]
@@ -164,7 +161,7 @@ def evaluate(evalloader, model):
     return result
 
 
-def train_batch(text, pos, heads, rels, transitions, relations_in_order, maps,model, optimizer):
+def train_batch(text, pos, heads, rels, transitions, relations_in_order, maps, model, optimizer):
     optimizer.zero_grad()
     maps = maps.to(device=constants.device)
     text, pos = text.to(device=constants.device), pos.to(device=constants.device)
@@ -173,9 +170,9 @@ def train_batch(text, pos, heads, rels, transitions, relations_in_order, maps,mo
     transitions = transitions.to(device=constants.device)
     relations_in_order = relations_in_order.to(device=constants.device)
 
-    loss, pred_h, pred_rel = model((text, pos), transitions, relations_in_order,maps,heads=heads,rels=rels)
+    loss, pred_h, pred_rel = model((text, pos), transitions, relations_in_order, maps, heads=heads, rels=rels)
 
-    #las, uas = calculate_attachment_score(pred_h, heads, pred_rel, rels)
+    # las, uas = calculate_attachment_score(pred_h, heads, pred_rel, rels)
     loss.backward()
     optimizer.step()
 
@@ -183,64 +180,21 @@ def train_batch(text, pos, heads, rels, transitions, relations_in_order, maps,mo
 
 
 def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_alg, lr_decay, weight_decay,
-          save_path, save_batch=False,file=None):
+          save_path, save_batch=False, file=None):
     # pylint: disable=too-many-locals,too-many-arguments
     torch.autograd.set_detect_anomaly(True)
 
     optimizer, lr_scheduler = get_optimizer(model.parameters(), optim_alg, lr_decay, weight_decay)
     train_info = TrainInfo(wait_iterations, eval_batches)
-    #while not train_info.finish:
-    steps = 0
-    for (text, pos), (heads, rels), (transitions, relations_in_order),maps in trainloader:
-        steps += 1
-        # maps are used to average the split embeddings from BERT
-        loss = train_batch(text, pos, heads, rels, transitions, relations_in_order, maps,model, optimizer)
-        train_info.new_batch(loss)
-        if train_info.eval:
-            dev_results = evaluate(devloader, model)
-            if train_info.is_best(dev_results):
-                model.set_best()
-                if save_batch:
-                    model.save(save_path)
-            elif train_info.reduce_lr:
-                lr_scheduler.step()
-                optimizer.state.clear()
-                model.recover_best()
-                print('\tReduced lr')
-            elif train_info.finish:
-                train_info.print_progress(dev_results,file)
-                break
-            train_info.print_progress(dev_results,file)
-        if steps>=1:
-            break
-
-    model.recover_best()
-
-
-def train_batch_chart(text,pos, heads, rels, maps, model, optimizer):
-    optimizer.zero_grad()
-    maps = maps.to(device=constants.device)
-    text, pos = text.to(device=constants.device), pos.to(device=constants.device)
-    heads, rels = heads.to(device=constants.device), rels.to(device=constants.device)
-
-    loss, pred_h, pred_rel = model((text, pos),maps,heads,rels)
-
-    loss.backward()
-    optimizer.step()
-
-    return loss.item()
-def train_chart(trainloader, devloader, model, eval_batches, wait_iterations, optim_alg, lr_decay, weight_decay,
-                save_path, save_batch=False):
-    torch.autograd.set_detect_anomaly(True)
-    optimizer, lr_scheduler = get_optimizer(model.parameters(), optim_alg, lr_decay, weight_decay)
-    train_info = TrainInfo(wait_iterations,eval_batches)
     while not train_info.finish:
-        step = 0
-        for (text, pos), (heads, rels),(hypergraph,relation_in_order), maps in trainloader:
-            loss = train_batch_chart(text,pos, heads, rels, maps, model, optimizer)
+        steps = 0
+        for (text, pos), (heads, rels), (transitions, relations_in_order), maps in trainloader:
+            steps += 1
+            # maps are used to average the split embeddings from BERT
+            loss = train_batch(text, pos, heads, rels, transitions, relations_in_order, maps, model, optimizer)
             train_info.new_batch(loss)
             if train_info.eval:
-                dev_results = evaluate_chart(devloader, model)
+                dev_results = evaluate(devloader, model)
                 if train_info.is_best(dev_results):
                     model.set_best()
                     if save_batch:
@@ -251,45 +205,17 @@ def train_chart(trainloader, devloader, model, eval_batches, wait_iterations, op
                     model.recover_best()
                     print('\tReduced lr')
                 elif train_info.finish:
-                    train_info.print_progress(dev_results)
+                    train_info.print_progress(dev_results, file)
                     break
-                train_info.print_progress(dev_results)
-
-        model.recover_best()
+                train_info.print_progress(dev_results, file)
 
 
-def _evaluate_chart(evalloader, model):
-    # pylint: disable=too-many-locals
-    dev_loss, dev_las, dev_uas, n_instances = 0, 0, 0, 0
-    steps = 0
-    for (text, pos), (heads, rels),_, maps in evalloader:
-        steps += 1
-        maps = maps.to(device=constants.device)
-        text, pos = text.to(device=constants.device), pos.to(device=constants.device)
-        heads, rels = heads.to(device=constants.device), rels.to(device=constants.device)
-        loss, predicted_heads, predicted_rels = model((text, pos), maps, heads, rels) # model((text, pos), maps,rels)
+    model.recover_best()
 
-        lengths = (text != 0).sum(-1)
-        # heads_tgt = get_mst_batch(h_logits, lengths)
-        las, uas = calculate_attachment_score(predicted_heads, heads, predicted_rels, rels)
-        batch_size = text.shape[0]
-        dev_loss += (loss * batch_size)
-        dev_las += (las * batch_size)
-        dev_uas += (uas * batch_size)
-        n_instances += batch_size
-
-    return dev_loss / n_instances, dev_las / n_instances, dev_uas / n_instances
-
-def evaluate_chart(evalloader, model):
-    model.eval()
-    with torch.no_grad():
-        result = _evaluate_chart(evalloader, model)
-    model.train()
-    return result
 
 
 def main():
-    #sys.stdout = open("test.txt", "w")
+    # sys.stdout = open("test.txt", "w")
     # pylint: disable=too-many-locals
 
     args = get_args()
@@ -312,7 +238,7 @@ def main():
         fname = "arc-standard"
     else:
         fname = args.model
-    trainloader, devloader, testloader, vocabs,max_sent_len = \
+    trainloader, devloader, testloader, vocabs, max_sent_len = \
         get_data_loaders(args.data_path, args.language, args.batch_size, args.batch_size_eval, fname,
                          transition_system=transition_system, bert_model=args.bert_model)
     print('Train size: %d Dev size: %d Test size: %d' %
@@ -320,32 +246,33 @@ def main():
     save_name = "final_output_%s.txt".format(args.model)
     file1 = open(save_name, "w")
     WANDB_PROJECT = f"{args.language}_{args.model}"
-    #WANDB_PROJECT = "%s_%s".format(args.language,args.model)
-    model = get_model(vocabs, args,max_sent_len)
-    run = wandb.init(project=WANDB_PROJECT,config={'wandb_nb':'wandb_three_in_one_hm'},settings=wandb.Settings(start_method="fork"))
+    # WANDB_PROJECT = "%s_%s".format(args.language,args.model)
+    model = get_model(vocabs, args, max_sent_len)
+    run = wandb.init(project=WANDB_PROJECT, config={'wandb_nb': 'wandb_three_in_one_hm'},
+                     settings=wandb.Settings(start_method="fork"))
 
     # Start tracking your model's gradients
     wandb.watch(model)
-    #if args.model != 'agenda-std':
+    # if args.model != 'agenda-std':
     train(trainloader, devloader, model, args.eval_batches, args.wait_iterations,
-          args.optim, args.lr_decay, args.weight_decay, args.save_path, args.save_periodically,file=file1)
+          args.optim, args.lr_decay, args.weight_decay, args.save_path, args.save_periodically, file=file1)
     model.save(args.save_path)
     train_loss, train_las, train_uas = evaluate(trainloader, model)
     dev_loss, dev_las, dev_uas = evaluate(devloader, model)
     test_loss, test_las, test_uas = evaluate(testloader, model)
 
     file1.write('Final Training loss: %.4f Dev loss: %.4f Test loss: %.4f' %
-          (train_loss, dev_loss, test_loss))
+                (train_loss, dev_loss, test_loss))
     file1.write('Final Training las: %.4f Dev las: %.4f Test las: %.4f' %
-          (train_las, dev_las, test_las))
+                (train_las, dev_las, test_las))
     file1.write('Final Training uas: %.4f Dev uas: %.4f Test uas: %.4f' %
-          (train_uas, dev_uas, test_uas))
+                (train_uas, dev_uas, test_uas))
 
     log_dict_loss = {'Training loss': train_loss, 'Dev Loss': dev_loss, 'Test Loss': test_loss}
     wandb.log(log_dict_loss)
-    log_dict_las = {"Training LAS":train_las,"Dev LAS":dev_las,"Test LAS":test_las}
+    log_dict_las = {"Training LAS": train_las, "Dev LAS": dev_las, "Test LAS": test_las}
     wandb.log(log_dict_las)
-    log_dict_uas = {"Training UAS":train_uas,"Dev UAS":dev_uas,"Test UAS":test_uas}
+    log_dict_uas = {"Training UAS": train_uas, "Dev UAS": dev_uas, "Test UAS": test_uas}
     wandb.log(log_dict_uas)
     file1.close()
     wandb.finish()
@@ -356,7 +283,8 @@ def main():
     print('Final Training uas: %.4f Dev uas: %.4f Test uas: %.4f' %
           (train_uas, dev_uas, test_uas))
 
-    #sys.stdout.close()
+    # sys.stdout.close()
+
 
 if __name__ == '__main__':
     main()
