@@ -204,7 +204,7 @@ def train_batch(text, pos, heads, rels, transitions, relations_in_order, maps,mo
 
 
 def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_alg, lr_decay, weight_decay,
-          save_path, save_batch=False):
+          save_path, save_batch=False,file=None):
     # pylint: disable=too-many-locals,too-many-arguments
     torch.autograd.set_detect_anomaly(True)
 
@@ -229,9 +229,9 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
                     model.recover_best()
                     print('\tReduced lr')
                 elif train_info.finish:
-                    train_info.print_progress(dev_results)
+                    train_info.print_progress(dev_results,file)
                     break
-                train_info.print_progress(dev_results)
+                train_info.print_progress(dev_results,file)
 
     model.recover_best()
 
@@ -329,6 +329,7 @@ def evaluate_chart(evalloader, model):
 
 
 def main():
+    #sys.stdout = open("test.txt", "w")
     # pylint: disable=too-many-locals
     args = get_args()
     if args.model == "arc-standard":  # or args.model == "easy-first":
@@ -353,11 +354,12 @@ def main():
                          transition_system=transition_system, bert_model=args.bert_model)
     print('Train size: %d Dev size: %d Test size: %d' %
           (len(trainloader.dataset), len(devloader.dataset), len(testloader.dataset)))
+    file1 = open("final_output.txt", "w")
 
     model = get_model(vocabs, embeddings, args,max_sent_len)
     #if args.model != 'agenda-std':
     train(trainloader, devloader, model, args.eval_batches, args.wait_iterations,
-          args.optim, args.lr_decay, args.weight_decay, args.save_path, args.save_periodically)
+          args.optim, args.lr_decay, args.weight_decay, args.save_path, args.save_periodically,file=file1)
     model.save(args.save_path)
     train_loss, train_las, train_uas = evaluate(trainloader, model)
     dev_loss, dev_las, dev_uas = evaluate(devloader, model)
@@ -371,6 +373,14 @@ def main():
     #    dev_loss, dev_las, dev_uas = evaluate_chart(devloader, model)
     #    test_loss, test_las, test_uas = evaluate_chart(testloader, model)
 
+    file1.write('Final Training loss: %.4f Dev loss: %.4f Test loss: %.4f' %
+          (train_loss, dev_loss, test_loss))
+    file1.write('Final Training las: %.4f Dev las: %.4f Test las: %.4f' %
+          (train_las, dev_las, test_las))
+    file1.write('Final Training uas: %.4f Dev uas: %.4f Test uas: %.4f' %
+          (train_uas, dev_uas, test_uas))
+
+    file1.close()
     print('Final Training loss: %.4f Dev loss: %.4f Test loss: %.4f' %
           (train_loss, dev_loss, test_loss))
     print('Final Training las: %.4f Dev las: %.4f Test las: %.4f' %
@@ -378,6 +388,7 @@ def main():
     print('Final Training uas: %.4f Dev uas: %.4f Test uas: %.4f' %
           (train_uas, dev_uas, test_uas))
 
+    #sys.stdout.close()
 
 if __name__ == '__main__':
     main()
