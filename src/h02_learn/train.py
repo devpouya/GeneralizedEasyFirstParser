@@ -340,7 +340,7 @@ def main():
     # pylint: disable=too-many-locals
 
     args = get_args()
-    wandb.login(key=[args.key])
+    wandb.login(key=args.key)
 
     if args.model == "arc-standard":  # or args.model == "easy-first":
         transition_system = constants.arc_standard
@@ -368,7 +368,7 @@ def main():
     file1 = open(save_name, "w")
     WANDB_PROJECT = "%s_%s".format(args.language,args.model)
     model = get_model(vocabs, embeddings, args,max_sent_len)
-    run = wandb.init(project=WANDB_PROJECT,config={'wandb_nb':'wandb_three_in_one_hm'})
+    run = wandb.init(project=WANDB_PROJECT,config={'wandb_nb':'wandb_three_in_one_hm'},settings=wandb.Settings(start_method="fork"))
 
     # Start tracking your model's gradients
     wandb.watch(model)
