@@ -40,9 +40,12 @@ class NeuralTransitionParser(BaseParser):
         elif language == "eu":
             self.bert = AutoModel.from_pretrained("ixa-ehu/berteus-base-cased", output_hidden_states=True).to(
                 device=constants.device)
-        else:
+        elif language == "hu":
             self.bert = AutoModel.from_pretrained("SZTAKI-HLT/hubert-base-cc", output_hidden_states=True).to(
                 device=constants.device)
+        else:
+            self.bert = AutoModel.from_pretrained("dbmdz/bert-base-turkish-cased",output_hidden_states=True).to(device=constants.device)
+
 
         self.bert.eval()
         for param in self.bert.parameters():
