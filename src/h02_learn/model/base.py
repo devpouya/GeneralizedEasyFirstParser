@@ -78,8 +78,10 @@ class BertParser(BaseParser):
             self.bert = BertModel.from_pretrained('bert-base-german-cased', output_hidden_states=True).to(device=constants.device)
         elif language == "cs":
             self.bert = AutoModel.from_pretrained("DeepPavlov/bert-base-bg-cs-pl-ru-cased", output_hidden_states=True).to(device=constants.device)
-        else:
+        elif language == "eu":
             self.bert = AutoModel.from_pretrained("ixa-ehu/berteus-base-cased", output_hidden_states=True).to(device=constants.device)
+        elif language == "tr":
+            self.bert = AutoModel.from_pretrained("dbmdz/bert-base-turkish-cased",output_hidden_states=True).to(device=constants.device)
 
         self.bert.eval()
         for param in self.bert.parameters():
