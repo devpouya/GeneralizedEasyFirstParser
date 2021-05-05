@@ -56,9 +56,9 @@ class ChartParser(BertParser):
         # self.biaffine_h = Biaffine(200, 200)
         self.bilinear_item = Bilinear(200, 200, 1)
 
-        linear_items1 = nn.Linear(self.hidden_size * 6, self.hidden_size * 4).to(device=constants.device)
-        linear_items2 = nn.Linear(self.hidden_size * 4, self.hidden_size * 2).to(device=constants.device)
-        linear_items3 = nn.Linear(self.hidden_size * 2, 1).to(device=constants.device)
+        linear_items1 = nn.Linear(self.hidden_size * 8, self.hidden_size * 6).to(device=constants.device)
+        linear_items2 = nn.Linear(self.hidden_size * 6, self.hidden_size * 4).to(device=constants.device)
+        linear_items3 = nn.Linear(self.hidden_size * 4, 1).to(device=constants.device)
         layers = [linear_items1, nn.ReLU(), nn.Dropout(dropout), linear_items2, nn.ReLU(), nn.Dropout(dropout),
                   linear_items3]
 
@@ -194,28 +194,31 @@ class ChartParser(BertParser):
             if len(item.heads) == 2:
                 i = item.heads[0]
                 j = item.heads[1]
-                span = self.span_rep(words_f, words_b, i, j, n).unsqueeze(0)
+                span_1 = self.span_rep(words_f, words_b, i, j, n)#.unsqueeze(0)
+                span_2 = torch.zeros_like(span_1).to(device=constants.device)
+
             elif len(item.heads) == 3:
                 i = item.heads[0]
                 mid = item.heads[1]
                 j = item.heads[2]
-                span_1 = self.span_rep(words_f, words_b, i, mid, n).unsqueeze(0)
-                span_2 = self.span_rep(words_f, words_b, mid, j, n).unsqueeze(0)
-                span = span_1-span_2
+                span_1 = self.span_rep(words_f, words_b, i, mid, n)#.unsqueeze(0)
+                span_2 = self.span_rep(words_f, words_b, mid, j, n)#.unsqueeze(0)
+                #span = span_1-span_2
             elif len(item.heads)==4:
                 i1 = item.heads[0]
                 j1 = item.heads[1]
                 i2 = item.heads[2]
                 j2 = item.heads[3]
-                span_1 = self.span_rep(words_f, words_b, i1, j1, n).unsqueeze(0)
-                span_2 = self.span_rep(words_f, words_b, i2, j2, n).unsqueeze(0)
-                span = span_1-span_2
+                span_1 = self.span_rep(words_f, words_b, i1, j1, n)#.unsqueeze(0)
+                span_2 = self.span_rep(words_f, words_b, i2, j2, n)#.unsqueeze(0)
+                #span = span_1-span_2
             else:
                 # len == 1:
                 i = item.heads[0]
-                span = torch.cat([words_f[i,:], words_b[i,:]], dim=-1).to(device=constants.device).unsqueeze(0)
+                span_1 = torch.cat([words_f[i,:], words_b[i,:]], dim=-1)#.to(device=constants.device).unsqueeze(0)
+                span_2 = torch.zeros_like(span_1).to(device=constants.device)
 
-
+            span = torch.cat([span_1,span_2],dim=-1).to(device=constants.device).unsqueeze(0)
             #if gold_index is None:
             #    if (u, v) in gold_arc_set:
             #        gold_index = torch.tensor([iter], dtype=torch.long).to(device=constants.device)
