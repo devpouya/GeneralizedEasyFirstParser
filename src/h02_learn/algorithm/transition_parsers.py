@@ -32,9 +32,9 @@ class ShiftReduceParser():
         self.embedding_size = embedding_size
 
 
-    def subtree_rep(self, top, second, rel_embed,linear):
+    def subtree_rep(self, top, second,linear):
 
-        reprs = torch.cat([top[0], second[0], rel_embed.reshape(self.embedding_size)],
+        reprs = torch.cat([top[0], second[0]],
                           dim=-1)
 
         c = nn.Tanh()(linear(reprs))
@@ -42,9 +42,9 @@ class ShiftReduceParser():
         self.stack[-1] = (c, ind)
         return c
 
-    def subtree_rep_prime(self, top, second, rel_embed,linear):
+    def subtree_rep_prime(self, top, second,linear):
 
-        reprs = torch.cat([top[0], second[0], rel_embed.reshape(self.embedding_size)],
+        reprs = torch.cat([top[0], second[0]],
                           dim=-1)
 
         c = nn.Tanh()(linear(reprs))
@@ -52,9 +52,9 @@ class ShiftReduceParser():
         self.stack[-2] = (c, ind)
         return c
 
-    def subtree_rep_hybrid(self, top, second, rel_embed,linear):
+    def subtree_rep_hybrid(self, top, second,linear):
 
-        reprs = torch.cat([top[0], second[0], rel_embed.reshape(self.embedding_size)],
+        reprs = torch.cat([top[0], second[0]],
                           dim=-1)
 
         c = nn.Tanh()(linear(reprs))
@@ -80,22 +80,22 @@ class ShiftReduceParser():
         self.stack.append(item)
         return item[0]
 
-    def reduce_l(self, rel,rel_embed,linear):
+    def reduce_l(self, linear):
         top = self.stack[-1]
         second = self.stack[-2]
         #left = self.buffer[0]
         self.stack.pop(-2)
-        self.arcs.append((top[1], second[1], rel))
-        c = self.subtree_rep(top, second,rel_embed,linear)
+        self.arcs.append((top[1], second[1]))
+        c = self.subtree_rep(top, second,linear)
         return c
 
-    def reduce_r(self, rel,rel_embed,linear):
+    def reduce_r(self,linear):
         second = self.stack[-2]
         top = self.stack[-1]
-        self.arcs.append((second[1], top[1], rel))
+        self.arcs.append((second[1], top[1]))
         self.stack.pop(-1)
         #self.buffer[0] = top
-        c = self.subtree_rep(second, top,rel_embed,linear)
+        c = self.subtree_rep(second, top,linear)
         return c
 
     def reduce(self):
@@ -104,49 +104,49 @@ class ShiftReduceParser():
         self.stack.pop(-1)
         self.action_history_names.append(constants.reduce)
 
-    def left_arc_eager(self,rel,rel_embed,linear):
+    def left_arc_eager(self,linear):
         top = self.stack[-1]
         left = self.buffer[0]
         # if not self.arcs.has_incoming(stack_top):
         self.stack.pop(-1)
-        self.arcs.append((left[1], top[1],rel))
-        c = self.subtree_rep_hybrid(left, top, rel_embed,linear)
+        self.arcs.append((left[1], top[1]))
+        c = self.subtree_rep_hybrid(left, top,linear)
         return c
-    def left_arc_prime(self,rel,rel_embed,linear):
+    def left_arc_prime(self,linear):
         top = self.stack[-1]
         second = self.stack[-2]
-        self.arcs.append((top[1],second[1],rel))
-        c = self.subtree_rep(top,second,rel_embed,linear)
+        self.arcs.append((top[1],second[1]))
+        c = self.subtree_rep(top,second,linear)
         return c
 
-    def right_arc_prime(self, rel, rel_embed, linear):
+    def right_arc_prime(self, linear):
         second = self.stack[-2]
         third = self.stack[-3]
-        self.arcs.append((third[1],second[1],rel))
+        self.arcs.append((third[1],second[1]))
         self.stack.pop(-2)
-        c = self.subtree_rep_prime(third, second, rel_embed, linear)
+        c = self.subtree_rep_prime(third, second, linear)
         return c
 
-    def left_arc_2(self,rel,rel_embed,linear):
+    def left_arc_2(self,linear):
         front = self.buffer[0]
         second = self.stack[-2]
-        self.arcs.append((front[1],second[1],rel))
+        self.arcs.append((front[1],second[1]))
         self.stack.pop(-2)
-        c = self.subtree_rep_hybrid(front, second, rel_embed, linear)
+        c = self.subtree_rep_hybrid(front, second, linear)
         return c
-    def right_arc_2(self,rel,rel_embed,linear):
+    def right_arc_2(self,linear):
         third = self.stack[-3]
         top = self.stack[-1]
-        self.arcs.append((third[1],top[1],rel))
+        self.arcs.append((third[1],top[1]))
         self.stack.pop(-1)
-        c = self.subtree_rep_prime(third, top, rel_embed, linear)
+        c = self.subtree_rep_prime(third, top, linear)
         return c
-    def right_arc_eager(self,rel,rel_embed,linear):
+    def right_arc_eager(self,linear):
         top = self.stack[-1]
         left = self.buffer[0]
         self.stack.append(left)
-        self.arcs.append((top[1], left[1],rel))
-        c = self.subtree_rep(top, left, rel_embed,linear)
+        self.arcs.append((top[1], left[1]))
+        c = self.subtree_rep(top, left,linear)
         self.buffer.pop(0)
         return c
 
@@ -164,20 +164,20 @@ class ShiftReduceParser():
 
     def heads_from_arcs(self):
         heads = [0] * (len(self.sentence)+1)
-        rels = [0] * (len(self.sentence)+1)
+        #rels = [0] * (len(self.sentence)+1)
         #self.arcs.append((0,0,1))
         #print(self.arcs)
         tmp = self.arcs.copy()
-        tmp.append((0,0,1))
+        tmp.append((0,0))
         for i in range(len(self.sentence)):
-            for (u, v, r) in tmp:
+            for (u, v) in tmp:
                 if v == i:
                     heads[i+1] = u
-                    rels[i+1] = r
+                    #rels[i+1] = r
         heads.pop(0)
-        rels.pop(0)
+        #rels.pop(0)
 
-        return torch.tensor(heads).to(device=constants.device), torch.tensor(rels).to(device=constants.device)
+        return torch.tensor(heads).to(device=constants.device) #, torch.tensor(rels).to(device=constants.device)
 
     def set_oracle_action(self, act):
         self.oracle_action_history.append(act)
