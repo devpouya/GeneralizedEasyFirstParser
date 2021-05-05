@@ -93,9 +93,11 @@ def get_data_loaders(data_path, language, batch_size, batch_size_eval, transitio
     elif language == "cs":
         # tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased')
         tokenizer = AutoTokenizer.from_pretrained("DeepPavlov/bert-base-bg-cs-pl-ru-cased")
-    else:
+    elif language == "eu":
         # Basque
         tokenizer = AutoTokenizer.from_pretrained("ixa-ehu/berteus-base-cased")
+    else:
+        tokenizer = AutoTokenizer.from_pretrained("SZTAKI-HLT/hubert-base-cc")
     #tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
     trainloader = get_data_loader(fname_train, transitions_train, transition_system, tokenizer, batch_size,
                                   shuffle=True)
