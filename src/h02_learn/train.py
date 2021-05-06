@@ -205,8 +205,8 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
                 dev_results = evaluate(devloader, model)
                 if train_info.is_best(dev_results):
                     model.set_best()
-                    if save_batch:
-                        model.save(save_path)
+                    #if save_batch:
+                    #    model.save(save_path)
                 elif train_info.reduce_lr:
                     lr_scheduler.step()
                     optimizer.state.clear()
@@ -255,7 +255,7 @@ def main():
     # if args.model != 'agenda-std':
     train(trainloader, devloader, model, args.eval_batches, args.wait_iterations,
           args.optim, args.lr_decay, args.weight_decay, args.save_path, args.save_periodically, file=file1)
-    model.save(args.save_path)
+    #model.save(args.save_path)
     train_loss, train_las, train_uas = evaluate(trainloader, model)
     dev_loss, dev_las, dev_uas = evaluate(devloader, model)
     test_loss, test_las, test_uas = evaluate(testloader, model)
