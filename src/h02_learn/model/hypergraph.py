@@ -626,7 +626,7 @@ class MH4(Hypergraph):
         return pending_new
 
 
-    def calculate_pending(self):
+    def calculate_pending_2(self):
         remaining = []
         pending = {}
         for i in range(self.n):
@@ -644,6 +644,22 @@ class MH4(Hypergraph):
                     combs.append(l)
         for h in combs:
             new_item = ItemMH4(h, 0, 0)
+            pending[new_item.key] = new_item
+        return pending
+
+    def calculate_pending(self):
+        remaining = []
+        pending = {}
+        for i in range(self.n):
+            if not self.has_head[i]:
+                remaining.append(i)
+        if len(remaining) <= 4:
+            new_item = ItemMH4(remaining, 0, 0)
+            pending[new_item.key] = new_item
+            return pending
+        combs = []
+        for i in range(len(remaining)-4):
+            new_item = ItemMH4(remaining[i:i+4], 0, 0)
             pending[new_item.key] = new_item
         return pending
 
