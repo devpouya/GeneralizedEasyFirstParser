@@ -256,7 +256,7 @@ def main():
     # if args.model != 'agenda-std':
     train(trainloader, devloader, model, args.eval_batches, args.wait_iterations,
           args.optim, args.lr_decay, args.weight_decay, args.save_path, args.save_periodically, file=file1)
-    model.save(args.save_path)
+    #model.save(args.save_path)
     train_loss, train_las, train_uas = evaluate(trainloader, model)
     dev_loss, dev_las, dev_uas = evaluate(devloader, model)
     test_loss, test_las, test_uas = evaluate(testloader, model)
