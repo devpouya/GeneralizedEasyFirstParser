@@ -55,12 +55,19 @@ class ChartParser(BertParser):
         # self.biaffine = Biaffine(200, 200)
         # self.biaffine_h = Biaffine(200, 200)
         self.bilinear_item = Bilinear(200, 200, 1)
+        if mode == "agenda-mh4":
+            linear_items1 = nn.Linear(self.hidden_size * 8, self.hidden_size * 6).to(device=constants.device)
+            linear_items2 = nn.Linear(self.hidden_size * 6, self.hidden_size * 4).to(device=constants.device)
+            linear_items3 = nn.Linear(self.hidden_size * 4, 1).to(device=constants.device)
+        else:
+            linear_items1 = nn.Linear(self.hidden_size * 6, self.hidden_size * 4).to(device=constants.device)
+            linear_items2 = nn.Linear(self.hidden_size * 4, self.hidden_size * 2).to(device=constants.device)
+            linear_items3 = nn.Linear(self.hidden_size * 2, 1).to(device=constants.device)
 
-        linear_items1 = nn.Linear(self.hidden_size * 8, self.hidden_size * 6).to(device=constants.device)
-        linear_items2 = nn.Linear(self.hidden_size * 6, self.hidden_size * 4).to(device=constants.device)
-        linear_items3 = nn.Linear(self.hidden_size * 4, 1).to(device=constants.device)
         layers = [linear_items1, nn.ReLU(), nn.Dropout(dropout), linear_items2, nn.ReLU(), nn.Dropout(dropout),
                   linear_items3]
+
+
 
         #linear_items1mh4 = nn.Linear(self.hidden_size * 4, self.hidden_size * 2).to(device=constants.device)
         #linear_items2mh4 = nn.Linear(self.hidden_size * 2, 1).to(device=constants.device)
