@@ -646,6 +646,26 @@ class MH4(Hypergraph):
             new_item = ItemMH4(h, 0, 0)
             pending[new_item.key] = new_item
         return pending
+    def calculate_pending_init(self):
+        ret = {}
+        for i in range(self.n):
+            new_item = ItemMH4([i,i+1],i,i)
+            ret[new_item.key] = new_item
+        return ret
+    def possible_arcs(self):
+        arcs = []
+        remaining = []
+        for i in range(self.n):
+            if not self.has_head[i]:
+                remaining.append(i)
+        for i in range(len(remaining)-3):
+            arcs.append((remaining[i],remaining[i+1]))
+            arcs.append((remaining[i],remaining[i+2]))
+            arcs.append((remaining[i],remaining[i+3]))
+            arcs.append((remaining[i+1], remaining[i]))
+            arcs.append((remaining[i+2], remaining[i]))
+            arcs.append((remaining[i+3], remaining[i]))
+        return arcs
 
     def calculate_pending(self):
         remaining = []
@@ -657,11 +677,39 @@ class MH4(Hypergraph):
             new_item = ItemMH4(remaining, 0, 0)
             pending[new_item.key] = new_item
             return pending
-        combs = []
         for i in range(len(remaining)-4):
             new_item = ItemMH4(remaining[i:i+4], 0, 0)
             pending[new_item.key] = new_item
         return pending
+
+
+    def calculate_pending5(self, pending):
+        ret = {}
+        marked = []
+        changed =0
+        for item_1 in pending.values():
+            #print(item_1)
+            for item_2 in pending.values():
+                h_1 = item_1.heads
+                h_2 = item_2.heads
+                if h_1[-1] == h_2[0]:
+                    new_heads = list(set(h_1+h_2))
+                    #if self.n in new_heads:
+                    #    new_heads.remove(self.n)
+                    if 1 < len(new_heads)<=4:
+                        changed +=1
+                        new_item = ItemMH4(new_heads,item_1,item_2)
+                        ret[new_item.key] = new_item
+                        marked.append(item_1.key)
+                        marked.append(item_2.key)
+
+        for item in pending.values():
+            if item.key not in marked:
+                ret[item.key] = item
+        if changed > 0:
+            ret = self.calculate_pending(ret)
+        return ret
+
 
     def iterate_spans(self, item, pending, merge=False, prev_arc=None):
         arcs = []
@@ -727,13 +775,38 @@ class MH4(Hypergraph):
                     all_items.append(new_item)
         return all_items
 
+    def link2(self, item, prev_arcs):
+        all_items = []
+        arcs = []
+        for i in item.heads:
+            for j in item.heads:
+                if i!= j:
+                    if i < self.n and j < self.n:
+                        if not self.has_head[j]:
+                            new_heads = item.heads.copy()
+                            new_heads.remove(j)
+                            new_item = ItemMH4(new_heads, item.l, item.r)
+                            new_arc = (i, j)
+                            if new_arc not in prev_arcs:
+                                arcs.append(new_arc)
+                                all_items.append(new_item)
+                        if not self.has_head[i]:
+                            new_heads = item.heads.copy()
+                            new_heads.remove(i)
+                            new_item = ItemMH4(new_heads, item.l, item.r)
+                            new_arc = (j, i)
+                            if new_arc not in prev_arcs:
+                                arcs.append(new_arc)
+                                all_items.append(new_item)
+        return arcs, all_items
+
     def link(self, item, prev_arcs):
         all_items = []
         arcs = []
         if len(item.heads) > 2:
             for j in range(len(item.heads) - 1):
                 for i in range(len(item.heads)):
-                    if i != j:
+                    if i != j and item.heads[i] < self.n and item.heads[j] < self.n:
                         if not self.has_head[item.heads[j]]:
                             if item.heads[j] < self.n and item.heads[i] < self.n:
                                 if not self.has_head[item.heads[i]]:
@@ -752,7 +825,7 @@ class MH4(Hypergraph):
                                     if new_arc not in prev_arcs:
                                         arcs.append(new_arc)
                                         all_items.append(new_item)
-        else:
+        elif len(item.heads) == 2:
             new_arc_1 = (item.heads[1], item.heads[0])
             new_item_1 = ItemMH4([item.heads[1]], item, item)
             if new_arc_1 not in prev_arcs:
@@ -763,6 +836,8 @@ class MH4(Hypergraph):
             if new_arc_2 not in prev_arcs:
                 arcs.append(new_arc_2)
                 all_items.append(new_item_2)
+        else:
+            pass
 
         return arcs, all_items
 
