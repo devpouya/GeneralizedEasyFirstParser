@@ -49,7 +49,7 @@ def get_args():
     parser.add_argument('--save-periodically', action='store_true')
 
     args = parser.parse_args()
-    args.wait_iterations = args.wait_epochs * args.eval_batches
+    args.wait_iterations = 3#args.wait_epochs * args.eval_batches
     args.save_path = '%s/%s/%s/%s/' % (args.checkpoints_path, args.language, args.model, args.name)
     utils.config(args.seed)
     print("RUNNING {}".format(args.name))
