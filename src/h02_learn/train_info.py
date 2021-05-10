@@ -31,7 +31,7 @@ class TrainInfo:
     @property
     def finish(self):
         #print("is stuck {}".format(self.stuck))
-        return self.stuck and (self.lr_reductions >= self.MAX_REDUCTIONS)
+        return (self.stuck and (self.lr_reductions >= self.MAX_REDUCTIONS)) or self.batch_id >= 100
 
     @property
     def eval(self):
