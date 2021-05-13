@@ -34,15 +34,15 @@ def print_yellow(s):
 
 class ChartParser(BertParser):
     def __init__(self,vocabs, embedding_size, rel_embedding_size, batch_size,hidden_size=100, hypergraph=ArcStandard,language="en",
-                 dropout=0.33, eos_token_id=28996,mode="agenda-std",transition_system=None):
+                 dropout=0.33, eos_token_id=28996,mode="agenda-mh4",transition_system=None):
         super().__init__(language, vocabs,
                          embedding_size=embedding_size, rel_embedding_size=rel_embedding_size,
                          batch_size=batch_size, dropout=dropout)
         self.eos_token_id = eos_token_id
-        self.hidden_size = hidden_size
-        self.hypergraph = hypergraph
+        self.hidden_size = 400#hidden_size
+        self.hypergraph = MH4#hypergraph
         self.dropout = nn.Dropout(dropout)
-        self.mode = mode
+        self.mode = "agenda-mh4"#mode
         if mode == "agenda-mh4":
             self.parse_step_chart = self.parse_step_mh4
         else:
@@ -56,6 +56,7 @@ class ChartParser(BertParser):
         # self.biaffine_h = Biaffine(200, 200)
         self.bilinear_item = Bilinear(200, 200, 1)
         if mode == "agenda-mh4":
+            print("here")
             linear_items1 = nn.Linear(self.hidden_size * 8, self.hidden_size * 6).to(device=constants.device)
             linear_items2 = nn.Linear(self.hidden_size * 6, self.hidden_size * 4).to(device=constants.device)
             linear_items3 = nn.Linear(self.hidden_size * 4, 1).to(device=constants.device)
