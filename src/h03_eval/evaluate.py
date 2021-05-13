@@ -55,16 +55,20 @@ def main():
 
     model = load_model(args.checkpoints_path, args.language,args.model,args.name)
 
-    train_loss, train_las, train_uas = evaluate(trainloader, model)
-    dev_loss, dev_las, dev_uas = evaluate(devloader, model)
+    #train_loss, train_las, train_uas = evaluate(trainloader, model)
+    #dev_loss, dev_las, dev_uas = evaluate(devloader, model)
     test_loss, test_las, test_uas = evaluate(testloader, model)
 
-    print('Final Training loss: %.4f Dev loss: %.4f Test loss: %.4f' %
-          (train_loss, dev_loss, test_loss))
-    print('Final Training las: %.4f Dev las: %.4f Test las: %.4f' %
-          (train_las, dev_las, test_las))
-    print('Final Training uas: %.4f Dev uas: %.4f Test uas: %.4f' %
-          (train_uas, dev_uas, test_uas))
+    #print('Final Training loss: %.4f Dev loss: %.4f Test loss: %.4f' %
+    #      (train_loss, dev_loss, test_loss))
+    #print('Final Training las: %.4f Dev las: %.4f Test las: %.4f' %
+    #      (train_las, dev_las, test_las))
+    #print('Final Training uas: %.4f Dev uas: %.4f Test uas: %.4f' %
+    #      (train_uas, dev_uas, test_uas))
+
+    print('FiTest loss: %.4f' %(test_loss))
+    print('Test las: %.4f' %(test_las))
+    print('Test uas: %.4f' %(test_uas))
 
 
 if __name__ == '__main__':
