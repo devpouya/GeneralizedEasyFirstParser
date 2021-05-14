@@ -102,6 +102,9 @@ def get_data_loaders(data_path, language, batch_size, batch_size_eval, transitio
         tokenizer = AutoTokenizer.from_pretrained("ixa-ehu/berteus-base-cased")
     elif language == "tr":
         tokenizer = AutoTokenizer.from_pretrained("dbmdz/bert-base-turkish-cased")
+    else:
+        tokenizer = AutoTokenizer.from_pretrained("nlpaueb/bert-base-greek-uncased-v1")
+
 
     trainloader, max_sent_len_train = get_data_loader(fname_train, transitions_train, transition_system, tokenizer,
                                                       batch_size,

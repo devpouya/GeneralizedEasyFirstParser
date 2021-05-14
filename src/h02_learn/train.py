@@ -247,10 +247,9 @@ def main():
     file1 = open(save_name, "w")
     WANDB_PROJECT = f"{args.language}_{args.model}"
     # WANDB_PROJECT = "%s_%s".format(args.language,args.model)
-    #model = get_model(vocabs, args, max_sent_len)
-    load_path = '%s/%s/%s/%s/' % (args.checkpoints_path, args.language,"mh4","efmh4cs")
-
-    model = ChartParser.load(load_path).to(device=constants.device) #get_model(vocabs, args, max_sent_len)
+    model = get_model(vocabs, args, max_sent_len)
+    #load_path = '%s/%s/%s/%s/' % (args.checkpoints_path, args.language,"mh4","efmh4cs")gi
+    #model = ChartParser.load(load_path).to(device=constants.device) #get_model(vocabs, args, max_sent_len)
 
     run = wandb.init(project=WANDB_PROJECT, config={'wandb_nb': 'wandb_three_in_one_hm'},
                      settings=wandb.Settings(start_method="fork"))

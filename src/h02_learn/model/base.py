@@ -82,6 +82,9 @@ class BertParser(BaseParser):
             self.bert = AutoModel.from_pretrained("ixa-ehu/berteus-base-cased", output_hidden_states=True).to(device=constants.device)
         elif language == "tr":
             self.bert = AutoModel.from_pretrained("dbmdz/bert-base-turkish-cased",output_hidden_states=True).to(device=constants.device)
+        else:
+            self.bert = AutoModel.from_pretrained("nlpaueb/bert-base-greek-uncased-v1",output_hidden_states=True).to(device=constants.device)
+
 
         self.bert.eval()
         for param in self.bert.parameters():
