@@ -162,13 +162,13 @@ class SyntaxDataset(Dataset):
         token_mapping2 = []
         for token in enc:
             tokenout = []
-            for ids in token:
-                tokenout.append(idx)
-                idx+=1
-
-            token_mapping.append(tokenout[0])
-            token_mapping.append(tokenout[-1])
-            token_mapping2.append(tokenout)
+            if len(token)>0:
+                for ids in token:
+                    tokenout.append(idx)
+                    idx+=1
+                token_mapping.append(tokenout[0])
+                token_mapping.append(tokenout[-1])
+                token_mapping2.append(tokenout)
 
         #print(self.tokenizer.eos_token_id)
         #jk
