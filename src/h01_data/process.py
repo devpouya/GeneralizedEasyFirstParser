@@ -3,7 +3,7 @@ from os import path
 import argparse
 from collections import OrderedDict
 import numpy as np
-
+import pandas as pd
 sys.path.append('./src/')
 from h01_data import Vocab, save_vocabs, save_embeddings
 from h01_data.oracle import arc_standard_oracle, arc_eager_oracle, hybrid_oracle, easy_first_arc_standard, \
@@ -43,6 +43,10 @@ def get_sentence(file):
             sentence = []
 
 
+
+
+
+
 def process_sentence(sentence, vocabs):
     words, tags, rels = vocabs
     processed = [{
@@ -59,7 +63,14 @@ def process_sentence(sentence, vocabs):
     heads = []
     relations = []
     rel2id = {}
+    #print(sentence)
     for token in sentence:
+        if len(token)>10:
+            raise Exception("skipped a sentence")
+        #print("len token {}".format(len(token)))
+        #print(token)
+    for token in sentence:
+        # print(token[6])
         processed += [{
             'word': token[1],
             'word_id': words.idx(token[1]),
@@ -91,6 +102,34 @@ def labeled_action_pairs(actions, relations):
             tmp_rels.pop(0)
 
     return labeled_acts
+
+
+def collect_statistics_dataset(in_fname_base, mode, vocabs):
+    in_fname = in_fname_base % mode
+    num_proj = 0
+    num_non_proj = 0
+    total = 0
+    with open(in_fname, 'r') as file:
+        step = 0
+        for sentence in get_sentence(file):
+            step += 1
+            try:
+                sent_processed, heads, relations, rel2id = process_sentence(sentence, vocabs)
+            except:
+                continue
+            heads_proper = [0] + heads
+            sentence_proper = list(range(len(heads_proper)))
+            word2head = {w:h for (w,h) in zip(sentence_proper, heads_proper)}
+
+            if is_projective(word2head):
+                num_proj += 1
+            else:
+                num_non_proj += 1
+            total += 1
+
+
+
+    return num_proj, num_non_proj, total
 
 
 def process_data(in_fname_base, out_path, mode, vocabs, oracle=None, transition_name=None):
@@ -229,9 +268,67 @@ def process_embeddings(src_fname, out_path):
     return embedding_dict
 
 
+
+def collect_total_statistics(data_path,vocabs):
+    df = {"language":[], "train_size":[], "train_non_projectivity":[], "test_size":[], "test_non_projectivity":[], "dev_size":[], "dev_non_projectivity":[], "total_size":[], "total_non_projectivity":[]}
+    skipped_folders = []
+    for language in constants.UD_LANG_FNAMES:
+        in_fname = path.join(data_path, constants.UD_LANG_FNAMES[language])
+        #in_fname = 'UD_Polish-PDB/pl_pdb-ud-%s.conllu'#path.join(data_path, constants.UD_LANG_FNAMES["orv"])
+        try:
+            num_proj_train, num_non_proj_train, total_train = collect_statistics_dataset(in_fname,"train",vocabs)
+        except:
+            continue
+        try:
+            num_proj_dev, num_non_proj_dev, total_dev = collect_statistics_dataset(in_fname,"dev",vocabs)
+        except:
+            continue
+        #num_proj_dev, num_non_proj_dev, total_dev = 0,0,0#collect_statistics_dataset(in_fname,"dev",vocabs)
+
+        try:
+            num_proj_test, num_non_proj_test, total_test = collect_statistics_dataset(in_fname,"test",vocabs)
+        except:
+            continue
+
+        print("=========================================================================")
+        print("Language {} has statistics in training set: ".format(constants.UD_LANG_FOLDERS[language]))
+        print("projective sentences: {} percentage {} %".format(num_proj_train, num_non_proj_train / total_train))
+        print("non projective sentences: {} percentage {} %".format(num_non_proj_train, num_non_proj_train / total_train))
+        print("total sentences: {}".format(total_train))
+
+        print("in test set: ")
+        print("projective sentences: {} percentage {} %".format(num_proj_test, num_non_proj_test / total_test))
+        print("non projective sentences: {} percentage {} %".format(num_non_proj_test, num_non_proj_test / total_test))
+        print("total sentences: {}".format(total_test))
+
+        print("in dev set: ")
+        print("projective sentences: {} percentage {} %".format(num_proj_dev, num_non_proj_dev / total_dev))
+        print("non projective sentences: {} percentage {} %".format(num_non_proj_dev, num_non_proj_dev / total_dev))
+        print("total sentences: {}".format(total_dev))
+
+        all_sets_proj = num_proj_dev + num_proj_test + num_proj_train
+        all_sets_non_proj = num_non_proj_test + num_non_proj_dev + num_non_proj_train
+        all_sets_total = all_sets_proj + all_sets_non_proj
+
+        print("And in total: ")
+        print("Projectivity: {} of {} for {}%".format(all_sets_proj,all_sets_total,all_sets_proj/all_sets_total))
+        print("Non Projectivity: {} of {} for {}%".format(all_sets_non_proj,all_sets_total,all_sets_non_proj/all_sets_total))
+        print("=========================================================================")
+        df["language"].append(language)
+        df["train_size"].append(total_train)
+        df["train_non_projectivity"].append(num_non_proj_train/total_train)
+        df["test_size"].append(total_test)
+        df["test_non_projectivity"].append(num_non_proj_test/total_test)
+        df["dev_size"].append(total_dev)
+        df["dev_non_projectivity"].append(num_non_proj_dev/total_dev)
+        df["total_size"].append(all_sets_total)
+        df["total_non_projectivity"].append(all_sets_non_proj/all_sets_total)
+
+    return pd.DataFrame.from_dict(df), skipped_folders
+
+
 def main():
     args = get_args()
-
     in_fname = path.join(args.data_path, constants.UD_LANG_FNAMES[args.language])
     out_path = path.join(args.save_path, constants.UD_PATH_PROCESSED, args.language)
     utils.mkdir(out_path)
@@ -240,6 +337,21 @@ def main():
     tokenizer = None  # BertTokenizer.from_pretrained(args.bert_model)
     vocabs = get_vocabs(in_fname, out_path, min_count=args.min_vocab_count, tokenizer=tokenizer)
     oracle = None
+    #langs = ['UD_Old_French-SRCMF/fro_srcmf-ud-%s.conllu', 'UD_Old_Russian-TOROT/orv_torot-ud-%s.conllu',
+    # 'UD_Polish-PDB/pl_pdb-ud-%s.conllu', 'UD_Buryat-BDT/bxr_bdt-ud-%s.conllu', 'UD_Slovenian-SST/sl_sst-ud-%s.conllu',
+    # 'UD_Kazakh-KTB/kk_ktb-ud-%s.conllu', 'UD_Kurmanji-MG/kmr_mg-ud-%s.conllu', 'UD_Latvian-LVTB/lv_lvtb-ud-%s.conllu',
+    # 'UD_Estonian-EWT/et_ewt-ud-%s.conllu', 'UD_Ukrainian-IU/uk_iu-ud-%s.conllu',
+    # 'UD_Upper_Sorbian-UFAL/hsb_ufal-ud-%s.conllu', 'UD_Finnish-TDT/fi_tdt-ud-%s.conllu',
+    # 'UD_Livvi-KKPP/olo_kkpp-ud-%s.conllu', 'UD_French-FTB/fr_ftb-ud-%s.conllu',
+    # 'UD_Vietnamese-VTB/vi_vtb-ud-%s.conllu', 'UD_North_Sami-Giella/sme_giella-ud-%s.conllu',
+    # 'UD_Yoruba-YTB/yo_ytb-ud-%s.conllu']
+
+    #statistacs, skipped = collect_total_statistics(args.data_path, vocabs)
+    #print(skipped)
+    #statistacs.to_csv("non_projectivity_stats.csv")
+    #sorted_stats = statistacs.sort_values(by=["total_non_projectivity"],ascending=False)
+    #print(sorted_stats[["language","total_non_projectivity"]].head(20))
+
     if args.transition == 'arc-standard':
         oracle = arc_standard_oracle
     elif args.transition == 'arc-eager':

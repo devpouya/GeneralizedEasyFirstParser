@@ -149,6 +149,15 @@ class BertParser(BaseParser):
         return zip(a, a)
 
     def get_bert_embeddings(self, mapping, sentence, tags):
+        """
+
+
+        :param mapping:
+        :param sentence:
+        :param tags:
+        :return:
+            this averages the sub-token embeddings in bert to have one vector per word
+        """
         s = []  # torch.zeros((mapping.shape[0]+1, sentence.shape[1])).to(device=constants.device)
         for start, end in self.pairwise(mapping):
             m = torch.mean(sentence[start:end + 1, :], dim=0)
