@@ -39,7 +39,7 @@ class ChartParser(BertParser):
                          embedding_size=embedding_size, rel_embedding_size=rel_embedding_size,
                          batch_size=batch_size, dropout=dropout)
         self.eos_token_id = eos_token_id
-        self.hidden_size = hidden_size
+        self.hidden_size = 868
         self.hypergraph = hypergraph
         self.dropout = nn.Dropout(dropout)
         self.mode = mode
@@ -48,7 +48,7 @@ class ChartParser(BertParser):
         else:
             self.parse_step_chart = self.parse_step_std_hyb
         #self.linear_tree = nn.Linear(self.hidden_size * 2, self.hidden_size)
-        self.linear_tree = nn.Linear(868 * 2, 868)
+        self.linear_tree = nn.Linear(self.hidden_size * 2, self.hidden_size)
         # self.linear_label = nn.Linear(hidden_size * 2, self.rel_embedding_size)
         self.linear_dep = nn.Linear(self.hidden_size, 200).to(device=constants.device)
 
@@ -58,9 +58,9 @@ class ChartParser(BertParser):
         self.bilinear_item = Bilinear(200, 200, 1)
 
 
-        linear_items12 = nn.Linear(868,434).to(device=constants.device)
-        linear_items22 = nn.Linear(434, 217).to(device=constants.device)
-        linear_items32 = nn.Linear(217, 1).to(device=constants.device)
+        linear_items12 = nn.Linear(int(self.hidden_size),int(self.hidden_size/2)).to(device=constants.device)
+        linear_items22 = nn.Linear(int(self.hidden_size/2), int(self.hidden_size/4)).to(device=constants.device)
+        linear_items32 = nn.Linear(int(self.hidden_size/4), 1).to(device=constants.device)
 
         layers = [linear_items12, nn.ReLU(), nn.Dropout(dropout), linear_items22, nn.ReLU(), nn.Dropout(dropout),
                   linear_items32]
@@ -75,6 +75,8 @@ class ChartParser(BertParser):
         #self.lstm = nn.LSTM(868, self.hidden_size, 2, batch_first=True, bidirectional=True).to(device=constants.device)
         #self.lstm_tree = nn.LSTM(self.hidden_size, self.hidden_size, 1, batch_first=False, bidirectional=False).to(
         #    device=constants.device)
+
+
 
 
 
@@ -209,11 +211,13 @@ class ChartParser(BertParser):
                 gold_index = torch.tensor([iter], dtype=torch.long).to(device=constants.device)
                 gold_key = item.key
         all_spans = []
-        for item in possible_items:
+        for iter, ((u, v), item) in enumerate(zip(possible_arcs, possible_items)):
             span = self.get_item_representation(item, words)
             all_spans.append(span)
+            index2key[iter] = item.key
 
-        scores = self.mlp(torch.stack(all_spans,dim=0)).squeeze(1)
+        scores = self.mlp(torch.stack(all_spans,dim=0)).permute(1,0)#.squeeze(1)
+
         if not self.training or gold_index is None:
             gold_index = torch.argmax(scores, dim=-1)
             gold_key = index2key[gold_index.item()]
@@ -320,15 +324,13 @@ class ChartParser(BertParser):
                                                                                             gold_arc,
                                                                                             s)
                 if self.training:
-                    loss += nn.CrossEntropyLoss(reduction='sum')(scores.unsqueeze(0), gold_index)
+                    loss += nn.CrossEntropyLoss(reduction='sum')(scores, gold_index)
                 s_new = s.clone().detach()
                 reprs = torch.cat([s[h,:], s[m,:]],
                                   dim=-1)
 
                 s_new[h, :] = nn.Tanh()(self.linear_tree(reprs))
                 s = s_new.clone()
-
-
             loss /= len(ordered_arcs)
             pred_heads = self.heads_from_arcs(arcs, n)
             heads_batch[i, :n] = pred_heads
@@ -336,12 +338,13 @@ class ChartParser(BertParser):
             batch_loss += loss
         batch_loss /= x_emb.shape[0]
         heads = heads_batch
-        #l_logits = self.get_label_logits(h_t_noeos, heads)
-        #rels_batch = torch.argmax(l_logits, dim=-1)
-        #batch_loss += self.loss(batch_loss, l_logits, rels)
-        return batch_loss, heads_batch, None #,#rels_batch
+        l_logits = self.get_label_logits(x_mapped[:,:-1,:], heads)
+        rels_batch = torch.argmax(l_logits, dim=-1)
+        batch_loss += self.loss(batch_loss, l_logits, rels)
+        return batch_loss, heads_batch, rels_batch
 
     def get_label_logits(self, h_t, head):
+
         l_dep = self.dropout(F.relu(self.linear_labels_dep(h_t)))
         l_head = self.dropout(F.relu(self.linear_labels_head(h_t)))
         # head_int = torch.zeros_like(head,dtype=torch.int64)
