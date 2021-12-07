@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from utils import constants
+import itertools
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from .base import BertParser
 from ..algorithm.transition_parsers import ShiftReduceParser
@@ -67,6 +68,9 @@ class ChartParser(BertParser):
 
         self.mlp = nn.Sequential(*layers)
 
+        self.linear_arc_head = nn.Linear(self.hidden_size, 400).to(device=constants.device)
+        self.linear_arc_dep = nn.Linear(self.hidden_size, 400).to(device=constants.device)
+        self.biaffine = Biaffine(400, 400)
 
         self.linear_labels_dep = nn.Linear(self.hidden_size, 200).to(device=constants.device)
         self.linear_labels_head = nn.Linear(self.hidden_size, 200).to(device=constants.device)
@@ -126,6 +130,47 @@ class ChartParser(BertParser):
             ga = (t[0].item(), t[1].item())
             arcs.append(ga)
         return arcs
+
+    def get_max_index(self, scores):
+        d = torch.tensor(scores.shape[0]).to(device=constants.device)
+        n1 = torch.tensor(1).to(device=constants.device)
+        x = scores.reshape(1, 1, scores.shape[0], scores.shape[1])
+        m = x.view(n1, -1).argmax(1)
+        indices = torch.cat(((m // d).view(-1, 1), (m % d).view(-1, 1)), dim=1)
+        return indices
+
+    def score_arc_labels_biliniear(self, words):
+        # after head is chosen, pick that row against every label?
+        l_dep = self.dropout(F.relu(self.linear_label_dep(words)))
+        l_head = self.dropout(F.relu(self.linear_label_head(words)))
+        # if self.training:
+        #    assert head is not None, 'During training head should not be None'
+        # l_head = l_head.gather(dim=1, index=head.unsqueeze(2).expand(l_head.size()))
+        l_logits = self.bilinear_label(l_dep, l_head)
+        print_green(l_logits.shape)
+        return l_logits
+
+    def score_arcs_biaffine(self, possible_arcs, gold_arc, words, all_possible_arcs):
+
+        h_dep = self.dropout(F.relu(self.linear_arc_dep(words)))
+        h_arc = self.dropout(F.relu(self.linear_arc_head(words)))
+
+        scores = self.biaffine(h_arc, h_dep)
+
+        # zero logits not possible due to tansition system
+        #to_be_zeroed_out = all_possible_arcs.difference(set(possible_arcs))
+
+        scores = nn.Softmax()(scores)
+        #for (i, j) in to_be_zeroed_out:
+        #    scores[i, j] = 0
+        #    scores[j, i] = 0
+        if not self.training:
+            made_arc = self.get_max_index(scores)
+        else:
+            made_arc = gold_arc
+        gold_index = torch.tensor(made_arc[0].item() * scores.shape[0] + made_arc[1].item()).to(device=constants.device)
+
+        return scores, made_arc, gold_index  # , gold_key
 
     def possible_arcs(self, pending, hypergraph):
         arcs = []
@@ -226,15 +271,17 @@ class ChartParser(BertParser):
 
 
 
-    def parse_step_mh4(self,pending, hypergraph,arcs,gold_arc,words):
+    def parse_step_mh4(self,pending, hypergraph,arcs,gold_arc,words, all_possible_arcs):
         pending = hypergraph.calculate_pending()
 
         possible_arcs, items = self.possible_arcs_mh4(pending, hypergraph, arcs)
-        scores, gold_index, gold_key = self.score_arcs_mh4(possible_arcs,
-                                                           gold_arc, items, words)
-        gind = gold_index.item()
+        #scores, gold_index, gold_key = self.score_arcs_mh4(possible_arcs,
+        #                                                   gold_arc, items, words)
+        scores, made_arc, gold_index = self.score_arcs_biaffine(possible_arcs,
+                                                                gold_arc, words, all_possible_arcs)
+        #gind = gold_index.item()
 
-        made_arc = possible_arcs[gind]
+        #made_arc = possible_arcs[gind]
         #if self.training:
         #    gold_arc_set.remove(made_arc)
         h = made_arc[0]
@@ -244,7 +291,7 @@ class ChartParser(BertParser):
         #pending = hypergraph.calculate_pending(pending, m)
         hypergraph = hypergraph.set_head(m)
         #hypergraph.made_arcs.append(made_arc)
-        arcs.append(made_arc)
+        arcs.append((h.item(),m.item()))
         return scores, gold_index, h, m, arcs, hypergraph, pending
 
     def forward(self, x, transitions, relations, map, heads, rels):
@@ -286,6 +333,7 @@ class ChartParser(BertParser):
             ordered_arcs = transitions[i]
             mask = (ordered_arcs.sum(dim=1) != -2)
             ordered_arcs = ordered_arcs[mask, :]
+            all_possible_arcs = set(itertools.product(range(n), range(n)))
 
             #s = h_t[i, :n + 1, :]
             #s_b = bh_t[i, :n + 1, :]
@@ -322,9 +370,9 @@ class ChartParser(BertParser):
                                                                                             hypergraph,
                                                                                             arcs,
                                                                                             gold_arc,
-                                                                                            s)
+                                                                                            s, all_possible_arcs)
                 if self.training:
-                    loss += nn.CrossEntropyLoss(reduction='sum')(scores, gold_index)
+                    loss += nn.CrossEntropyLoss(reduction='sum')(torch.flatten(scores).unsqueeze(0), gold_index.reshape(1))
                 s_new = s.clone().detach()
                 reprs = torch.cat([s[h,:], s[m,:]],
                                   dim=-1)
@@ -401,63 +449,6 @@ class ChartParser(BertParser):
 
 
 
-    def score_arcs_biaffine(self, possible_arcs, gold_arc, possible_items, words_f, words_b):
-        n = len(words_f)
-        gold_index = None
-        gold_key = None
-        ij_set = []
-        h_set = []
-
-        for iter, item in enumerate(possible_items.values()):
-            i, j, h = item.i, item.j, item.h
-            ij_set.append((i, j))
-            h_set.append(h)
-        ij_set = set(ij_set)
-        h_set = set(h_set)
-        unique_ij = len(ij_set)
-        unique_h = len(h_set)
-        ij_tens = torch.zeros((unique_ij, self.hidden_size * 2)).to(device=constants.device)
-        h_tens = torch.zeros((unique_h, self.hidden_size * 2)).to(device=constants.device)
-
-        index_matrix = torch.ones((unique_ij, unique_h), dtype=torch.int64).to(device=constants.device) * -1
-        ij_counts = {(i, j): 0 for (i, j) in list(ij_set)}
-        h_counts = {h: 0 for h in list(h_set)}
-        ij_rows = {}
-        h_col = {}
-        ind_ij = 0
-        ind_h = 0
-        ga = (gold_arc[0].item(), gold_arc[1].item())
-        index2key = {}
-        for iter, ((u, v), item) in enumerate(zip(possible_arcs, possible_items.values())):
-            i, j, h = item.i, item.j, item.h
-            if (u, v) == ga:
-                gold_index = torch.tensor([iter], dtype=torch.long).to(device=constants.device)
-                gold_key = (i, j, h)
-            index2key[iter] = (i, j, h)
-            ij_counts[(i, j)] += 1
-            h_counts[h] += 1
-            if ij_counts[(i, j)] <= 1:
-                ij_rows[(i, j)] = ind_ij
-                sij = self.span_rep(words_f, words_b, i, j, n)
-                ij_tens[ind_ij, :] = sij
-                ind_ij += 1
-            if h_counts[h] <= 1:
-                h_col[h] = ind_h
-                rep = torch.cat([words_f[h, :].unsqueeze(0), words_b[h, :].unsqueeze(0)], dim=-1)
-                h_tens[ind_h, :] = rep
-                ind_h += 1
-            index_matrix[ij_rows[(i, j)], h_col[h]] = iter
-
-        history_rep = self.item_lstm.embedding()
-        h_ij = self.dropout(F.relu(self.linear_ij(ij_tens))).unsqueeze(0)
-        h_h = self.dropout(F.relu(self.linear_h(h_tens))).unsqueeze(0)
-        item_logits = self.biaffine_item(h_ij, h_h, history_rep).squeeze(0)
-        scores = item_logits[index_matrix != -1].unsqueeze(0)
-
-        if not self.training:
-            gold_index = torch.argmax(scores, dim=-1)
-            gold_key = index2key[gold_index.item()]
-        return scores, gold_index, gold_key
 
     def get_args(self):
         return {
