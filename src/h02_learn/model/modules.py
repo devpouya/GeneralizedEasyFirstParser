@@ -565,8 +565,8 @@ class TreeLayer(nn.Module):
         #mask[head_index,:] = True
         #mask[mod_index,:] = True
         #mask_2[head_index,:] = True
-        clown_tensor = words.clone().detach()
-        clown_tensor[head_index,:] = clown_tensor[mod_index,:]
+        clown_tensor = torch.zeros_like(words).to(device=constants.device)#words.clone().detach()
+        clown_tensor[head_index,:] = words[mod_index,:]
         rep = torch.cat([words,clown_tensor],dim=-1)
         rep = nn.Tanh()(self.linear_tree(rep))
         #reprs = torch.cat([words[head_index, :], words[mod_index, :]],
