@@ -225,8 +225,8 @@ class ChartParser(BertParser):
             self.bert.eval()
         else:
             self.bert.train()
-        with torch.no_grad():
-            out = self.bert(x_.to(device=constants.device))[2]
+        #with torch.no_grad():
+        out = self.bert(x_.to(device=constants.device))[2]
         # take the average of all the levels
         x_emb = torch.stack(out).mean(0)
 
