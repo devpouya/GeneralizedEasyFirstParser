@@ -72,20 +72,20 @@ class BertParser(BaseParser):
         self.embedding_size = embedding_size
         self.batch_size = batch_size
         self.dropout_prob = dropout
-        if language == "en":
-            self.bert = BertModel.from_pretrained('bert-base-uncased', output_hidden_states=True).to(device=constants.device)
-        elif language == "de":
-            self.bert = BertModel.from_pretrained('bert-base-german-cased', output_hidden_states=True).to(device=constants.device)
-        elif language == "cs":
-            self.bert = AutoModel.from_pretrained("DeepPavlov/bert-base-bg-cs-pl-ru-cased", output_hidden_states=True).to(device=constants.device)
-        elif language == "eu":
-            self.bert = AutoModel.from_pretrained("ixa-ehu/berteus-base-cased", output_hidden_states=True).to(device=constants.device)
-        elif language == "tr":
-            self.bert = AutoModel.from_pretrained("dbmdz/bert-base-turkish-cased",output_hidden_states=True).to(device=constants.device)
-
-        self.bert.eval()
-        for param in self.bert.parameters():
-            param.requires_grad = True
+        #if language == "en":
+        #    self.bert = BertModel.from_pretrained('bert-base-uncased', output_hidden_states=True).to(device=constants.device)
+        #elif language == "de":
+        #    self.bert = BertModel.from_pretrained('bert-base-german-cased', output_hidden_states=True).to(device=constants.device)
+        #elif language == "cs":
+        #    self.bert = AutoModel.from_pretrained("DeepPavlov/bert-base-bg-cs-pl-ru-cased", output_hidden_states=True).to(device=constants.device)
+        #elif language == "eu":
+        #    self.bert = AutoModel.from_pretrained("ixa-ehu/berteus-base-cased", output_hidden_states=True).to(device=constants.device)
+        #elif language == "tr":
+        #    self.bert = AutoModel.from_pretrained("dbmdz/bert-base-turkish-cased",output_hidden_states=True).to(device=constants.device)
+        self.bert = AutoModel.from_pretrained("bert-base-multilingual-cased").to(device=constants.device)
+        #self.bert.eval()
+        #for param in self.bert.parameters():
+        #    param.requires_grad = True
 
         # transition system
         self.transition_system = transition_system
