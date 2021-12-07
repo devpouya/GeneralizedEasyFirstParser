@@ -558,30 +558,10 @@ class TreeLayer(nn.Module):
         self.identity = nn.Identity()
 
     def forward(self, words, head_index, mod_index):
-        n = len(words)
-        #indicies = torch.zeros((n)).to(device=constants.device)
-        #mask = torch.zeros_like(words, dtype=torch.bool)
-        #mask_2 = mask
-        #mask[head_index,:] = True
-        #mask[mod_index,:] = True
-        #mask_2[head_index,:] = True
-        clown_tensor = torch.zeros_like(words).to(device=constants.device)#words.clone().detach()
-        clown_tensor[head_index,:] = words[mod_index,:]
+        clown_tensor = words.clone().detach() #torch.zeros_like(words).to(device=constants.device)
+        clown_tensor[head_index,:] = clown_tensor[mod_index,:]
         rep = torch.cat([words,clown_tensor],dim=-1)
         rep = nn.Tanh()(self.linear_tree(rep))
-        #reprs = torch.cat([words[head_index, :], words[mod_index, :]],
-        #                  dim=-1)
-
-
-        #val_h = nn.Tanh()(self.linear_tree(reprs))
-        ##ret = self.identity(words)#torch.zeros_like(words).to(device=constants.device)
-        #ret[head_index,:] = val_h
-
-
-        #mask = indicies.ge(1)
-        #mask_2 = indicies.eq(2)
-        #headmod = torch.masked_select(words,mask)
-        #x = nn.Tanh()(self.linear_tree(headmod))
         return rep
 
 
