@@ -224,7 +224,7 @@ class ChartParser(BertParser):
 
 
     def parse_step_mh4(self,pending, hypergraph,arcs,gold_arc,words):
-        pending = hypergraph.calculate_pending()
+        #pending = hypergraph.calculate_pending()
 
         possible_arcs, items = self.possible_arcs_mh4(pending, hypergraph, arcs)
         #scores, gold_index, gold_key = self.score_arcs_mh4(possible_arcs,
@@ -255,7 +255,10 @@ class ChartParser(BertParser):
     def forward(self, x, transitions, relations, map, heads, rels):
         x_ = x[0][:, 1:]
         # average of last 4 hidden layers
-
+        if not self.training:
+            self.bert.eval()
+        else:
+            self.bert.train()
         #with torch.no_grad():
         out = self.bert(x_.to(device=constants.device))[2]
         # take the average of all the levels
@@ -306,7 +309,7 @@ class ChartParser(BertParser):
                 if self.training:
                     loss += nn.CrossEntropyLoss(reduction='sum')(scores.unsqueeze(0), gold_index.reshape(1))
                 #print_green("s before {}".format(s.shape))
-                #s = self.linear_tree(s, h, m)
+                s = self.linear_tree(s, h, m)
                 #print_blue("s after {}".format(s.shape))
                 #s_new = s.clone().detach()
                 #reprs = torch.cat([s[h,:], s[m,:]],
