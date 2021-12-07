@@ -19,17 +19,17 @@ class BaseParser(nn.Module, ABC):
         self.best_state_dict = None#self.load_state_dict(self.state_dict())#.state_dict()
 
     def set_best(self):
-        with torch.no_grad():
-            #state_dict = {k: v.detach().cpu() for k, v in self.state_dict().items()}
-            #self.best_state_dict = copy.deepcopy(state_dict)
-            self.best_state_dict = copy.deepcopy(self.state_dict())
+        #with torch.no_grad():
+        #state_dict = {k: v.detach().cpu() for k, v in self.state_dict().items()}
+        #self.best_state_dict = copy.deepcopy(state_dict)
+        self.best_state_dict = copy.deepcopy(self.state_dict())
 
     def recover_best(self):
-        with torch.no_grad():
-            #state_dict = {k: v.to(device=constants.device).detach()
-            #               for k, v in self.best_state_dict.items()}
-            #self.load_state_dict(state_dict)
-            self.load_state_dict(self.best_state_dict) if self.best_state_dict is not None else self.load_state_dict(self.state_dict())
+        #with torch.no_grad():
+        #state_dict = {k: v.to(device=constants.device).detach()
+        #               for k, v in self.best_state_dict.items()}
+        #self.load_state_dict(state_dict)
+        self.load_state_dict(self.best_state_dict) if self.best_state_dict is not None else self.load_state_dict(self.state_dict())
         # torch.cuda.empty_cache()
 
     def save(self, path):

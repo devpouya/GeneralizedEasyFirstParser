@@ -251,10 +251,10 @@ class ChartParser(BertParser):
         x_ = x[0][:, 1:]
         # average of last 4 hidden layers
 
-        with torch.no_grad():
-            out = self.bert(x_.to(device=constants.device))[2]
-            # take the average of all the levels
-            x_emb = torch.stack(out).mean(0)
+        #with torch.no_grad():
+        out = self.bert(x_.to(device=constants.device))[2]
+        # take the average of all the levels
+        x_emb = torch.stack(out).mean(0)
 
         heads_batch = torch.ones((x_emb.shape[0], heads.shape[1])).to(device=constants.device)  # * -1
         prob_sum = 0
