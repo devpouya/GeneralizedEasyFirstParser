@@ -551,6 +551,27 @@ class Bilinear(nn.Module):
         x += self.linear_l(x_l) + self.linear_r(x_r)
         return x
 
+class TreeLayer(nn.Module):
+    def __init__(self, hidden_size):
+        super().__init__()
+        self.linear_tree = nn.Linear(hidden_size * 2, hidden_size)
+
+    def forward(self, words, head_index, mod_index):
+        n = len(words)
+        #indicies = torch.zeros((n)).to(device=constants.device)
+        mask = torch.zeros_like(words, dtype=torch.bool)
+        mask_2 = mask
+        mask[head_index,:] = True
+        mask[mod_index,:] = True
+        mask_2[head_index,:] = True
+        #mask = indicies.ge(1)
+        #mask_2 = indicies.eq(2)
+        headmod = torch.masked_select(words,mask)
+        x = nn.Tanh()(self.linear_tree(headmod))
+        return words.masked_fill(mask_2,x)
+
+
+
 
 class PointerLSTM(nn.Module):
     def __init__(self, id, prev_lstm, input_size, hidden_size, dropout, batch_first, bidirectional=False):
