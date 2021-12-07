@@ -147,7 +147,7 @@ class ChartParser(BertParser):
         #    assert head is not None, 'During training head should not be None'
         # l_head = l_head.gather(dim=1, index=head.unsqueeze(2).expand(l_head.size()))
         l_logits = self.bilinear_label(l_dep, l_head)
-        print_green(l_logits.shape)
+        #print_green(l_logits.shape)
         return l_logits
 
     def score_arcs_biaffine(self, possible_arcs, gold_arc, words, all_possible_arcs):
@@ -156,19 +156,37 @@ class ChartParser(BertParser):
         h_arc = self.dropout(F.relu(self.linear_arc_head(words)))
 
         scores = self.biaffine(h_arc, h_dep)
-
+        gold_index = None
         # zero logits not possible due to tansition system
         #to_be_zeroed_out = all_possible_arcs.difference(set(possible_arcs))
+        if not self.training:
+            made_arc = self.get_max_index(scores)[0]
+        else:
+            made_arc = gold_arc
 
-        scores = nn.Softmax()(scores)
+
+
+        for iter, (i, j) in enumerate(possible_arcs):
+            if (i, j) == (gold_arc[0].item(), gold_arc[1].item()):
+                gold_index = torch.tensor(iter).to(device=constants.device)
+        if self.training and gold_index is not None:
+            keep_inds = torch.zeros((scores.shape[0] * scores.shape[1])).to(device=constants.device)
+            for iter, (i,j) in enumerate(possible_arcs):
+                keep_inds[i*scores.shape[0]+j] = 1
+            mask_ = keep_inds.eq(1)
+            flat_scores_only_valid = torch.masked_select(torch.flatten(scores),mask_)
+            scores = nn.Softmax(dim=-1)(flat_scores_only_valid)
+        else:
+            gold_index = torch.tensor(made_arc[0].item() * scores.shape[0] + made_arc[1].item()).to(
+                device=constants.device)
+            scores = torch.flatten(scores)
+            scores = nn.Softmax(dim=-1)(scores)
+
+        #scores = nn.Softmax()(scores)
         #for (i, j) in to_be_zeroed_out:
         #    scores[i, j] = 0
         #    scores[j, i] = 0
-        if not self.training:
-            made_arc = self.get_max_index(scores)
-        else:
-            made_arc = gold_arc
-        gold_index = torch.tensor(made_arc[0].item() * scores.shape[0] + made_arc[1].item()).to(device=constants.device)
+
 
         return scores, made_arc, gold_index  # , gold_key
 
@@ -280,18 +298,24 @@ class ChartParser(BertParser):
         scores, made_arc, gold_index = self.score_arcs_biaffine(possible_arcs,
                                                                 gold_arc, words, all_possible_arcs)
         #gind = gold_index.item()
-
+        # print_green(made_arc)
         #made_arc = possible_arcs[gind]
         #if self.training:
         #    gold_arc_set.remove(made_arc)
         h = made_arc[0]
         m = made_arc[1]
+        if self.training:
+            h = h.item()
+            m = m.item()
         h = min(h,hypergraph.n-1)
         m = min(m,hypergraph.n-1)
         #pending = hypergraph.calculate_pending(pending, m)
         hypergraph = hypergraph.set_head(m)
         #hypergraph.made_arcs.append(made_arc)
-        arcs.append((h.item(),m.item()))
+        #print_green(h)
+        #print_blue(m)
+        arcs.append((h,m))
+
         return scores, gold_index, h, m, arcs, hypergraph, pending
 
     def forward(self, x, transitions, relations, map, heads, rels):
@@ -372,10 +396,11 @@ class ChartParser(BertParser):
                                                                                             gold_arc,
                                                                                             s, all_possible_arcs)
                 if self.training:
-                    loss += nn.CrossEntropyLoss(reduction='sum')(torch.flatten(scores).unsqueeze(0), gold_index.reshape(1))
+                    loss += nn.CrossEntropyLoss(reduction='sum')(scores.unsqueeze(0), gold_index.reshape(1))
                 s_new = s.clone().detach()
                 reprs = torch.cat([s[h,:], s[m,:]],
                                   dim=-1)
+                #print_blue(self.training)
 
                 s_new[h, :] = nn.Tanh()(self.linear_tree(reprs))
                 s = s_new.clone()
