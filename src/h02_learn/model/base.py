@@ -83,9 +83,9 @@ class BertParser(BaseParser):
         elif language == "tr":
             self.bert = AutoModel.from_pretrained("dbmdz/bert-base-turkish-cased",output_hidden_states=True).to(device=constants.device)
 
-        self.bert.eval()
-        for param in self.bert.parameters():
-            param.requires_grad = True
+        #self.bert.eval()
+        #for param in self.bert.parameters():
+        #    param.requires_grad = True
 
         # transition system
         self.transition_system = transition_system

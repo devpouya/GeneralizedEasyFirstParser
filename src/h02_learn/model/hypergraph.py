@@ -665,22 +665,20 @@ class MH4(Hypergraph):
 
     def iterate_spans(self, item, pending, merge=False, prev_arc=None):
         arcs = []
-        items = []
-        nus = {}
-        if merge:
-            nus = self.combine(item, pending)
-        else:
+        #items = []
+        #nus = {}
+        #if merge:
+        #    nus = self.combine(item, pending)
+        #else:
 
-            for item in pending.values():
-                possible_arcs, possible_items = self.link(item, arcs)
-                for (pa, pi) in zip(possible_arcs, possible_items):
-                    if pa not in arcs:
-                        arcs.append(pa)
-                        items.append(pi)
-                # arcs = arcs + possible_arcs
-                # items = items + possible_items
+        for item in pending.values():
+            possible_arcs = self.link(item, arcs)
+            for pa in possible_arcs:
+                if pa not in arcs:
+                    arcs.append(pa)
 
-        return arcs, items, nus
+
+        return arcs
 
     def combine(self, item, pending):
         if len(item.heads) == 3:
@@ -728,7 +726,6 @@ class MH4(Hypergraph):
         return all_items
 
     def link(self, item, prev_arcs):
-        all_items = []
         arcs = []
         if len(item.heads) > 2:
             for j in range(len(item.heads) - 1):
@@ -743,7 +740,6 @@ class MH4(Hypergraph):
                                     new_arc = (item.heads[i], item.heads[j])
                                     if new_arc not in prev_arcs:
                                         arcs.append(new_arc)
-                                        all_items.append(new_item)
                                 if not self.has_head[item.heads[i]]:
                                     new_heads = item.heads.copy()
                                     new_heads.pop(i)
@@ -751,20 +747,17 @@ class MH4(Hypergraph):
                                     new_arc = (item.heads[j], item.heads[i])
                                     if new_arc not in prev_arcs:
                                         arcs.append(new_arc)
-                                        all_items.append(new_item)
         else:
             new_arc_1 = (item.heads[1], item.heads[0])
             new_item_1 = ItemMH4([item.heads[1]], item, item)
             if new_arc_1 not in prev_arcs:
                 arcs.append(new_arc_1)
-                all_items.append(new_item_1)
             new_arc_2 = (item.heads[0], item.heads[1])
             new_item_2 = ItemMH4([item.heads[0]], item, item)
             if new_arc_2 not in prev_arcs:
                 arcs.append(new_arc_2)
-                all_items.append(new_item_2)
 
-        return arcs, all_items
+        return arcs
 
     def clean_pending(self, pending, dep):
         nu = {}
