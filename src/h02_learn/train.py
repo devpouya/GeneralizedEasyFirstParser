@@ -13,6 +13,10 @@ from h02_learn.algorithm.mst import get_mst_batch
 from utils import constants
 from utils import utils
 
+from transformers import AdamW
+from transformers import get_linear_schedule_with_warmup
+
+
 import wandb
 
 
@@ -56,16 +60,18 @@ def get_args():
     return args
 
 
-def get_optimizer(paramters, optim_alg, lr_decay, weight_decay):
-    if optim_alg == "adamw":
-        optimizer = optim.AdamW(paramters, betas=(.9, .9), weight_decay=weight_decay)
-    elif optim_alg == "adam":
-        optimizer = optim.Adam(paramters, betas=(.9, .9), weight_decay=weight_decay)
-    else:
-        optimizer = optim.SGD(paramters, lr=0.01)
+def get_optimizer(model, num_warmup_steps, num_train_steps):
 
-    lr_scheduler = optim.lr_scheduler.ExponentialLR(optimizer, lr_decay)
-    # lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, "max")
+    no_decay = ['bias', 'LayerNorm.weight']
+    optimizer_grouped_parameters = [
+        {'params': [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
+         'weight_decay': 0.01},
+        {'params': [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
+    ]
+    optimizer = AdamW(optimizer_grouped_parameters, lr=1e-5)
+
+    lr_scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps, num_train_steps)
+
     return optimizer, lr_scheduler
 
 
@@ -162,7 +168,7 @@ def evaluate(evalloader, model):
 
 
 def train_batch(text, pos, heads, rels, transitions, relations_in_order, maps, model, optimizer):
-    optimizer.zero_grad()
+    #optimizer.zero_grad()
     maps = maps.to(device=constants.device)
     text, pos = text.to(device=constants.device), pos.to(device=constants.device)
     heads, rels = heads.to(device=constants.device), rels.to(device=constants.device)
@@ -179,12 +185,13 @@ def train_batch(text, pos, heads, rels, transitions, relations_in_order, maps, m
     return loss.item()
 
 
-def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_alg, lr_decay, weight_decay,
+def train(trainloader, devloader, model, eval_batches, wait_iterations, num_epochs,
           save_path, save_batch=False, file=None):
     # pylint: disable=too-many-locals,too-many-arguments
     torch.autograd.set_detect_anomaly(True)
 
-    optimizer, lr_scheduler = get_optimizer(model.parameters(), optim_alg, lr_decay, weight_decay)
+    #optimizer, lr_scheduler = get_optimizer(model.parameters(), optim_alg, lr_decay, weight_decay)
+    optimizer, lr_scheduler = get_optimizer(model, num_warmup_steps=2, num_train_steps=num_epochs)
     train_info = TrainInfo(wait_iterations, eval_batches)
     while not train_info.finish:
         steps = 0
@@ -192,6 +199,7 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
             steps += 1
             # maps are used to average the split embeddings from BERT
             loss = train_batch(text, pos, heads, rels, transitions, relations_in_order, maps, model, optimizer)
+            lr_scheduler.step()
             train_info.new_batch(loss)
             if train_info.eval:
                 dev_results = evaluate(devloader, model)
@@ -254,8 +262,8 @@ def main():
     # Start tracking your model's gradients
     wandb.watch(model)
     # if args.model != 'agenda-std':
-    train(trainloader, devloader, model, args.eval_batches, args.wait_iterations,
-          args.optim, args.lr_decay, args.weight_decay, args.save_path, args.save_periodically, file=file1)
+    num_epochs = 10
+    train(trainloader, devloader, model, args.eval_batches, args.wait_iterations,num_epochs, args.save_path, args.save_periodically, file=file1)
     model.save(args.save_path)
     train_loss, train_las, train_uas = evaluate(trainloader, model)
     dev_loss, dev_las, dev_uas = evaluate(devloader, model)

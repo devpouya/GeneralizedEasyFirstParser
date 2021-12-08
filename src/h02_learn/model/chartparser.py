@@ -172,10 +172,10 @@ class ChartParser(BertParser):
     def forward(self, x, transitions, relations, map, heads, rels):
         x_ = x[0][:, 1:]
         # average of last 4 hidden layers
-        if not self.training:
-            self.bert.eval()
-        else:
-            self.bert.train()
+        #if not self.training:
+        #    self.bert.eval()
+        #else:
+        #    self.bert.train()
         #with torch.no_grad():
         #    out = self.bert(x_.to(device=constants.device))[2]
         #    x_emb = torch.stack(out[-8:]).mean(0)
