@@ -458,6 +458,7 @@ class TreeLayer(nn.Module):
 
     def forward(self, words, head_index, mod_index):
         clown_tensor = torch.zeros_like(words).to(device=constants.device)
+
         clown_tensor[head_index,:] = words[mod_index,:].clone().detach()
         rep = torch.cat([words,clown_tensor],dim=-1)
         rep = nn.Tanh()(self.linear_tree(rep))
@@ -511,16 +512,17 @@ class BiaffineChart(nn.Module):
         return scores, x
 
 
+
 class Biaffine(nn.Module):
     # pylint: disable=arguments-differ
-    def __init__(self, dim_left, dim_right,dim_extra):
+    def __init__(self, dim_left, dim_right):
         super().__init__()
         self.dim_left = dim_left
         self.dim_right = dim_right
 
         self.matrix = nn.Parameter(torch.Tensor(dim_left, dim_right))
         self.bias = nn.Parameter(torch.Tensor(1))
-        self.linear_b = nn.Linear(dim_extra,1)
+
         self.linear_l = nn.Linear(dim_left, 1)
         self.linear_r = nn.Linear(dim_right, 1)
 
@@ -530,15 +532,17 @@ class Biaffine(nn.Module):
         nn.init.constant_(self.bias, 0.)
         nn.init.xavier_uniform_(self.matrix)
 
-    def forward(self, x_l, x_r,extra):
+    def forward(self, x_l, x_r, illegal_mask):
         # x shape [batch, length_l, length_r]
+        x_l = x_l.unsqueeze(0)
+        x_r = x_r.unsqueeze(0)
         x = torch.matmul(x_l, self.matrix)
-        b = self.linear_b(extra)
-        x = torch.bmm(x, x_r.transpose(1, 2)) +b#+ self.bias
+        x = torch.bmm(x, x_r.transpose(1, 2)) + self.bias
 
         # x shape [batch, length_l, 1] and [batch, 1, length_r]
-
         x += self.linear_l(x_l) + self.linear_r(x_r).transpose(1, 2)
+        x = x.squeeze(0)
+        x = x.masked_fill(illegal_mask, -float('inf'))
         return x
 
 

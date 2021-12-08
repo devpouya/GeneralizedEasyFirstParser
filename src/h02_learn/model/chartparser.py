@@ -7,7 +7,7 @@ from utils import constants
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from .base import BertParser
 from ..algorithm.transition_parsers import ShiftReduceParser
-from .modules import StackCell, SoftmaxActions, PendingRNN, Agenda, Chart, Item,ItemMH4, ItemW
+from .modules import StackCell, SoftmaxActions, PendingRNN, Agenda, Chart, Item, ItemMH4, ItemW
 from .modules import Biaffine, Bilinear, LabelSmoothingLoss, TreeLayer
 from .hypergraph import ArcStandard, ArcEager, Hybrid, MH4
 from collections import defaultdict
@@ -33,50 +33,45 @@ def print_yellow(s):
 
 
 class ChartParser(BertParser):
-    def __init__(self,vocabs, embedding_size, rel_embedding_size, batch_size,hidden_size=100, hypergraph=ArcStandard,language="en",
-                 dropout=0.33, eos_token_id=28996,mode="agenda-std",transition_system=None):
+    def __init__(self, vocabs, embedding_size, rel_embedding_size, batch_size, hidden_size=100, hypergraph=ArcStandard,
+                 language="en",
+                 dropout=0.33, eos_token_id=28996, mode="agenda-std", transition_system=None):
         super().__init__(language, vocabs,
                          embedding_size=embedding_size, rel_embedding_size=rel_embedding_size,
                          batch_size=batch_size, dropout=dropout)
         self.eos_token_id = eos_token_id
-        self.hidden_size = 400#hidden_size
+        self.hidden_size = 400  # hidden_size
         self.hypergraph = hypergraph
         self.dropout = nn.Dropout(dropout)
         self.mode = mode
         self.parse_step_chart = self.parse_step_mh4
 
         self.linear_tree = nn.Linear(self.hidden_size * 2, self.hidden_size)
-        # self.linear_label = nn.Linear(hidden_size * 2, self.rel_embedding_size)
         self.linear_dep = nn.Linear(self.hidden_size, 200).to(device=constants.device)
 
         self.linear_head = nn.Linear(self.hidden_size, 200).to(device=constants.device)
-        # self.biaffine = Biaffine(200, 200)
-        # self.biaffine_h = Biaffine(200, 200)
+
         self.bilinear_item = Bilinear(200, 200, 1)
 
-        linear_items1 = nn.Linear(400* 4, 400* 2).to(device=constants.device)
-        linear_items2 = nn.Linear(400*2, 400).to(device=constants.device)
-        linear_items3 = nn.Linear(400 , 1).to(device=constants.device)
-
+        linear_items1 = nn.Linear(400 * 4, 400 * 2).to(device=constants.device)
+        linear_items2 = nn.Linear(400 * 2, 400).to(device=constants.device)
+        linear_items3 = nn.Linear(400, 1).to(device=constants.device)
 
         layers = [linear_items1, nn.ReLU(), nn.Dropout(dropout), linear_items2, nn.ReLU(), nn.Dropout(dropout),
                   linear_items3]
-
-
 
         self.mlp = nn.Sequential(*layers)
 
         self.linear_labels_dep = nn.Linear(self.hidden_size, 200).to(device=constants.device)
         self.linear_labels_head = nn.Linear(self.hidden_size, 200).to(device=constants.device)
+
+        self.linear_arc_dep = nn.Linear(400, 200).to(device=constants.device)
+        self.linear_arc_head = nn.Linear(400, 200).to(device=constants.device)
+        self.biaffine = Biaffine(200, 200)
         self.bilinear_label = Bilinear(200, 200, self.num_rels)
-        self.linear_reduce = nn.Linear(868,400).to(device=constants.device)
-        #self.lstm = nn.LSTM(868, self.hidden_size, 2, batch_first=True, bidirectional=True).to(device=constants.device)
-        #self.lstm_tree = nn.LSTM(self.hidden_size, self.hidden_size, 1, batch_first=False, bidirectional=False).to(
-        #    device=constants.device)
+        self.linear_reduce = nn.Linear(868, 400).to(device=constants.device)
 
         self.tree_layer = TreeLayer(400)
-
-
 
     def init_pending(self, n, hypergraph):
         pending = {}
@@ -91,27 +86,16 @@ class ChartParser(BertParser):
 
     def reduce_linear(self, x, sent_lens):
         x_in = pack_padded_sequence(x, sent_lens.to(device=torch.device("cpu")), batch_first=True,
-                                       enforce_sorted=False)
-        x_out = self.squash_packed(x_in,self.linear_reduce)
-        #x_out = self.linear_reduce(x_in)
+                                    enforce_sorted=False)
+        x_out = self.squash_packed(x_in, self.linear_reduce)
+        # x_out = self.linear_reduce(x_in)
         h_t = pad_packed_sequence(x_out, batch_first=True)[0]
 
         return h_t
 
-    def run_lstm(self, x, sent_lens):
-        lstm_in = pack_padded_sequence(x, sent_lens.to(device=torch.device("cpu")), batch_first=True,
-                                       enforce_sorted=False)
-        # ###print(lstm_in)
-        lstm_out, _ = self.lstm(lstm_in)
-        h_t, _ = pad_packed_sequence(lstm_out, batch_first=True)
-        h_t = self.dropout(h_t).contiguous()
-        forward_rep = h_t[:, :, :self.hidden_size]
-        backward_rep = h_t[:, :, self.hidden_size:]
-        return forward_rep, backward_rep
-
 
     def span_rep(self, words, i, j, n):
-        j = min(j,len(words)-1)
+        j = min(j, len(words) - 1)
         sij = words[j, :] - words[max(i - 1, 0), :]
         return sij
 
@@ -122,7 +106,7 @@ class ChartParser(BertParser):
             item_list[(item.i, item.j, item.h)] = item
         return item_list
 
-    def gold_arc_set(self,ordered_arcs):
+    def gold_arc_set(self, ordered_arcs):
         arcs = []
         for t in ordered_arcs:
             ga = (t[0].item(), t[1].item())
@@ -142,7 +126,7 @@ class ChartParser(BertParser):
 
         return arcs, all_items
 
-    def possible_arcs_mh4(self, pending, hypergraph,prev_arcs):
+    def possible_arcs_mh4(self, pending, hypergraph, prev_arcs):
         arcs = []
         all_items = []
 
@@ -152,8 +136,48 @@ class ChartParser(BertParser):
                 arcs.append(pa)
                 all_items.append(pi)
 
-
         return arcs, all_items
+
+    def get_max_index(self, scores):
+        d = torch.tensor(scores.shape[0]).to(device=constants.device)
+        n1 = torch.tensor(1).to(device=constants.device)
+        x = scores.reshape(1, 1, scores.shape[0], scores.shape[1])
+        m = x.view(n1, -1).argmax(1)
+        indices = torch.cat(((m // d).view(-1, 1), (m % d).view(-1, 1)), dim=1)
+        return indices
+
+    def score_arcs_mh4_no_items(self, possible_arcs, gold_arc, words):
+
+        n = len(words)
+
+        ga = (gold_arc[0].item(), gold_arc[1].item())
+
+        h_dep = self.dropout(F.relu(self.linear_arc_dep(words)))
+        h_arc = self.dropout(F.relu(self.linear_arc_head(words)))
+
+        # scores = self.biaffine(h_arc, h_dep)
+        gold_index = None
+
+        flat_ind_to_arc = {}
+        keep_inds = torch.zeros((n, n)).to(device=constants.device)
+        for (i, j) in possible_arcs:
+            if (i, j) == ga:
+                gold_index = torch.tensor([i*n+j]).to(device=constants.device).reshape(1)
+            keep_inds[i,j] = 1
+            flat_ind_to_arc[i * n + j] = (i, j)
+
+        mask_ = ~keep_inds.eq(1)
+        scores = self.biaffine(h_arc, h_dep, mask_)
+        scores = nn.Softmax(dim=-1)(torch.flatten(scores)).unsqueeze(0)
+
+        if not self.training or gold_index is None:
+            gold_index = torch.argmax(scores, dim=-1).reshape(1)
+            made_arc = flat_ind_to_arc[gold_index.item()]
+
+        else:
+            made_arc = gold_arc
+
+        return scores, made_arc, gold_index  # , gold_key
 
     def score_arcs_mh4(self, possible_arcs, gold_arc, possible_items, words):
         gold_index = None
@@ -169,40 +193,41 @@ class ChartParser(BertParser):
                 gold_index = torch.tensor([iter], dtype=torch.long).to(device=constants.device)
                 gold_key = item.key
         for iter, ((u, v), item) in enumerate(zip(possible_arcs, possible_items)):
-            #(h1, h2, h3, h4) = item.key
+            # (h1, h2, h3, h4) = item.key
             if len(item.heads) == 2:
                 i = item.heads[0]
                 j = item.heads[1]
-                span_1 = self.span_rep(words, i, j, n)#.unsqueeze(0)
+                span_1 = self.span_rep(words, i, j, n)  # .unsqueeze(0)
                 span_2 = torch.zeros_like(span_1).to(device=constants.device)
 
             elif len(item.heads) == 3:
                 i = item.heads[0]
                 mid = item.heads[1]
                 j = item.heads[2]
-                span_1 = self.span_rep(words, i, mid, n)#.unsqueeze(0)
-                span_2 = self.span_rep(words, mid, j, n)#.unsqueeze(0)
-                #span = span_1-span_2
-            elif len(item.heads)==4:
+                span_1 = self.span_rep(words, i, mid, n)  # .unsqueeze(0)
+                span_2 = self.span_rep(words, mid, j, n)  # .unsqueeze(0)
+                # span = span_1-span_2
+            elif len(item.heads) == 4:
                 i1 = item.heads[0]
                 j1 = item.heads[1]
                 i2 = item.heads[2]
                 j2 = item.heads[3]
-                span_1 = self.span_rep(words, i1, j1, n)#.unsqueeze(0)
-                span_2 = self.span_rep(words, i2, j2, n)#.unsqueeze(0)
-                #span = span_1-span_2
+                span_1 = self.span_rep(words, i1, j1, n)  # .unsqueeze(0)
+                span_2 = self.span_rep(words, i2, j2, n)  # .unsqueeze(0)
+                # span = span_1-span_2
             else:
                 # len == 1:
                 i = item.heads[0]
-                span_1 = words[i,:] #torch.cat([words_f[i,:], words_b[i,:]], dim=-1)#.to(device=constants.device).unsqueeze(0)
+                span_1 = words[i,
+                         :]  # torch.cat([words_f[i,:], words_b[i,:]], dim=-1)#.to(device=constants.device).unsqueeze(0)
                 span_2 = torch.zeros_like(span_1).to(device=constants.device)
 
-            span = torch.cat([span_1,span_2],dim=-1).to(device=constants.device).unsqueeze(0)
+            span = torch.cat([span_1, span_2], dim=-1).to(device=constants.device).unsqueeze(0)
 
             index2key[iter] = item.key
 
             fwd_rep = torch.cat([words[u, :], words[v, :]], dim=-1).unsqueeze(0)
-            #bckw_rep = torch.cat([words_b[u, :], words_b[v, :]], dim=-1).unsqueeze(0)
+            # bckw_rep = torch.cat([words_b[u, :], words_b[v, :]], dim=-1).unsqueeze(0)
             rep = torch.cat([span, fwd_rep], dim=-1)
             s = self.mlp(rep)
             scores.append(s)
@@ -213,33 +238,30 @@ class ChartParser(BertParser):
 
         return scores, gold_index, gold_key
 
-
-
-    def parse_step_mh4(self,pending, hypergraph,arcs,gold_arc,words):
+    def parse_step_mh4(self, pending, hypergraph, arcs, gold_arc, words):
         pending = hypergraph.calculate_pending()
 
         possible_arcs, items = self.possible_arcs_mh4(pending, hypergraph, arcs)
-        scores, gold_index, gold_key = self.score_arcs_mh4(possible_arcs,
-                                                           gold_arc, items, words)
-        gind = gold_index.item()
+        scores, made_arc, gold_index = self.score_arcs_mh4_no_items(possible_arcs,
+                                                           gold_arc, words)
+        #gind = gold_index.item()
 
-        made_arc = possible_arcs[gind]
-        #if self.training:
+        #made_arc = possible_arcs[gind]
+        # if self.training:
         #    gold_arc_set.remove(made_arc)
         h = made_arc[0]
         m = made_arc[1]
-        h = min(h,hypergraph.n-1)
-        m = min(m,hypergraph.n-1)
-        #pending = hypergraph.calculate_pending(pending, m)
+        h = min(h, hypergraph.n - 1)
+        m = min(m, hypergraph.n - 1)
+        # pending = hypergraph.calculate_pending(pending, m)
         hypergraph = hypergraph.set_head(m)
-        #hypergraph.made_arcs.append(made_arc)
+        # hypergraph.made_arcs.append(made_arc)
         arcs.append(made_arc)
         return scores, gold_index, h, m, arcs, hypergraph, pending
 
     def forward(self, x, transitions, relations, map, heads, rels):
         x_ = x[0][:, 1:]
         # average of last 4 hidden layers
-
 
         with torch.no_grad():
             out = self.bert(x_.to(device=constants.device))[2]
@@ -261,7 +283,7 @@ class ChartParser(BertParser):
             curr_sentence_length = s.shape[0]
             x_mapped[i, :curr_sentence_length, :] = s
         sent_lens = (x_mapped[:, :, 0] != 0).sum(-1).to(device=constants.device)
-        #h_t, bh_t = self.run_lstm(x_mapped, sent_lens)
+        # h_t, bh_t = self.run_lstm(x_mapped, sent_lens)
         h_t = self.reduce_linear(x_mapped, sent_lens)
 
         h_t_noeos = torch.zeros((h_t.shape[0], heads.shape[1], h_t.shape[2])).to(device=constants.device)
@@ -273,29 +295,23 @@ class ChartParser(BertParser):
             ordered_arcs = ordered_arcs[mask, :]
 
             s = h_t[i, :n + 1, :]
-            #s_b = bh_t[i, :n + 1, :]
 
-            # trees = torch.exp(curr_init_weights)
             arcs = []
-            history = defaultdict(lambda: 0)
             loss = 0
-            popped = []
 
-            right_children = {i: [i] for i in range(n)}
-            left_children = {i: [i] for i in range(n)}
             words = s  # .clone()
-            #words_b = s_b  # .clone()
-            #gold_arc_set = self.gold_arc_set(ordered_arcs)
+            # words_b = s_b  # .clone()
+            # gold_arc_set = self.gold_arc_set(ordered_arcs)
             hypergraph = self.hypergraph(n)
-            #hypergraph = self.hypergraph(n, gold_arc_set)
-            #if self.mode == "agenda-mh4":
+            # hypergraph = self.hypergraph(n, gold_arc_set)
+            # if self.mode == "agenda-mh4":
             #    pending = hypergraph.calculate_pending_init()
-            #else:
+            # else:
             #    pending = self.init_pending(n, hypergraph)
             pending = self.init_pending(n, hypergraph)
             for iter, gold_arc in enumerate(ordered_arcs):
 
-                scores, gold_index, h, m, arcs, hypergraph,pending = self.parse_step_chart(pending,
+                scores, gold_index, h, m, arcs, hypergraph, pending = self.parse_step_chart(pending,
                                                                                             hypergraph,
                                                                                             arcs,
                                                                                             gold_arc,
@@ -303,22 +319,8 @@ class ChartParser(BertParser):
 
                 if self.training:
                     loss += nn.CrossEntropyLoss(reduction='sum')(scores, gold_index)
-                if h < m:
-                    # m is a right child
-                    right_children[h].append(m)
-                else:
-                    # m is a left child
-                    left_children[h].append(m)
 
                 words = self.tree_layer(words, h, m)
-                #words_b = self.tree_layer(words_b, h, m)
-                #h_rep = self.tree_lstm(words_f, left_children[h], right_children[h])
-                #words_f = words_f.clone()
-                #words_f[h, :] = h_rep
-
-                #h_rep = self.tree_lstm(words_b, left_children[h], right_children[h])
-                #words_b = words_b.clone()
-                #words_b[h, :] = h_rep
 
             loss /= len(ordered_arcs)
             pred_heads = self.heads_from_arcs(arcs, n)
@@ -332,7 +334,6 @@ class ChartParser(BertParser):
         rels_batch = torch.argmax(l_logits, dim=-1)
         batch_loss += self.loss(batch_loss, l_logits, rels)
         return batch_loss, heads_batch, rels_batch
-
 
     def get_label_logits(self, h_t, head):
         l_dep = self.dropout(F.relu(self.linear_labels_dep(h_t)))
@@ -381,7 +382,7 @@ class ChartParser(BertParser):
     def heads_from_arcs(self, arcs, sent_len):
         heads = [0] * sent_len
         for (u, v) in arcs:
-            heads[min(v,sent_len-1)] = u  # .item()
+            heads[min(v, sent_len - 1)] = u  # .item()
         return torch.tensor(heads).to(device=constants.device)
 
     def loss(self, batch_loss, l_logits, rels):
@@ -389,13 +390,11 @@ class ChartParser(BertParser):
         loss = criterion_l(l_logits.reshape(-1, l_logits.shape[-1]), rels.reshape(-1))
         return loss + batch_loss
 
-
-
     def get_args(self):
         return {
-            'language':self.language,
-            'hidden_size':self.hidden_size,
-            'hypergraph':self.hypergraph,
+            'language': self.language,
+            'hidden_size': self.hidden_size,
+            'hypergraph': self.hypergraph,
             'vocabs': self.vocabs,
             'embedding_size': self.embedding_size,
             'rel_embedding_size': self.rel_embedding_size,
