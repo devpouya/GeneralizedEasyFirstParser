@@ -665,22 +665,14 @@ class MH4(Hypergraph):
 
     def iterate_spans(self, item, pending, merge=False, prev_arc=None):
         arcs = []
-        items = []
-        nus = {}
-        if merge:
-            nus = self.combine(item, pending)
-        else:
 
-            for item in pending.values():
-                possible_arcs, possible_items = self.link(item, arcs)
-                for (pa, pi) in zip(possible_arcs, possible_items):
-                    if pa not in arcs:
-                        arcs.append(pa)
-                        items.append(pi)
-                # arcs = arcs + possible_arcs
-                # items = items + possible_items
+        for item in pending.values():
+            possible_arcs, _ = self.link(item, arcs)
+            for pa in possible_arcs:
+                if pa not in arcs:
+                    arcs.append(pa)
 
-        return arcs, items, nus
+        return arcs
 
     def combine(self, item, pending):
         if len(item.heads) == 3:
