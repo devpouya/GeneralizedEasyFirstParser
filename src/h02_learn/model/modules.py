@@ -457,8 +457,8 @@ class TreeLayer(nn.Module):
         self.linear_tree = nn.Linear(hidden_size * 2, hidden_size).to(device=constants.device)
 
     def forward(self, words, head_index, mod_index):
-        clown_tensor = words.clone().detach()#torch.zeros_like(words).to(device=constants.device)
-        clown_tensor[head_index,:] = clown_tensor[mod_index,:]#.clone().detach()
+        clown_tensor = torch.zeros_like(words).to(device=constants.device)
+        clown_tensor[head_index,:] = words[mod_index,:].clone().detach()
         rep = torch.cat([words,clown_tensor],dim=-1)
         rep = nn.Tanh()(self.linear_tree(rep))
         return rep
