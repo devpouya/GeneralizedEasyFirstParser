@@ -69,7 +69,7 @@ class ChartParser(BertParser):
         self.linear_labels_dep = nn.Linear(self.hidden_size, 200).to(device=constants.device)
         self.linear_labels_head = nn.Linear(self.hidden_size, 200).to(device=constants.device)
         self.bilinear_label = Bilinear(200, 200, self.num_rels)
-        self.linear_reduce = nn.Linear(868,400).to(device=constants.device)
+        self.linear_reduce = nn.Linear(768,400).to(device=constants.device)
         #self.lstm = nn.LSTM(868, self.hidden_size, 2, batch_first=True, bidirectional=True).to(device=constants.device)
         #self.lstm_tree = nn.LSTM(self.hidden_size, self.hidden_size, 1, batch_first=False, bidirectional=False).to(
         #    device=constants.device)
@@ -241,22 +241,22 @@ class ChartParser(BertParser):
         # average of last 4 hidden layers
 
 
-        with torch.no_grad():
-            out = self.bert(x_.to(device=constants.device))[2]
-            x_emb = torch.stack(out[-8:]).mean(0)
+        # with torch.no_grad():
+        out = self.bert(x_.to(device=constants.device))[2]
+        x_emb = torch.stack(out[-8:]).mean(0)
         heads_batch = torch.ones((x_emb.shape[0], heads.shape[1])).to(device=constants.device)  # * -1
         prob_sum = 0
         batch_loss = 0
-        x_mapped = torch.zeros((x_emb.shape[0], heads.shape[1] + 1, x_emb.shape[2] + 100)).to(device=constants.device)
+        x_mapped = torch.zeros((x_emb.shape[0], heads.shape[1] + 1, x_emb.shape[2])).to(device=constants.device)
         eos_emb = x_emb[0, -1, :].unsqueeze(0).to(device=constants.device)
-        eos_emb = torch.cat([eos_emb, torch.zeros((1, 100)).to(device=constants.device)], dim=-1).to(
-            device=constants.device)
+        #eos_emb = torch.cat([eos_emb, torch.zeros((1, 100)).to(device=constants.device)], dim=-1).to(
+        #    device=constants.device)
         for i, sentence in enumerate(x_emb):
             # initialize a parser
             mapping = map[i, map[i] != -1]
-            tag = self.tag_embeddings(x[1][i][x[1][i] != 0].to(device=constants.device))
+            #tag = self.tag_embeddings(x[1][i][x[1][i] != 0].to(device=constants.device))
             sentence = sentence[:-1, :]
-            s = self.get_bert_embeddings(mapping, sentence, tag)
+            s = self.get_bert_embeddings(mapping, sentence, None)
             s = torch.cat([s, eos_emb], dim=0)
             curr_sentence_length = s.shape[0]
             x_mapped[i, :curr_sentence_length, :] = s

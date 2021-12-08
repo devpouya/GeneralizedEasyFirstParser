@@ -175,7 +175,13 @@ def train_batch(text, pos, heads, rels, transitions, relations_in_order, maps, m
     # las, uas = calculate_attachment_score(pred_h, heads, pred_rel, rels)
     loss.backward()
     optimizer.step()
-
+    #shit = 0
+    #total = 0
+    ##for item in model.parameters():
+    ##    total += 1
+    ##    if item.grad is None:
+    #        shit += 1
+    #print("SHIT {} OF {}".format(shit, total))
     return loss.item()
 
 
