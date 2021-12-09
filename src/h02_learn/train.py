@@ -126,6 +126,7 @@ def evaluate(evalloader, model):
     with torch.no_grad():
         result = _evaluate(evalloader, model)
     model.train()
+    model.bert.train()
     return result
 
 
