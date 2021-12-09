@@ -1,14 +1,15 @@
 from os import path
 from torch.utils.data import DataLoader
 
-from h01_data import load_vocabs, load_embeddings, get_ud_fname, get_oracle_actions#,get_oracle_actions_small,get_ud_fname_small
+from h01_data import load_vocabs, load_embeddings, get_ud_fname, \
+    get_oracle_actions  # ,get_oracle_actions_small,get_ud_fname_small
 from utils import constants
 from .syntax import SyntaxDataset
 from transformers import BertTokenizer, BertTokenizerFast
 from transformers import AutoTokenizer
 
 
-def generate_batch(batch,transition_system):
+def generate_batch(batch):
     r"""
     Since the text entries have different lengths, a custom function
     generate_batch() is used to generate data batches and offsets,
@@ -27,34 +28,28 @@ def generate_batch(batch,transition_system):
         cls: a tensor saving the labels of individual text entries.
     """
     tensor = batch[0][0][0]
-
-    # for entry in batch:
-    #    print(entry[2])
     batch_size = len(batch)
     max_length_text = max([len(entry[0][0]) for entry in batch])
-    max_length = max([len(entry[0][1]) for entry in batch])
-    map_length = max([len(entry[3][0]) for entry in batch])
+    max_length = max([len(entry[1][0]) for entry in batch])
+    map_length = max([len(entry[0][1]) for entry in batch])
     max_length_actions = max([len(entry[2][0]) for entry in batch])
     text = tensor.new_zeros(batch_size, max_length_text)
     text_mappings = tensor.new_ones(batch_size, map_length) * -1
-    pos = tensor.new_zeros(batch_size, max_length)
+
     heads = tensor.new_ones(batch_size, max_length) * -1
     rels = tensor.new_zeros(batch_size, max_length)
-    if transition_system == constants.agenda:
-        transitions = tensor.new_ones(batch_size, max_length_actions, 2) * -1
-    else:
-        transitions = tensor.new_ones(batch_size, max_length_actions) * -1
+
+    transitions = tensor.new_ones(batch_size, max_length_actions, 2) * -1
     relations_in_order = tensor.new_zeros(batch_size, max_length)
 
     for i, sentence in enumerate(batch):
         sent_len = len(sentence[0][0])
-        pos_len = len(sentence[0][1])
-        map_len = len(sentence[3][0])
-        text_mappings[i, :map_len] = sentence[3][0]
+        head_len = len(sentence[1][0])
+        map_len = len(sentence[0][1])
+        text_mappings[i, :map_len] = sentence[0][1]
         text[i, :sent_len] = sentence[0][0]
-        pos[i, :pos_len] = sentence[0][1]
-        heads[i, :pos_len] = sentence[1][0]
-        rels[i, :pos_len] = sentence[1][1]
+        heads[i, :head_len] = sentence[1][0]
+        rels[i, :head_len] = sentence[1][1]
 
     for i, sentence in enumerate(batch):
         num_actions = len(sentence[2][0])
@@ -63,53 +58,44 @@ def generate_batch(batch,transition_system):
         num_rels = len(sentence[2][1])
         relations_in_order[i, :num_rels] = sentence[2][1]
 
-    return (text, pos), (heads, rels), (transitions, relations_in_order), text_mappings
+    return (text, text_mappings), (heads, rels), (transitions, relations_in_order)
 
 
-def get_data_loader(fname, transitions_file, transition_system, tokenizer, batch_size, shuffle):
-    dataset = SyntaxDataset(fname, transitions_file, transition_system, tokenizer)
+def get_data_loader(fname, transitions_file, tokenizer, batch_size, shuffle):
+    dataset = SyntaxDataset(fname, transitions_file, tokenizer)
     return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle,
-                      collate_fn=lambda batch: generate_batch(batch,transition_system)), dataset.max_sent_len
+                      collate_fn=lambda batch: generate_batch(batch)), dataset.max_sent_len
 
 
-def get_data_loaders(data_path, language, batch_size, batch_size_eval, transitions=None, transition_system=None,
-                     bert_model=None):
+def get_data_loaders(data_path, language, batch_size, batch_size_eval,
+                     is_easy_first=True):
     src_path = path.join(data_path, constants.UD_PATH_PROCESSED, language)
     (fname_train, fname_dev, fname_test) = get_ud_fname(src_path)
-    transitions_train, transitions_dev, transitions_test = None, None, None
 
-    if transitions is not None:
-        if transition_system == "AGENDA-PARSER":
-            is_agenda=True
-        else:
-            is_agenda=False
-        (transitions_train, transitions_dev, transitions_test) = get_oracle_actions(src_path, transitions,is_agenda)
+    (transitions_train, transitions_dev, transitions_test) = get_oracle_actions(src_path, is_easy_first)
     vocabs = load_vocabs(src_path)
 
-
-
-
-    #embeddings = load_embeddings(src_path)
     if language == "en":
         tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
     elif language == "de":
         tokenizer = BertTokenizer.from_pretrained('bert-base-german-cased')
     elif language == "cs":
-        #tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased')
         tokenizer = AutoTokenizer.from_pretrained("DeepPavlov/bert-base-bg-cs-pl-ru-cased")
     elif language == "eu":
         # Basque
         tokenizer = AutoTokenizer.from_pretrained("ixa-ehu/berteus-base-cased")
     elif language == "tr":
         tokenizer = AutoTokenizer.from_pretrained("dbmdz/bert-base-turkish-cased")
+    else:
+        tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
-    trainloader, max_sent_len_train = get_data_loader(fname_train, transitions_train, transition_system, tokenizer,
+    trainloader, max_sent_len_train = get_data_loader(fname_train, transitions_train, tokenizer,
                                                       batch_size,
                                                       shuffle=True)
-    devloader, max_sent_len_dev = get_data_loader(fname_dev, transitions_dev, transition_system, tokenizer,
+    devloader, max_sent_len_dev = get_data_loader(fname_dev, transitions_dev, tokenizer,
                                                   batch_size_eval,
                                                   shuffle=False)
-    testloader, max_sent_len_test = get_data_loader(fname_test, transitions_test, transition_system, tokenizer,
+    testloader, max_sent_len_test = get_data_loader(fname_test, transitions_test, tokenizer,
                                                     batch_size_eval,
                                                     shuffle=False)
 

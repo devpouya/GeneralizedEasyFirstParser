@@ -12,6 +12,8 @@ from h02_learn.train_info import TrainInfo
 from h02_learn.algorithm.mst import get_mst_batch
 from utils import constants
 from utils import utils
+from transformers import AdamW
+from transformers import get_linear_schedule_with_warmup
 
 import wandb
 
@@ -26,17 +28,10 @@ def get_args():
     parser.add_argument('--key', type=str)
     # Model
 
-    parser.add_argument('--embedding-size', type=int, default=768)
-    parser.add_argument('--hidden-size', type=int, default=100)
-    parser.add_argument('--rel-embedding-size', type=int, default=100)
     parser.add_argument('--dropout', type=float, default=.33)
     parser.add_argument('--weight-decay', type=float, default=0.01)
-    parser.add_argument('--model', choices=['easy-first', 'easy-first-hybrid', 'biaffine', 'mst', 'arc-standard',
-                                            'arc-eager', 'hybrid', 'mh4', 'easy-first-mh4', 'chart', 'agenda-std',
-                                            'agenda-hybrid', 'agenda-eager', 'agenda-mh4'],
-                        default='agenda-std')
-    parser.add_argument('--mode', choices=['shift-reduce', 'easy-first'], default='easy-first')
-    parser.add_argument('--bert-model', type=str, default='bert-base-cased')
+
+    parser.add_argument('--easy-first', choices=["False", "True"], default="True")
     # Optimization
     parser.add_argument('--optim', choices=['adam', 'adamw', 'sgd'], default='adamw')
     parser.add_argument('--eval-batches', type=int, default=20)
@@ -49,71 +44,43 @@ def get_args():
     parser.add_argument('--save-periodically', action='store_true')
 
     args = parser.parse_args()
-    args.wait_iterations = 3#args.wait_epochs * args.eval_batches
-    args.save_path = '%s/%s/%s/%s/' % (args.checkpoints_path, args.language, args.model, args.name)
+    args.wait_iterations = 3  # args.wait_epochs * args.eval_batches
+    s = None
+
+    if args.easy_first == "True":
+        s = "EasyFirst"
+    else:
+        s = "ShiftReduce"
+    args.save_path = '%s/%s/%s/%s/' % (args.checkpoints_path, args.language, s, args.name)
     utils.config(args.seed)
-    print("RUNNING {}".format(args.name))
     return args
 
 
-def get_optimizer(paramters, optim_alg, lr_decay, weight_decay):
-    if optim_alg == "adamw":
-        optimizer = optim.AdamW(paramters, betas=(.9, .9), weight_decay=weight_decay)
-    elif optim_alg == "adam":
-        optimizer = optim.Adam(paramters, betas=(.9, .9), weight_decay=weight_decay)
-    else:
-        optimizer = optim.SGD(paramters, lr=0.01)
+def get_optimizer(model, num_warmup_steps, num_train_steps):
+    no_decay = ['bias', 'LayerNorm.weight']
+    optimizer_grouped_parameters = [
+        {'params': [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
+         'weight_decay': 0.01},
+        {'params': [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
+    ]
+    optimizer = AdamW(optimizer_grouped_parameters, lr=1e-5)
 
-    lr_scheduler = optim.lr_scheduler.ExponentialLR(optimizer, lr_decay)
-    # lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, "max")
+    lr_scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps, num_train_steps)
+
     return optimizer, lr_scheduler
 
 
-def get_model(vocabs, args, max_sent_len):
-    if args.model == 'arc-standard':  # or args.model=='easy-first':
-        tr = constants.arc_standard
-        hg = None
-    elif args.model == 'arc-eager':
-        tr = constants.arc_eager
-        hg = None
-    elif args.model == 'hybrid':
-        tr = constants.hybrid
-        hg = None
-    elif args.model == 'mh4':
-        tr = constants.mh4
-        hg = None
-    elif args.model == 'agenda-std':
-        hg = ArcStandard
-        tr = None
-    elif args.model == 'agenda-hybrid':
-        hg = Hybrid
-        tr = None
-    elif args.model == 'agenda-mh4':
-        hg = MH4
-        tr = None
-
-    if args.mode == 'easy-first':
-        return ChartParser(language=args.language, vocabs=vocabs, hidden_size=args.hidden_size,
-                           embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size,
-                           batch_size=args.batch_size,
-                           hypergraph=hg, dropout=args.dropout,mode=args.model).to(
-            device=constants.device)
-    else:
-        return NeuralTransitionParser(language=args.language,
-            vocabs=vocabs, embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size,
-            batch_size=args.batch_size,
-            dropout=args.dropout,
-            transition_system=tr) \
-            .to(device=constants.device)
+def get_model(vocabs, args):
+    return ChartParser(language=args.language, vocabs=vocabs,
+                       batch_size=args.batch_size,
+                       hypergraph=MH4, dropout=args.dropout).to(
+        device=constants.device)
 
 
 def calculate_attachment_score(heads_tgt, heads, predicted_rels, rels):
     predicted_rels = predicted_rels.permute(1, 0)
     acc_h = (heads_tgt == heads)[heads != -1]
-    # predicted_rels = predicted_rels[predicted_rels != -1]
-    # rels = rels[rels != -1]
-    # print(predicted_rels.shape)
-    # print(rels.shape)
+
     rels = rels.permute(1, 0)
     acc_l = (predicted_rels == rels)[rels != 0]
 
@@ -133,14 +100,14 @@ def _evaluate(evalloader, model):
     # pylint: disable=too-many-locals
     dev_loss, dev_las, dev_uas, n_instances = 0, 0, 0, 0
     steps = 0
-    for (text, pos), (heads, rels), (transitions, relations_in_order), maps in evalloader:
+    for (text, maps), (heads, rels), (transitions, relations_in_order) in evalloader:
         steps += 1
         maps = maps.to(device=constants.device)
-        text, pos = text.to(device=constants.device), pos.to(device=constants.device)
+        text = text.to(device=constants.device)
         heads, rels = heads.to(device=constants.device), rels.to(device=constants.device)
         transitions = transitions.to(device=constants.device)
         relations_in_order = relations_in_order.to(device=constants.device)
-        loss, predicted_heads, predicted_rels = model((text, pos), transitions, relations_in_order, maps, heads=heads,
+        loss, predicted_heads, predicted_rels = model(text, transitions, relations_in_order, maps, heads=heads,
                                                       rels=rels)
 
         las, uas = calculate_attachment_score(predicted_heads, heads, predicted_rels, rels)
@@ -155,55 +122,52 @@ def _evaluate(evalloader, model):
 
 def evaluate(evalloader, model):
     model.eval()
+    model.bert.eval()
     with torch.no_grad():
         result = _evaluate(evalloader, model)
     model.train()
     return result
 
 
-def train_batch(text, pos, heads, rels, transitions, relations_in_order, maps, model, optimizer):
+def train_batch(text, heads, rels, transitions, relations_in_order, maps, model, optimizer):
     optimizer.zero_grad()
     maps = maps.to(device=constants.device)
-    text, pos = text.to(device=constants.device), pos.to(device=constants.device)
+    text = text.to(device=constants.device)
     heads, rels = heads.to(device=constants.device), rels.to(device=constants.device)
 
     transitions = transitions.to(device=constants.device)
     relations_in_order = relations_in_order.to(device=constants.device)
 
-    loss, pred_h, pred_rel = model((text, pos), transitions, relations_in_order, maps, heads=heads, rels=rels)
+    loss, pred_h, pred_rel = model(text, transitions, relations_in_order, maps, heads=heads, rels=rels)
 
     # las, uas = calculate_attachment_score(pred_h, heads, pred_rel, rels)
     loss.backward()
     optimizer.step()
-    #shit = 0
-    #total = 0
-    ##for item in model.parameters():
-    ##    total += 1
-    ##    if item.grad is None:
-    #        shit += 1
-    #print("SHIT {} OF {}".format(shit, total))
+
     return loss.item()
 
 
-def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_alg, lr_decay, weight_decay,
+def train(trainloader, devloader, model, eval_batches, wait_iterations, num_epochs,
           save_path, save_batch=False, file=None):
     # pylint: disable=too-many-locals,too-many-arguments
-    torch.autograd.set_detect_anomaly(True)
+    # torch.autograd.set_detect_anomaly(True)
 
-    optimizer, lr_scheduler = get_optimizer(model.parameters(), optim_alg, lr_decay, weight_decay)
+    # optimizer, lr_scheduler = get_optimizer(model.parameters(), optim_alg, lr_decay, weight_decay)
+    optimizer, lr_scheduler = get_optimizer(model, num_warmup_steps=3, num_train_steps=num_epochs)
     train_info = TrainInfo(wait_iterations, eval_batches)
     while not train_info.finish:
         steps = 0
-        for (text, pos), (heads, rels), (transitions, relations_in_order), maps in trainloader:
+        for (text, maps), (heads, rels), (transitions, relations_in_order) in trainloader:
             steps += 1
             # maps are used to average the split embeddings from BERT
-            loss = train_batch(text, pos, heads, rels, transitions, relations_in_order, maps, model, optimizer)
+            loss = train_batch(text, heads, rels, transitions, relations_in_order, maps, model, optimizer)
+            lr_scheduler.step()
             train_info.new_batch(loss)
             if train_info.eval:
                 dev_results = evaluate(devloader, model)
                 if train_info.is_best(dev_results):
                     model.set_best()
-                    #if save_batch:
+                    # if save_batch:
                     model.save(save_path)
                 elif train_info.reduce_lr:
                     lr_scheduler.step()
@@ -215,9 +179,7 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
                     break
                 train_info.print_progress(dev_results, file)
 
-
     model.recover_best()
-
 
 
 def main():
@@ -227,41 +189,31 @@ def main():
     args = get_args()
     wandb.login(key=args.key)
 
-    if args.model == "arc-standard":  # or args.model == "easy-first":
-        transition_system = constants.arc_standard
-    elif args.model == "easy-first":
-        transition_system = constants.easy_first
-    elif args.model == "arc-eager":
-        transition_system = constants.arc_eager
-    elif args.model == "hybrid" or args.model == "easy-first-hybrid":
-        transition_system = constants.hybrid
-    elif args.model == "mh4" or args.model == 'easy-first-mh4':
-        transition_system = constants.mh4
+    ef = args.easy_first == "True"
+    s = None
+    if ef:
+        s = "EasyFirst"
     else:
-        transition_system = constants.agenda
-
-    if args.model == 'chart':
-        fname = "arc-standard"
-    else:
-        fname = args.model
+        s = "ShiftReduce"
     trainloader, devloader, testloader, vocabs, max_sent_len = \
-        get_data_loaders(args.data_path, args.language, args.batch_size, args.batch_size_eval, fname,
-                         transition_system=transition_system, bert_model=args.bert_model)
+        get_data_loaders(args.data_path, args.language, args.batch_size, args.batch_size_eval,
+                         is_easy_first=ef)
     print('Train size: %d Dev size: %d Test size: %d' %
           (len(trainloader.dataset), len(devloader.dataset), len(testloader.dataset)))
-    save_name = "final_output_%s.txt".format(args.model)
+    save_name = "final_output_%s_%s.txt".format(s,args.language)
     file1 = open(save_name, "w")
-    WANDB_PROJECT = f"{args.language}_{args.model}"
-    # WANDB_PROJECT = "%s_%s".format(args.language,args.model)
-    model = get_model(vocabs, args, max_sent_len)
+    WANDB_PROJECT = f"{args.language}_{s}"
+
+    model = get_model(vocabs, args)
     run = wandb.init(project=WANDB_PROJECT, config={'wandb_nb': 'wandb_three_in_one_hm'},
                      settings=wandb.Settings(start_method="fork"))
 
     # Start tracking your model's gradients
     wandb.watch(model)
     # if args.model != 'agenda-std':
-    train(trainloader, devloader, model, args.eval_batches, args.wait_iterations,
-          args.optim, args.lr_decay, args.weight_decay, args.save_path, args.save_periodically, file=file1)
+    num_epochs = 10
+    train(trainloader, devloader, model, args.eval_batches, args.wait_iterations, num_epochs, args.save_path,
+          args.save_periodically, file=file1)
     model.save(args.save_path)
     train_loss, train_las, train_uas = evaluate(trainloader, model)
     dev_loss, dev_las, dev_uas = evaluate(devloader, model)
