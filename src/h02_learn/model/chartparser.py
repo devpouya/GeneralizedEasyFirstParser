@@ -34,30 +34,26 @@ class ChartParser(BertParser):
         super().__init__(language, vocabs,
                          batch_size=batch_size, dropout=dropout)
         self.eos_token_id = eos_token_id
-        self.hidden_size = 400
         self.hypergraph = hypergraph
         self.dropout = nn.Dropout(dropout)
         self.parse_step_chart = self.parse_step_mh4
+        bert_hidden_size = 768
+        self.hidden_size = bert_hidden_size
 
-        self.linear_tree = nn.Linear(self.hidden_size * 2, self.hidden_size)
-        self.linear_dep = nn.Linear(self.hidden_size, 200).to(device=constants.device)
-
-        self.linear_head = nn.Linear(self.hidden_size, 200).to(device=constants.device)
-
-        self.bilinear_item = Bilinear(200, 200, 1)
-        linear_items1 = nn.Linear(400, 200).to(device=constants.device)
-        linear_items2 = nn.Linear(200, 100).to(device=constants.device)
-        linear_items3 = nn.Linear(100 , 1).to(device=constants.device)
+        linear_items1 = nn.Linear(bert_hidden_size*4, bert_hidden_size*3).to(device=constants.device)
+        linear_items2 = nn.Linear(bert_hidden_size*3, bert_hidden_size*2).to(device=constants.device)
+        linear_items3 = nn.Linear(bert_hidden_size*2 , bert_hidden_size).to(device=constants.device)
+        linear_items4 = nn.Linear(bert_hidden_size , 1).to(device=constants.device)
 
 
         layers = [linear_items1, nn.ReLU(), nn.Dropout(dropout), linear_items2, nn.ReLU(), nn.Dropout(dropout),
-                  linear_items3]
+                  linear_items3, nn.ReLU(), nn.Dropout(dropout), linear_items4]
         self.mlp = nn.Sequential(*layers)
-        self.linear_labels_dep = nn.Linear(self.hidden_size, 200).to(device=constants.device)
-        self.linear_labels_head = nn.Linear(self.hidden_size, 200).to(device=constants.device)
-        self.bilinear_label = Bilinear(200, 200, self.num_rels)
+        self.linear_labels_dep = nn.Linear(bert_hidden_size, 500).to(device=constants.device)
+        self.linear_labels_head = nn.Linear(bert_hidden_size, 500).to(device=constants.device)
+        self.bilinear_label = Bilinear(500, 500, self.num_rels)
         self.linear_reduce = nn.Linear(768,400).to(device=constants.device)
-        self.tree_layer = TreeLayer(400)
+        self.tree_layer = TreeLayer(bert_hidden_size)
 
 
 
@@ -93,6 +89,11 @@ class ChartParser(BertParser):
 
         return arcs, all_items
 
+    def span_rep(self, words, i, j, n):
+        j = min(j, len(words) - 1)
+        sij = words[j, :] - words[max(i - 1, 0), :]
+        return sij
+
     def score_arcs_mh4(self, possible_arcs, gold_arc, possible_items, words):
         gold_index = None
         gold_key = None
@@ -107,15 +108,43 @@ class ChartParser(BertParser):
                 gold_index = torch.tensor([iter], dtype=torch.long).to(device=constants.device)
                 gold_key = item.key
         for iter, ((u, v), item) in enumerate(zip(possible_arcs, possible_items)):
+            #(h1, h2, h3, h4) = item.key
+            if len(item.heads) == 2:
+                i = item.heads[0]
+                j = item.heads[1]
+                span_1 = self.span_rep(words, i, j, n)#.unsqueeze(0)
+                span_2 = torch.zeros_like(span_1).to(device=constants.device)
+
+            elif len(item.heads) == 3:
+                i = item.heads[0]
+                mid = item.heads[1]
+                j = item.heads[2]
+                span_1 = self.span_rep(words, i, mid, n)#.unsqueeze(0)
+                span_2 = self.span_rep(words, mid, j, n)#.unsqueeze(0)
+                #span = span_1-span_2
+            elif len(item.heads)==4:
+                i1 = item.heads[0]
+                j1 = item.heads[1]
+                i2 = item.heads[2]
+                j2 = item.heads[3]
+                span_1 = self.span_rep(words, i1, j1, n)#.unsqueeze(0)
+                span_2 = self.span_rep(words, i2, j2, n)#.unsqueeze(0)
+                #span = span_1-span_2
+            else:
+                # len == 1:
+                i = item.heads[0]
+                span_1 = words[i,:] #torch.cat([words_f[i,:], words_b[i,:]], dim=-1)#.to(device=constants.device).unsqueeze(0)
+                span_2 = torch.zeros_like(span_1).to(device=constants.device)
+
+            span = torch.cat([span_1,span_2],dim=-1).to(device=constants.device).unsqueeze(0)
+
             index2key[iter] = item.key
-            lower, upper = item.range
-            span = words[lower:upper+1,:].mean(0).unsqueeze(0)
-            #fwd_rep = self.tree_layer(words, u, v)[u,:].unsqueeze(0)
-            #rep = torch.cat([span, fwd_rep], dim=-1)
-            s = self.mlp(span)
+
+            fwd_rep = torch.cat([words[u, :], words[v, :]], dim=-1).unsqueeze(0)
+            rep = torch.cat([span, fwd_rep], dim=-1)
+            s = self.mlp(rep)
             scores.append(s)
         scores = torch.stack(scores, dim=-1).squeeze(0)
-        #print(scores)
         if not self.training or gold_index is None:
             gold_index = torch.argmax(scores, dim=-1)
             gold_key = index2key[gold_index.item()]
@@ -146,7 +175,7 @@ class ChartParser(BertParser):
         x_ = x[:, 1:]
         # with torch.no_grad():
         out = self.bert(x_.to(device=constants.device))[2]
-        x_emb = torch.stack(out).mean(0)
+        x_emb = torch.stack(out[-8:]).mean(0)
         heads_batch = torch.ones((x_emb.shape[0], heads.shape[1])).to(device=constants.device)  # * -1
         prob_sum = 0
         batch_loss = 0
@@ -162,23 +191,19 @@ class ChartParser(BertParser):
             curr_sentence_length = s.shape[0]
             x_mapped[i, :curr_sentence_length, :] = s
         sent_lens = (x_mapped[:, :, 0] != 0).sum(-1).to(device=constants.device)
-        h_t = self.reduce_linear(x_mapped, sent_lens)
-
-        h_t_noeos = torch.zeros((h_t.shape[0], heads.shape[1], h_t.shape[2])).to(device=constants.device)
-        for i in range(h_t.shape[0]):
+        #h_t = self.reduce_linear(x_mapped, sent_lens)
+        h_t_noeos = torch.zeros((x_mapped.shape[0], heads.shape[1], x_mapped.shape[2])).to(device=constants.device)
+        for i in range(x_mapped.shape[0]):
 
             n = int(sent_lens[i] - 1)
             ordered_arcs = transitions[i]
             mask = (ordered_arcs.sum(dim=1) != -2)
             ordered_arcs = ordered_arcs[mask, :]
 
-            s = h_t[i, :n + 1, :]
+            s = x_mapped[i, :n + 1, :]
 
             arcs = []
             loss = 0
-
-            right_children = {i: [i] for i in range(n)}
-            left_children = {i: [i] for i in range(n)}
             words = s
             hypergraph = self.hypergraph(n)
 
@@ -193,19 +218,14 @@ class ChartParser(BertParser):
 
                 if self.training:
                     loss += nn.CrossEntropyLoss(reduction='sum')(scores, gold_index)
-                if h < m:
-                    # m is a right child
-                    right_children[h].append(m)
-                else:
-                    # m is a left child
-                    left_children[h].append(m)
 
                 words = self.tree_layer(words, h, m)
+
 
             loss /= len(ordered_arcs)
             pred_heads = self.heads_from_arcs(arcs, n)
             heads_batch[i, :n] = pred_heads
-            h_t_noeos[i, :n, :] = h_t[i, :n, :]
+            h_t_noeos[i, :n, :] = x_mapped[i, :n, :]
             batch_loss += loss
 
         batch_loss /= x_emb.shape[0]
