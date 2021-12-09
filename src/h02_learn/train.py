@@ -37,6 +37,7 @@ def get_args():
     parser.add_argument('--eval-batches', type=int, default=20)
     parser.add_argument('--wait-epochs', type=int, default=10)
     parser.add_argument('--lr-decay', type=float, default=.5)
+    parser.add_argument('--lr', type=float, default=1e-5)
     # Save
     parser.add_argument('--name', type=str, default='generic-experiment')
     parser.add_argument('--checkpoints-path', type=str, default='checkpoints/')
@@ -56,9 +57,9 @@ def get_args():
     return args
 
 
-def get_optimizer(paramters, lr_decay, weight_decay):
+def get_optimizer(paramters, lr, lr_decay, weight_decay):
 
-    optimizer = optim.AdamW(paramters, betas=(.9, .9), weight_decay=weight_decay, lr=1e-5)
+    optimizer = optim.AdamW(paramters, betas=(.9, .9), weight_decay=weight_decay, lr=lr)
 
     lr_scheduler = optim.lr_scheduler.ExponentialLR(optimizer, lr_decay)
     # lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, "max")
@@ -143,13 +144,13 @@ def train_batch(text, heads, rels, transitions, relations_in_order, maps, model,
     return loss.item()
 
 
-def train(trainloader, devloader, model, eval_batches, wait_iterations, weight_decay,
+def train(trainloader, devloader, model, eval_batches, lr, wait_iterations, weight_decay,
           save_path, save_batch=False, file=None):
     # pylint: disable=too-many-locals,too-many-arguments
     # torch.autograd.set_detect_anomaly(True)
 
     # optimizer, lr_scheduler = get_optimizer(model.parameters(), optim_alg, lr_decay, weight_decay)
-    optimizer, lr_scheduler = get_optimizer(model.parameters(),lr_decay=.5,weight_decay=weight_decay)
+    optimizer, lr_scheduler = get_optimizer(model.parameters(),lr,lr_decay=.5,weight_decay=weight_decay)
     train_info = TrainInfo(wait_iterations, eval_batches)
     while not train_info.finish:
         steps = 0
@@ -208,7 +209,7 @@ def main():
     wandb.watch(model)
     # if args.model != 'agenda-std':
     num_epochs = 10
-    train(trainloader, devloader, model, args.eval_batches, args.wait_iterations, args.weight_decay, args.save_path,
+    train(trainloader, devloader, model, args.eval_batches, args.wait_iterations, args.lr, args.weight_decay, args.save_path,
           args.save_periodically, file=file1)
     model.save(args.save_path)
     train_loss, train_las, train_uas = evaluate(trainloader, model)
