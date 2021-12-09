@@ -45,36 +45,34 @@ class ChartParser(BertParser):
         self.mode = mode
         self.parse_step_chart = self.parse_step_mh4
 
-        self.linear_tree = nn.Linear(self.hidden_size * 2, self.hidden_size)
         # self.linear_label = nn.Linear(hidden_size * 2, self.rel_embedding_size)
-        self.linear_dep = nn.Linear(self.hidden_size, 200).to(device=constants.device)
 
-        self.linear_head = nn.Linear(self.hidden_size, 200).to(device=constants.device)
         # self.biaffine = Biaffine(200, 200)
         # self.biaffine_h = Biaffine(200, 200)
-        self.bilinear_item = Bilinear(200, 200, 1)
+        bert_hidden_size = 768
 
-        linear_items1 = nn.Linear(400* 4, 400* 2).to(device=constants.device)
-        linear_items2 = nn.Linear(400*2, 400).to(device=constants.device)
-        linear_items3 = nn.Linear(400 , 1).to(device=constants.device)
+        linear_items1 = nn.Linear(bert_hidden_size* 4, bert_hidden_size* 3).to(device=constants.device)
+        linear_items2 = nn.Linear(bert_hidden_size*3, bert_hidden_size*2).to(device=constants.device)
+        linear_items3 = nn.Linear(bert_hidden_size*2 , bert_hidden_size).to(device=constants.device)
+        linear_items4 = nn.Linear(bert_hidden_size , 1).to(device=constants.device)
 
 
         layers = [linear_items1, nn.ReLU(), nn.Dropout(dropout), linear_items2, nn.ReLU(), nn.Dropout(dropout),
-                  linear_items3]
+                  linear_items3, nn.ReLU(), nn.Dropout(dropout), linear_items4]
 
 
 
         self.mlp = nn.Sequential(*layers)
 
-        self.linear_labels_dep = nn.Linear(self.hidden_size, 200).to(device=constants.device)
-        self.linear_labels_head = nn.Linear(self.hidden_size, 200).to(device=constants.device)
-        self.bilinear_label = Bilinear(200, 200, self.num_rels)
-        self.linear_reduce = nn.Linear(768,400).to(device=constants.device)
+        self.linear_labels_dep = nn.Linear(bert_hidden_size, 500).to(device=constants.device)
+        self.linear_labels_head = nn.Linear(bert_hidden_size, 500).to(device=constants.device)
+        self.bilinear_label = Bilinear(500, 500, self.num_rels)
+        #self.linear_reduce = nn.Linear(768,400).to(device=constants.device)
         #self.lstm = nn.LSTM(868, self.hidden_size, 2, batch_first=True, bidirectional=True).to(device=constants.device)
         #self.lstm_tree = nn.LSTM(self.hidden_size, self.hidden_size, 1, batch_first=False, bidirectional=False).to(
         #    device=constants.device)
 
-        self.tree_layer = TreeLayer(400)
+        self.tree_layer = TreeLayer(bert_hidden_size)
 
 
 
@@ -262,27 +260,27 @@ class ChartParser(BertParser):
             x_mapped[i, :curr_sentence_length, :] = s
         sent_lens = (x_mapped[:, :, 0] != 0).sum(-1).to(device=constants.device)
         #h_t, bh_t = self.run_lstm(x_mapped, sent_lens)
-        h_t = self.reduce_linear(x_mapped, sent_lens)
+        #h_t = self.reduce_linear(x_mapped, sent_lens)
 
-        h_t_noeos = torch.zeros((h_t.shape[0], heads.shape[1], h_t.shape[2])).to(device=constants.device)
-        for i in range(h_t.shape[0]):
+        h_t_noeos = torch.zeros((x_mapped.shape[0], heads.shape[1], x_mapped.shape[2])).to(device=constants.device)
+        for i in range(x_mapped.shape[0]):
 
             n = int(sent_lens[i] - 1)
             ordered_arcs = transitions[i]
             mask = (ordered_arcs.sum(dim=1) != -2)
             ordered_arcs = ordered_arcs[mask, :]
 
-            s = h_t[i, :n + 1, :]
+            s = x_mapped[i, :n + 1, :]
             #s_b = bh_t[i, :n + 1, :]
 
             # trees = torch.exp(curr_init_weights)
             arcs = []
-            history = defaultdict(lambda: 0)
+            #history = defaultdict(lambda: 0)
             loss = 0
-            popped = []
+            #popped = []
 
-            right_children = {i: [i] for i in range(n)}
-            left_children = {i: [i] for i in range(n)}
+            #right_children = {i: [i] for i in range(n)}
+            #left_children = {i: [i] for i in range(n)}
             words = s  # .clone()
             #words_b = s_b  # .clone()
             #gold_arc_set = self.gold_arc_set(ordered_arcs)
@@ -303,12 +301,12 @@ class ChartParser(BertParser):
 
                 if self.training:
                     loss += nn.CrossEntropyLoss(reduction='sum')(scores, gold_index)
-                if h < m:
-                    # m is a right child
-                    right_children[h].append(m)
-                else:
-                    # m is a left child
-                    left_children[h].append(m)
+                #if h < m:
+                #    # m is a right child
+                #    right_children[h].append(m)
+                #else:
+                #    # m is a left child
+                #    left_children[h].append(m)
 
                 words = self.tree_layer(words, h, m)
                 #words_b = self.tree_layer(words_b, h, m)
@@ -323,7 +321,7 @@ class ChartParser(BertParser):
             loss /= len(ordered_arcs)
             pred_heads = self.heads_from_arcs(arcs, n)
             heads_batch[i, :n] = pred_heads
-            h_t_noeos[i, :n, :] = h_t[i, :n, :]
+            h_t_noeos[i, :n, :] = x_mapped[i, :n, :]
             batch_loss += loss
 
         batch_loss /= x_emb.shape[0]
