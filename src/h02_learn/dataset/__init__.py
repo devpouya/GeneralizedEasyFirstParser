@@ -33,37 +33,29 @@ def generate_batch(batch,transition_system):
     batch_size = len(batch)
     max_length_text = max([len(entry[0][0]) for entry in batch])
     max_length = max([len(entry[0][1]) for entry in batch])
-    map_length = max([len(entry[3][0]) for entry in batch])
+    map_length = max([len(entry[0][1]) for entry in batch])
     max_length_actions = max([len(entry[2][0]) for entry in batch])
     text = tensor.new_zeros(batch_size, max_length_text)
     text_mappings = tensor.new_ones(batch_size, map_length) * -1
-    pos = tensor.new_zeros(batch_size, max_length)
     heads = tensor.new_ones(batch_size, max_length) * -1
     rels = tensor.new_zeros(batch_size, max_length)
-    if transition_system == constants.agenda:
-        transitions = tensor.new_ones(batch_size, max_length_actions, 2) * -1
-    else:
-        transitions = tensor.new_ones(batch_size, max_length_actions) * -1
-    relations_in_order = tensor.new_zeros(batch_size, max_length)
+    transitions = tensor.new_ones(batch_size, max_length_actions, 2) * -1
 
     for i, sentence in enumerate(batch):
         sent_len = len(sentence[0][0])
-        pos_len = len(sentence[0][1])
-        map_len = len(sentence[3][0])
-        text_mappings[i, :map_len] = sentence[3][0]
+        head_len = len(sentence[1][0])
+        map_len = len(sentence[0][1])
+        text_mappings[i, :map_len] = sentence[0][1]
         text[i, :sent_len] = sentence[0][0]
-        pos[i, :pos_len] = sentence[0][1]
-        heads[i, :pos_len] = sentence[1][0]
-        rels[i, :pos_len] = sentence[1][1]
+        heads[i, :head_len] = sentence[1][0]
+        rels[i, :head_len] = sentence[1][1]
 
     for i, sentence in enumerate(batch):
         num_actions = len(sentence[2][0])
         transitions[i, :num_actions] = sentence[2][0]
 
-        num_rels = len(sentence[2][1])
-        relations_in_order[i, :num_rels] = sentence[2][1]
 
-    return (text, pos), (heads, rels), (transitions, relations_in_order), text_mappings
+    return (text, text_mappings), (heads, rels), transitions
 
 
 def get_data_loader(fname, transitions_file, transition_system, tokenizer, batch_size, shuffle):

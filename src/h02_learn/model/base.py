@@ -154,9 +154,6 @@ class BertParser(BaseParser):
             m = torch.mean(sentence[start:end + 1, :], dim=0)
             s.append(m)
         s = torch.stack(s, dim=0).to(device=constants.device)
-
-        # self.tag_embeddings()
-        #return torch.cat([s, tags], dim=-1).to(device=constants.device)
         return s
 
 

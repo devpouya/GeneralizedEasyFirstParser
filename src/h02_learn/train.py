@@ -133,14 +133,13 @@ def _evaluate(evalloader, model):
     # pylint: disable=too-many-locals
     dev_loss, dev_las, dev_uas, n_instances = 0, 0, 0, 0
     steps = 0
-    for (text, pos), (heads, rels), (transitions, relations_in_order), maps in evalloader:
+    for (text, maps), (heads, rels), transitions in evalloader:
         steps += 1
         maps = maps.to(device=constants.device)
-        text, pos = text.to(device=constants.device), pos.to(device=constants.device)
+        text = text.to(device=constants.device)
         heads, rels = heads.to(device=constants.device), rels.to(device=constants.device)
         transitions = transitions.to(device=constants.device)
-        relations_in_order = relations_in_order.to(device=constants.device)
-        loss, predicted_heads, predicted_rels = model((text, pos), transitions, relations_in_order, maps, heads=heads,
+        loss, predicted_heads, predicted_rels = model((text, maps), transitions, heads=heads,
                                                       rels=rels)
 
         las, uas = calculate_attachment_score(predicted_heads, heads, predicted_rels, rels)
@@ -161,27 +160,20 @@ def evaluate(evalloader, model):
     return result
 
 
-def train_batch(text, pos, heads, rels, transitions, relations_in_order, maps, model, optimizer):
+def train_batch(text, heads, rels, transitions, maps, model, optimizer):
     optimizer.zero_grad()
     maps = maps.to(device=constants.device)
-    text, pos = text.to(device=constants.device), pos.to(device=constants.device)
+    text = text.to(device=constants.device)#, pos.to(device=constants.device)
     heads, rels = heads.to(device=constants.device), rels.to(device=constants.device)
 
     transitions = transitions.to(device=constants.device)
-    relations_in_order = relations_in_order.to(device=constants.device)
+    #relations_in_order = relations_in_order.to(device=constants.device)
 
-    loss, pred_h, pred_rel = model((text, pos), transitions, relations_in_order, maps, heads=heads, rels=rels)
+    loss, pred_h, pred_rel = model(text,maps, transitions, heads=heads, rels=rels)
 
-    # las, uas = calculate_attachment_score(pred_h, heads, pred_rel, rels)
     loss.backward()
     optimizer.step()
-    #shit = 0
-    #total = 0
-    ##for item in model.parameters():
-    ##    total += 1
-    ##    if item.grad is None:
-    #        shit += 1
-    #print("SHIT {} OF {}".format(shit, total))
+
     return loss.item()
 
 
@@ -194,10 +186,10 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
     train_info = TrainInfo(wait_iterations, eval_batches)
     while not train_info.finish:
         steps = 0
-        for (text, pos), (heads, rels), (transitions, relations_in_order), maps in trainloader:
+        for (text, maps), (heads, rels), transitions in trainloader:
             steps += 1
             # maps are used to average the split embeddings from BERT
-            loss = train_batch(text, pos, heads, rels, transitions, relations_in_order, maps, model, optimizer)
+            loss = train_batch(text, heads, rels, transitions, maps, model, optimizer)
             train_info.new_batch(loss)
             if train_info.eval:
                 dev_results = evaluate(devloader, model)

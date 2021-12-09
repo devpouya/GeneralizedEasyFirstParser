@@ -185,8 +185,8 @@ class ChartParser(BertParser):
         arcs.append(made_arc)
         return scores, gold_index, h, m, arcs, hypergraph, pending
 
-    def forward(self, x, transitions, relations, map, heads, rels):
-        x_ = x[0][:, 1:]
+    def forward(self, x, map, transitions, heads, rels):
+        x_ = x[:, 1:]
         out = self.bert(x_.to(device=constants.device))[2]
         x_emb = torch.stack(out[-8:]).mean(0)
         heads_batch = torch.ones((x_emb.shape[0], heads.shape[1])).to(device=constants.device)  # * -1
