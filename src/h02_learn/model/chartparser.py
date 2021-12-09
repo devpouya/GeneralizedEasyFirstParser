@@ -228,39 +228,29 @@ class ChartParser(BertParser):
         m = made_arc[1]
         h = min(h,hypergraph.n-1)
         m = min(m,hypergraph.n-1)
-        #pending = hypergraph.calculate_pending(pending, m)
         hypergraph = hypergraph.set_head(m)
-        #hypergraph.made_arcs.append(made_arc)
         arcs.append(made_arc)
         return scores, gold_index, h, m, arcs, hypergraph, pending
 
     def forward(self, x, transitions, relations, map, heads, rels):
         x_ = x[0][:, 1:]
-        # average of last 4 hidden layers
-
-
-        # with torch.no_grad():
         out = self.bert(x_.to(device=constants.device))[2]
         x_emb = torch.stack(out[-8:]).mean(0)
         heads_batch = torch.ones((x_emb.shape[0], heads.shape[1])).to(device=constants.device)  # * -1
-        prob_sum = 0
         batch_loss = 0
         x_mapped = torch.zeros((x_emb.shape[0], heads.shape[1] + 1, x_emb.shape[2])).to(device=constants.device)
         eos_emb = x_emb[0, -1, :].unsqueeze(0).to(device=constants.device)
-        #eos_emb = torch.cat([eos_emb, torch.zeros((1, 100)).to(device=constants.device)], dim=-1).to(
-        #    device=constants.device)
+
         for i, sentence in enumerate(x_emb):
             # initialize a parser
             mapping = map[i, map[i] != -1]
-            #tag = self.tag_embeddings(x[1][i][x[1][i] != 0].to(device=constants.device))
             sentence = sentence[:-1, :]
             s = self.get_bert_embeddings(mapping, sentence, None)
             s = torch.cat([s, eos_emb], dim=0)
             curr_sentence_length = s.shape[0]
             x_mapped[i, :curr_sentence_length, :] = s
         sent_lens = (x_mapped[:, :, 0] != 0).sum(-1).to(device=constants.device)
-        #h_t, bh_t = self.run_lstm(x_mapped, sent_lens)
-        #h_t = self.reduce_linear(x_mapped, sent_lens)
+
 
         h_t_noeos = torch.zeros((x_mapped.shape[0], heads.shape[1], x_mapped.shape[2])).to(device=constants.device)
         for i in range(x_mapped.shape[0]):
@@ -271,25 +261,14 @@ class ChartParser(BertParser):
             ordered_arcs = ordered_arcs[mask, :]
 
             s = x_mapped[i, :n + 1, :]
-            #s_b = bh_t[i, :n + 1, :]
 
-            # trees = torch.exp(curr_init_weights)
             arcs = []
-            #history = defaultdict(lambda: 0)
             loss = 0
-            #popped = []
 
-            #right_children = {i: [i] for i in range(n)}
-            #left_children = {i: [i] for i in range(n)}
             words = s  # .clone()
-            #words_b = s_b  # .clone()
-            #gold_arc_set = self.gold_arc_set(ordered_arcs)
+
             hypergraph = self.hypergraph(n)
-            #hypergraph = self.hypergraph(n, gold_arc_set)
-            #if self.mode == "agenda-mh4":
-            #    pending = hypergraph.calculate_pending_init()
-            #else:
-            #    pending = self.init_pending(n, hypergraph)
+
             pending = self.init_pending(n, hypergraph)
             for iter, gold_arc in enumerate(ordered_arcs):
 
@@ -301,22 +280,9 @@ class ChartParser(BertParser):
 
                 if self.training:
                     loss += nn.CrossEntropyLoss(reduction='sum')(scores, gold_index)
-                #if h < m:
-                #    # m is a right child
-                #    right_children[h].append(m)
-                #else:
-                #    # m is a left child
-                #    left_children[h].append(m)
 
                 words = self.tree_layer(words, h, m)
-                #words_b = self.tree_layer(words_b, h, m)
-                #h_rep = self.tree_lstm(words_f, left_children[h], right_children[h])
-                #words_f = words_f.clone()
-                #words_f[h, :] = h_rep
 
-                #h_rep = self.tree_lstm(words_b, left_children[h], right_children[h])
-                #words_b = words_b.clone()
-                #words_b[h, :] = h_rep
 
             loss /= len(ordered_arcs)
             pred_heads = self.heads_from_arcs(arcs, n)
