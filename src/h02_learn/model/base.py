@@ -82,7 +82,9 @@ class BertParser(BaseParser):
         elif language == "tr":
             self.bert = AutoModel.from_pretrained("dbmdz/bert-base-turkish-cased",output_hidden_states=True).to(device=constants.device).train()
 
-
+        self.bert.eval()
+        for param in self.bert.parameters():
+            param.requires_grad = True
         print("Using a chart parser")
         _, _, rels = vocabs
 
