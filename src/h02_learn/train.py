@@ -5,11 +5,9 @@ import torch.optim as optim
 
 sys.path.append('./src/')
 from h02_learn.dataset import get_data_loaders
-from h02_learn.model import BiaffineParser, MSTParser
-from h02_learn.model import NeuralTransitionParser, ChartParser
-from h02_learn.model import MH4, Hybrid, ArcEager, ArcStandard
+from h02_learn.model import ChartParser
+from h02_learn.model import MH4
 from h02_learn.train_info import TrainInfo
-from h02_learn.algorithm.mst import get_mst_batch
 from utils import constants
 from utils import utils
 
@@ -26,17 +24,10 @@ def get_args():
     parser.add_argument('--key', type=str)
     # Model
 
-    parser.add_argument('--embedding-size', type=int, default=768)
-    parser.add_argument('--hidden-size', type=int, default=100)
-    parser.add_argument('--rel-embedding-size', type=int, default=100)
     parser.add_argument('--dropout', type=float, default=.33)
     parser.add_argument('--weight-decay', type=float, default=0.01)
-    parser.add_argument('--model', choices=['easy-first', 'easy-first-hybrid', 'biaffine', 'mst', 'arc-standard',
-                                            'arc-eager', 'hybrid', 'mh4', 'easy-first-mh4', 'chart', 'agenda-std',
-                                            'agenda-hybrid', 'agenda-eager', 'agenda-mh4'],
-                        default='agenda-std')
-    parser.add_argument('--mode', choices=['shift-reduce', 'easy-first'], default='easy-first')
-    parser.add_argument('--bert-model', type=str, default='bert-base-cased')
+    parser.add_argument('--easy-first', type=bool, choices=[True, False], default=True)
+
     # Optimization
     parser.add_argument('--optim', choices=['adam', 'adamw', 'sgd'], default='adamw')
     parser.add_argument('--eval-batches', type=int, default=20)
@@ -49,10 +40,13 @@ def get_args():
     parser.add_argument('--save-periodically', action='store_true')
 
     args = parser.parse_args()
+    if args.easy_first:
+        s = "EasyFirst"
+    else:
+        s = "ShiftReduce"
     args.wait_iterations = 3#args.wait_epochs * args.eval_batches
-    args.save_path = '%s/%s/%s/%s/' % (args.checkpoints_path, args.language, args.model, args.name)
+    args.save_path = '%s/%s/%s/%s/' % (args.checkpoints_path, args.language, s, args.name)
     utils.config(args.seed)
-    print("RUNNING {}".format(args.name))
     return args
 
 
@@ -69,42 +63,9 @@ def get_optimizer(paramters, optim_alg, lr_decay, weight_decay):
     return optimizer, lr_scheduler
 
 
-def get_model(vocabs, args, max_sent_len):
-    if args.model == 'arc-standard':  # or args.model=='easy-first':
-        tr = constants.arc_standard
-        hg = None
-    elif args.model == 'arc-eager':
-        tr = constants.arc_eager
-        hg = None
-    elif args.model == 'hybrid':
-        tr = constants.hybrid
-        hg = None
-    elif args.model == 'mh4':
-        tr = constants.mh4
-        hg = None
-    elif args.model == 'agenda-std':
-        hg = ArcStandard
-        tr = None
-    elif args.model == 'agenda-hybrid':
-        hg = Hybrid
-        tr = None
-    elif args.model == 'agenda-mh4':
-        hg = MH4
-        tr = None
+def get_model(vocabs, args):
+    return ChartParser(language=args.language, vocabs=vocabs, batch_size=args.batch_size,hypergraph=MH4, dropout=args.dropout).to(device=constants.device)
 
-    if args.mode == 'easy-first':
-        return ChartParser(language=args.language, vocabs=vocabs, hidden_size=args.hidden_size,
-                           embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size,
-                           batch_size=args.batch_size,
-                           hypergraph=hg, dropout=args.dropout,mode=args.model).to(
-            device=constants.device)
-    else:
-        return NeuralTransitionParser(language=args.language,
-            vocabs=vocabs, embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size,
-            batch_size=args.batch_size,
-            dropout=args.dropout,
-            transition_system=tr) \
-            .to(device=constants.device)
 
 
 def calculate_attachment_score(heads_tgt, heads, predicted_rels, rels):
@@ -219,33 +180,19 @@ def main():
     args = get_args()
     wandb.login(key=args.key)
 
-    if args.model == "arc-standard":  # or args.model == "easy-first":
-        transition_system = constants.arc_standard
-    elif args.model == "easy-first":
-        transition_system = constants.easy_first
-    elif args.model == "arc-eager":
-        transition_system = constants.arc_eager
-    elif args.model == "hybrid" or args.model == "easy-first-hybrid":
-        transition_system = constants.hybrid
-    elif args.model == "mh4" or args.model == 'easy-first-mh4':
-        transition_system = constants.mh4
+    if args.easy_first:
+        s = "EasyFirst"
     else:
-        transition_system = constants.agenda
-
-    if args.model == 'chart':
-        fname = "arc-standard"
-    else:
-        fname = args.model
-    trainloader, devloader, testloader, vocabs, max_sent_len = \
-        get_data_loaders(args.data_path, args.language, args.batch_size, args.batch_size_eval, fname,
-                         transition_system=transition_system, bert_model=args.bert_model)
+        s = "ShiftReduce"
+    trainloader, devloader, testloader, vocabs = \
+        get_data_loaders(args.data_path, args.language, args.batch_size, args.batch_size_eval, is_easy_first=args.easy_first)
     print('Train size: %d Dev size: %d Test size: %d' %
           (len(trainloader.dataset), len(devloader.dataset), len(testloader.dataset)))
-    save_name = "final_output_%s.txt".format(args.model)
+    save_name = "final_output_%s.txt".format(s)
     file1 = open(save_name, "w")
-    WANDB_PROJECT = f"{args.language}_{args.model}"
-    # WANDB_PROJECT = "%s_%s".format(args.language,args.model)
-    model = get_model(vocabs, args, max_sent_len)
+    WANDB_PROJECT = f"{args.language}_{s}"
+
+    model = get_model(vocabs, args)
     run = wandb.init(project=WANDB_PROJECT, config={'wandb_nb': 'wandb_three_in_one_hm'},
                      settings=wandb.Settings(start_method="fork"))
 

@@ -1,16 +1,12 @@
-import random
-import numpy as np
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from utils import constants
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from .base import BertParser
-from ..algorithm.transition_parsers import ShiftReduceParser
-from .modules import StackCell, SoftmaxActions, PendingRNN, Agenda, Chart, Item,ItemMH4, ItemW
-from .modules import Biaffine, Bilinear, LabelSmoothingLoss, TreeLayer
-from .hypergraph import ArcStandard, ArcEager, Hybrid, MH4
-from collections import defaultdict
+from .modules import Bilinear, TreeLayer
+from .hypergraph import MH4
 
 # loool
 from termcolor import colored
@@ -33,35 +29,23 @@ def print_yellow(s):
 
 
 class ChartParser(BertParser):
-    def __init__(self,vocabs, embedding_size, rel_embedding_size, batch_size,hidden_size=100, hypergraph=ArcStandard,language="en",
-                 dropout=0.33, eos_token_id=28996,mode="agenda-std",transition_system=None):
-        super().__init__(language, vocabs,
-                         embedding_size=embedding_size, rel_embedding_size=rel_embedding_size,
-                         batch_size=batch_size, dropout=dropout)
+    def __init__(self,vocabs, batch_size, hypergraph=MH4,language="en",
+                 dropout=0.33, eos_token_id=28996):
+        super().__init__(language, vocabs, batch_size=batch_size, dropout=dropout)
         self.eos_token_id = eos_token_id
-        self.hidden_size = 400
+        self.hidden_size = 768
         self.hypergraph = hypergraph
         self.dropout = nn.Dropout(dropout)
-        self.mode = mode
         self.parse_step_chart = self.parse_step_mh4
-
-
         bert_hidden_size = 768
 
-        #linear_items1 = nn.Linear(bert_hidden_size* 4, bert_hidden_size* 3).to(device=constants.device)
-        #linear_items2 = nn.Linear(bert_hidden_size*3, bert_hidden_size*2).to(device=constants.device)
-        #linear_items3 = nn.Linear(bert_hidden_size*2 , bert_hidden_size).to(device=constants.device)
-        #linear_items4 = nn.Linear(bert_hidden_size , 1).to(device=constants.device)
-
-        linear_items1 = nn.Linear(bert_hidden_size * 3, bert_hidden_size * 2).to(device=constants.device)
-        linear_items2 = nn.Linear(bert_hidden_size*2, bert_hidden_size).to(device=constants.device)
-        linear_items3 = nn.Linear(bert_hidden_size , 384).to(device=constants.device)
-        linear_items4 = nn.Linear(384 , 1).to(device=constants.device)
+        linear_items1 = nn.Linear(bert_hidden_size* 4, bert_hidden_size* 3).to(device=constants.device)
+        linear_items2 = nn.Linear(bert_hidden_size*3, bert_hidden_size*2).to(device=constants.device)
+        linear_items3 = nn.Linear(bert_hidden_size*2 , bert_hidden_size).to(device=constants.device)
+        linear_items4 = nn.Linear(bert_hidden_size , 1).to(device=constants.device)
 
         layers = [linear_items1, nn.ReLU(), nn.Dropout(dropout), linear_items2, nn.ReLU(), nn.Dropout(dropout),
                   linear_items3, nn.ReLU(), nn.Dropout(dropout), linear_items4]
-
-
 
         self.mlp = nn.Sequential(*layers)
 
@@ -124,35 +108,34 @@ class ChartParser(BertParser):
             if (u, v) == ga:
                 gold_index = torch.tensor([iter], dtype=torch.long).to(device=constants.device)
                 gold_key = item.key
-            #if len(item.heads) == 2:
-            #    i = item.heads[0]
-            #    j = item.heads[1]
-            #    span_1 = self.span_rep(words, i, j, n)
-            #    span_2 = torch.zeros_like(span_1).to(device=constants.device)
-            #elif len(item.heads) == 3:
-            #    i = item.heads[0]
-            #    mid = item.heads[1]
-            #    j = item.heads[2]
-            #    span_1 = self.span_rep(words, i, mid, n)
-            #    span_2 = self.span_rep(words, mid, j, n)
-            #elif len(item.heads)==4:
-            #    i1 = item.heads[0]
-            #    j1 = item.heads[1]
-            #    i2 = item.heads[2]
-            #    j2 = item.heads[3]
-            #    span_1 = self.span_rep(words, i1, j1, n)
-            #    span_2 = self.span_rep(words, i2, j2, n)
-            #else:
-            #    # len == 1:
-            #    i = item.heads[0]
-            #    span_1 = words[i,:]
-            #    span_2 = torch.zeros_like(span_1).to(device=constants.device)
+            if len(item.heads) == 2:
+                i = item.heads[0]
+                j = item.heads[1]
+                span_1 = self.span_rep(words, i, j, n)
+                span_2 = torch.zeros_like(span_1).to(device=constants.device)
+            elif len(item.heads) == 3:
+                i = item.heads[0]
+                mid = item.heads[1]
+                j = item.heads[2]
+                span_1 = self.span_rep(words, i, mid, n)
+                span_2 = self.span_rep(words, mid, j, n)
+            elif len(item.heads)==4:
+                i1 = item.heads[0]
+                j1 = item.heads[1]
+                i2 = item.heads[2]
+                j2 = item.heads[3]
+                span_1 = self.span_rep(words, i1, j1, n)
+                span_2 = self.span_rep(words, i2, j2, n)
+            else:
+                # len == 1:
+                i = item.heads[0]
+                span_1 = words[i,:]
+                span_2 = torch.zeros_like(span_1).to(device=constants.device)
 
-            #span = torch.cat([span_1,span_2],dim=-1).to(device=constants.device).unsqueeze(0)
+            span = torch.cat([span_1,span_2],dim=-1).to(device=constants.device).unsqueeze(0)
 
             index2key[iter] = item.key
-            (lower, upper) = item.range
-            span = words[lower:upper+1,:].mean(0).unsqueeze(0)
+
             fwd_rep = torch.cat([words[u, :], words[v, :]], dim=-1).unsqueeze(0)
             rep = torch.cat([span, fwd_rep], dim=-1)
             s = self.mlp(rep)
@@ -278,11 +261,8 @@ class ChartParser(BertParser):
     def get_args(self):
         return {
             'language':self.language,
-            'hidden_size':self.hidden_size,
             'hypergraph':self.hypergraph,
             'vocabs': self.vocabs,
-            'embedding_size': self.embedding_size,
-            'rel_embedding_size': self.rel_embedding_size,
             'dropout': self.dropout_prob,
             'batch_size': self.batch_size,
         }

@@ -8,7 +8,7 @@ from transformers import BertTokenizer, BertTokenizerFast
 from transformers import AutoTokenizer
 
 
-def generate_batch(batch,transition_system):
+def generate_batch(batch):
     r"""
     Since the text entries have different lengths, a custom function
     generate_batch() is used to generate data batches and offsets,
@@ -58,52 +58,45 @@ def generate_batch(batch,transition_system):
     return (text, text_mappings), (heads, rels), transitions
 
 
-def get_data_loader(fname, transitions_file, transition_system, tokenizer, batch_size, shuffle):
-    dataset = SyntaxDataset(fname, transitions_file, transition_system, tokenizer)
+def get_data_loader(fname, transitions_file, tokenizer, batch_size, shuffle):
+    dataset = SyntaxDataset(fname, transitions_file, tokenizer)
     return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle,
-                      collate_fn=lambda batch: generate_batch(batch,transition_system)), dataset.max_sent_len
+                      collate_fn=lambda batch: generate_batch(batch))
 
 
-def get_data_loaders(data_path, language, batch_size, batch_size_eval, transitions=None, transition_system=None,
-                     bert_model=None):
+def get_data_loaders(data_path, language, batch_size, batch_size_eval, is_easy_first=True):
     src_path = path.join(data_path, constants.UD_PATH_PROCESSED, language)
     (fname_train, fname_dev, fname_test) = get_ud_fname(src_path)
-    transitions_train, transitions_dev, transitions_test = None, None, None
 
-    if transitions is not None:
-        if transition_system == "AGENDA-PARSER":
-            is_agenda=True
-        else:
-            is_agenda=False
-        (transitions_train, transitions_dev, transitions_test) = get_oracle_actions(src_path, transitions,is_agenda)
+    (transitions_train, transitions_dev, transitions_test) = get_oracle_actions(src_path,is_easy_first)
     vocabs = load_vocabs(src_path)
 
 
 
 
-    #embeddings = load_embeddings(src_path)
     if language == "en":
         tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
     elif language == "de":
         tokenizer = BertTokenizer.from_pretrained('bert-base-german-cased')
     elif language == "cs":
-        #tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased')
         tokenizer = AutoTokenizer.from_pretrained("DeepPavlov/bert-base-bg-cs-pl-ru-cased")
     elif language == "eu":
         # Basque
         tokenizer = AutoTokenizer.from_pretrained("ixa-ehu/berteus-base-cased")
     elif language == "tr":
         tokenizer = AutoTokenizer.from_pretrained("dbmdz/bert-base-turkish-cased")
+    else:
+        tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
-    trainloader, max_sent_len_train = get_data_loader(fname_train, transitions_train, transition_system, tokenizer,
+
+    trainloader = get_data_loader(fname_train, transitions_train, tokenizer,
                                                       batch_size,
                                                       shuffle=True)
-    devloader, max_sent_len_dev = get_data_loader(fname_dev, transitions_dev, transition_system, tokenizer,
+    devloader = get_data_loader(fname_dev, transitions_dev, tokenizer,
                                                   batch_size_eval,
                                                   shuffle=False)
-    testloader, max_sent_len_test = get_data_loader(fname_test, transitions_test, transition_system, tokenizer,
+    testloader = get_data_loader(fname_test, transitions_test, tokenizer,
                                                     batch_size_eval,
                                                     shuffle=False)
 
-    max_sent_len = max(max_sent_len_dev, max_sent_len_test, max_sent_len_train)
-    return trainloader, devloader, testloader, vocabs, max_sent_len
+    return trainloader, devloader, testloader, vocabs
