@@ -26,7 +26,7 @@ def get_args():
 
     parser.add_argument('--dropout', type=float, default=.33)
     parser.add_argument('--weight-decay', type=float, default=0.01)
-    parser.add_argument('--easy-first', type=bool, choices=[True, False], default=True)
+    parser.add_argument('--easy-first', type=str, choices=["True", "False"], default="True")
 
     # Optimization
     parser.add_argument('--optim', choices=['adam', 'adamw', 'sgd'], default='adamw')
@@ -40,7 +40,7 @@ def get_args():
     parser.add_argument('--save-periodically', action='store_true')
 
     args = parser.parse_args()
-    if args.easy_first:
+    if args.easy_first == "True":
         s = "EasyFirst"
     else:
         s = "ShiftReduce"
@@ -180,12 +180,14 @@ def main():
     args = get_args()
     wandb.login(key=args.key)
 
-    if args.easy_first:
+    if args.easy_first == "True":
         s = "EasyFirst"
+        ef = True
     else:
         s = "ShiftReduce"
+        ef = False
     trainloader, devloader, testloader, vocabs = \
-        get_data_loaders(args.data_path, args.language, args.batch_size, args.batch_size_eval, is_easy_first=args.easy_first)
+        get_data_loaders(args.data_path, args.language, args.batch_size, args.batch_size_eval, is_easy_first=ef)
     print('Train size: %d Dev size: %d Test size: %d' %
           (len(trainloader.dataset), len(devloader.dataset), len(testloader.dataset)))
     save_name = "final_output_%s.txt".format(s)
