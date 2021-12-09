@@ -45,9 +45,9 @@ class ChartParser(BertParser):
         self.linear_head = nn.Linear(self.hidden_size, 200).to(device=constants.device)
 
         self.bilinear_item = Bilinear(200, 200, 1)
-        linear_items1 = nn.Linear(400* 2, 400).to(device=constants.device)
-        linear_items2 = nn.Linear(400, 200).to(device=constants.device)
-        linear_items3 = nn.Linear(200 , 1).to(device=constants.device)
+        linear_items1 = nn.Linear(400, 200).to(device=constants.device)
+        linear_items2 = nn.Linear(200, 100).to(device=constants.device)
+        linear_items3 = nn.Linear(100 , 1).to(device=constants.device)
 
 
         layers = [linear_items1, nn.ReLU(), nn.Dropout(dropout), linear_items2, nn.ReLU(), nn.Dropout(dropout),
@@ -110,11 +110,12 @@ class ChartParser(BertParser):
             index2key[iter] = item.key
             lower, upper = item.range
             span = words[lower:upper+1,:].mean(0).unsqueeze(0)
-            fwd_rep = self.tree_layer(words, u, v)[u,:].unsqueeze(0)
-            rep = torch.cat([span, fwd_rep], dim=-1)
-            s = self.mlp(rep)
+            #fwd_rep = self.tree_layer(words, u, v)[u,:].unsqueeze(0)
+            #rep = torch.cat([span, fwd_rep], dim=-1)
+            s = self.mlp(span)
             scores.append(s)
         scores = torch.stack(scores, dim=-1).squeeze(0)
+        #print(scores)
         if not self.training or gold_index is None:
             gold_index = torch.argmax(scores, dim=-1)
             gold_key = index2key[gold_index.item()]
