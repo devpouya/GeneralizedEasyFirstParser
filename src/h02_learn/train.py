@@ -56,17 +56,12 @@ def get_args():
     return args
 
 
-def get_optimizer(model, num_warmup_steps, num_train_steps):
-    no_decay = ['bias', 'LayerNorm.weight']
-    optimizer_grouped_parameters = [
-        {'params': [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
-         'weight_decay': 0.01},
-        {'params': [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
-    ]
-    optimizer = AdamW(optimizer_grouped_parameters, lr=1e-5)
+def get_optimizer(paramters, lr_decay, weight_decay):
 
-    lr_scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps, num_train_steps)
+    optimizer = optim.AdamW(paramters, betas=(.9, .9), weight_decay=weight_decay, lr=1e-5)
 
+    lr_scheduler = optim.lr_scheduler.ExponentialLR(optimizer, lr_decay)
+    # lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, "max")
     return optimizer, lr_scheduler
 
 
@@ -122,11 +117,11 @@ def _evaluate(evalloader, model):
 
 def evaluate(evalloader, model):
     model.eval()
-    model.bert.eval()
+    #model.bert.eval()
     with torch.no_grad():
         result = _evaluate(evalloader, model)
     model.train()
-    model.bert.train()
+    #model.bert.train()
     return result
 
 
@@ -148,13 +143,13 @@ def train_batch(text, heads, rels, transitions, relations_in_order, maps, model,
     return loss.item()
 
 
-def train(trainloader, devloader, model, eval_batches, wait_iterations, num_epochs,
+def train(trainloader, devloader, model, eval_batches, wait_iterations, weight_decay,
           save_path, save_batch=False, file=None):
     # pylint: disable=too-many-locals,too-many-arguments
     # torch.autograd.set_detect_anomaly(True)
 
     # optimizer, lr_scheduler = get_optimizer(model.parameters(), optim_alg, lr_decay, weight_decay)
-    optimizer, lr_scheduler = get_optimizer(model, num_warmup_steps=3, num_train_steps=num_epochs)
+    optimizer, lr_scheduler = get_optimizer(model.parameters(),lr_decay=.5,weight_decay=weight_decay)
     train_info = TrainInfo(wait_iterations, eval_batches)
     while not train_info.finish:
         steps = 0
@@ -162,7 +157,7 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, num_epoc
             steps += 1
             # maps are used to average the split embeddings from BERT
             loss = train_batch(text, heads, rels, transitions, relations_in_order, maps, model, optimizer)
-            lr_scheduler.step()
+            #lr_scheduler.step()
             train_info.new_batch(loss)
             if train_info.eval:
                 dev_results = evaluate(devloader, model)
@@ -213,7 +208,7 @@ def main():
     wandb.watch(model)
     # if args.model != 'agenda-std':
     num_epochs = 10
-    train(trainloader, devloader, model, args.eval_batches, args.wait_iterations, num_epochs, args.save_path,
+    train(trainloader, devloader, model, args.eval_batches, args.wait_iterations, args.weight_decay, args.save_path,
           args.save_periodically, file=file1)
     model.save(args.save_path)
     train_loss, train_las, train_uas = evaluate(trainloader, model)
