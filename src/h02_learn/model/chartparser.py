@@ -39,23 +39,24 @@ class ChartParser(BertParser):
                          embedding_size=embedding_size, rel_embedding_size=rel_embedding_size,
                          batch_size=batch_size, dropout=dropout)
         self.eos_token_id = eos_token_id
-        self.hidden_size = 400#hidden_size
+        self.hidden_size = 400
         self.hypergraph = hypergraph
         self.dropout = nn.Dropout(dropout)
         self.mode = mode
         self.parse_step_chart = self.parse_step_mh4
 
-        # self.linear_label = nn.Linear(hidden_size * 2, self.rel_embedding_size)
 
-        # self.biaffine = Biaffine(200, 200)
-        # self.biaffine_h = Biaffine(200, 200)
         bert_hidden_size = 768
 
-        linear_items1 = nn.Linear(bert_hidden_size* 4, bert_hidden_size* 3).to(device=constants.device)
-        linear_items2 = nn.Linear(bert_hidden_size*3, bert_hidden_size*2).to(device=constants.device)
-        linear_items3 = nn.Linear(bert_hidden_size*2 , bert_hidden_size).to(device=constants.device)
-        linear_items4 = nn.Linear(bert_hidden_size , 1).to(device=constants.device)
+        #linear_items1 = nn.Linear(bert_hidden_size* 4, bert_hidden_size* 3).to(device=constants.device)
+        #linear_items2 = nn.Linear(bert_hidden_size*3, bert_hidden_size*2).to(device=constants.device)
+        #linear_items3 = nn.Linear(bert_hidden_size*2 , bert_hidden_size).to(device=constants.device)
+        #linear_items4 = nn.Linear(bert_hidden_size , 1).to(device=constants.device)
 
+        linear_items1 = nn.Linear(bert_hidden_size * 3, bert_hidden_size * 2).to(device=constants.device)
+        linear_items2 = nn.Linear(bert_hidden_size*2, bert_hidden_size).to(device=constants.device)
+        linear_items3 = nn.Linear(bert_hidden_size , 384).to(device=constants.device)
+        linear_items4 = nn.Linear(384 , 1).to(device=constants.device)
 
         layers = [linear_items1, nn.ReLU(), nn.Dropout(dropout), linear_items2, nn.ReLU(), nn.Dropout(dropout),
                   linear_items3, nn.ReLU(), nn.Dropout(dropout), linear_items4]
@@ -67,10 +68,6 @@ class ChartParser(BertParser):
         self.linear_labels_dep = nn.Linear(bert_hidden_size, 500).to(device=constants.device)
         self.linear_labels_head = nn.Linear(bert_hidden_size, 500).to(device=constants.device)
         self.bilinear_label = Bilinear(500, 500, self.num_rels)
-        #self.linear_reduce = nn.Linear(768,400).to(device=constants.device)
-        #self.lstm = nn.LSTM(868, self.hidden_size, 2, batch_first=True, bidirectional=True).to(device=constants.device)
-        #self.lstm_tree = nn.LSTM(self.hidden_size, self.hidden_size, 1, batch_first=False, bidirectional=False).to(
-        #    device=constants.device)
 
         self.tree_layer = TreeLayer(bert_hidden_size)
 
@@ -91,54 +88,15 @@ class ChartParser(BertParser):
         x_in = pack_padded_sequence(x, sent_lens.to(device=torch.device("cpu")), batch_first=True,
                                        enforce_sorted=False)
         x_out = self.squash_packed(x_in,self.linear_reduce)
-        #x_out = self.linear_reduce(x_in)
         h_t = pad_packed_sequence(x_out, batch_first=True)[0]
 
         return h_t
-
-    def run_lstm(self, x, sent_lens):
-        lstm_in = pack_padded_sequence(x, sent_lens.to(device=torch.device("cpu")), batch_first=True,
-                                       enforce_sorted=False)
-        # ###print(lstm_in)
-        lstm_out, _ = self.lstm(lstm_in)
-        h_t, _ = pad_packed_sequence(lstm_out, batch_first=True)
-        h_t = self.dropout(h_t).contiguous()
-        forward_rep = h_t[:, :, :self.hidden_size]
-        backward_rep = h_t[:, :, self.hidden_size:]
-        return forward_rep, backward_rep
 
 
     def span_rep(self, words, i, j, n):
         j = min(j,len(words)-1)
         sij = words[j, :] - words[max(i - 1, 0), :]
         return sij
-
-    def init_arc_list(self, tensor_list, oracle_agenda):
-        item_list = {}
-        for t in tensor_list:
-            item = oracle_agenda[(t[0].item(), t[1].item(), t[2].item())]
-            item_list[(item.i, item.j, item.h)] = item
-        return item_list
-
-    def gold_arc_set(self,ordered_arcs):
-        arcs = []
-        for t in ordered_arcs:
-            ga = (t[0].item(), t[1].item())
-            arcs.append(ga)
-        return arcs
-
-    def possible_arcs(self, pending, hypergraph):
-        arcs = []
-        all_items = {}
-
-        pending = hypergraph.merge_pending(pending)
-        # print_blue(pending)
-        for item in pending.values():
-            possible_arcs, possible_items, _ = hypergraph.iterate_spans(item, pending, merge=False, prev_arc=arcs)
-            arcs = arcs + possible_arcs
-            all_items = {**all_items, **possible_items}
-
-        return arcs, all_items
 
     def possible_arcs_mh4(self, pending, hypergraph,prev_arcs):
         arcs = []
@@ -166,41 +124,36 @@ class ChartParser(BertParser):
             if (u, v) == ga:
                 gold_index = torch.tensor([iter], dtype=torch.long).to(device=constants.device)
                 gold_key = item.key
-        for iter, ((u, v), item) in enumerate(zip(possible_arcs, possible_items)):
-            #(h1, h2, h3, h4) = item.key
-            if len(item.heads) == 2:
-                i = item.heads[0]
-                j = item.heads[1]
-                span_1 = self.span_rep(words, i, j, n)#.unsqueeze(0)
-                span_2 = torch.zeros_like(span_1).to(device=constants.device)
+            #if len(item.heads) == 2:
+            #    i = item.heads[0]
+            #    j = item.heads[1]
+            #    span_1 = self.span_rep(words, i, j, n)
+            #    span_2 = torch.zeros_like(span_1).to(device=constants.device)
+            #elif len(item.heads) == 3:
+            #    i = item.heads[0]
+            #    mid = item.heads[1]
+            #    j = item.heads[2]
+            #    span_1 = self.span_rep(words, i, mid, n)
+            #    span_2 = self.span_rep(words, mid, j, n)
+            #elif len(item.heads)==4:
+            #    i1 = item.heads[0]
+            #    j1 = item.heads[1]
+            #    i2 = item.heads[2]
+            #    j2 = item.heads[3]
+            #    span_1 = self.span_rep(words, i1, j1, n)
+            #    span_2 = self.span_rep(words, i2, j2, n)
+            #else:
+            #    # len == 1:
+            #    i = item.heads[0]
+            #    span_1 = words[i,:]
+            #    span_2 = torch.zeros_like(span_1).to(device=constants.device)
 
-            elif len(item.heads) == 3:
-                i = item.heads[0]
-                mid = item.heads[1]
-                j = item.heads[2]
-                span_1 = self.span_rep(words, i, mid, n)#.unsqueeze(0)
-                span_2 = self.span_rep(words, mid, j, n)#.unsqueeze(0)
-                #span = span_1-span_2
-            elif len(item.heads)==4:
-                i1 = item.heads[0]
-                j1 = item.heads[1]
-                i2 = item.heads[2]
-                j2 = item.heads[3]
-                span_1 = self.span_rep(words, i1, j1, n)#.unsqueeze(0)
-                span_2 = self.span_rep(words, i2, j2, n)#.unsqueeze(0)
-                #span = span_1-span_2
-            else:
-                # len == 1:
-                i = item.heads[0]
-                span_1 = words[i,:] #torch.cat([words_f[i,:], words_b[i,:]], dim=-1)#.to(device=constants.device).unsqueeze(0)
-                span_2 = torch.zeros_like(span_1).to(device=constants.device)
-
-            span = torch.cat([span_1,span_2],dim=-1).to(device=constants.device).unsqueeze(0)
+            #span = torch.cat([span_1,span_2],dim=-1).to(device=constants.device).unsqueeze(0)
 
             index2key[iter] = item.key
-
+            (lower, upper) = item.range
+            span = words[lower:upper+1,:].mean(0).unsqueeze(0)
             fwd_rep = torch.cat([words[u, :], words[v, :]], dim=-1).unsqueeze(0)
-            #bckw_rep = torch.cat([words_b[u, :], words_b[v, :]], dim=-1).unsqueeze(0)
             rep = torch.cat([span, fwd_rep], dim=-1)
             s = self.mlp(rep)
             scores.append(s)
@@ -289,7 +242,6 @@ class ChartParser(BertParser):
             heads_batch[i, :n] = pred_heads
             h_t_noeos[i, :n, :] = x_mapped[i, :n, :]
             batch_loss += loss
-
         batch_loss /= x_emb.shape[0]
         heads = heads_batch
         l_logits = self.get_label_logits(h_t_noeos, heads)
@@ -309,38 +261,6 @@ class ChartParser(BertParser):
 
         l_logits = self.bilinear_label(l_dep, l_head)
         return l_logits
-
-    def init_agenda_oracle(self, oracle_hypergraph, rels):
-        pending = defaultdict(lambda: 0)
-        for item_tree in oracle_hypergraph:
-            left = item_tree[0]
-            right = item_tree[1]
-            derived = item_tree[2]
-            if left[0] == left[2] and left[0] + 1 == left[1]:
-                # is axiom
-                left_item = Item(left[0].item(), left[1].item(), left[2].item(),
-                                 left[0].item(), left[0].item())
-                pending[(left[0].item(), left[1].item(), left[2].item())] = left_item
-            else:
-                left_item = pending[(left[0].item(), left[1].item(), left[2].item())]
-            if right[0] == right[2] and right[0] + 1 == right[1]:
-                # is axiom
-                right_item = Item(right[0].item(), right[1].item(), right[2].item(),
-                                  right[0].item(), right[0].item())
-                pending[(right[0].item(), right[1].item(), right[2].item())] = right_item
-            else:
-                right_item = pending[(right[0].item(), right[1].item(), right[2].item())]
-            arc_made = (derived[2].item(), left_item.h if left_item.h != derived[2].item() else right_item.h)
-            m = arc_made[1] - 1
-            rel_made = rels[m]
-
-            item = Item(derived[0].item(),
-                        derived[1].item(),
-                        derived[2].item(),
-                        left_item, right_item)
-            item = item.add_rel(rel_made)
-            pending[(derived[0].item(), derived[1].item(), derived[2].item())] = item
-        return pending
 
     def heads_from_arcs(self, arcs, sent_len):
         heads = [0] * sent_len

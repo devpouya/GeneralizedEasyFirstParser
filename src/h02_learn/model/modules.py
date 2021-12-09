@@ -122,7 +122,7 @@ class ItemHybrid(Item):
 class ItemMH4(object):
     def __init__(self, heads,l,r):
         self.heads = heads#[-1]*4
-
+        self.range = (heads[0],heads[-1])
         self.l = l
         self.r =r
         #for i, item in enumerate(sorted(heads)):
@@ -457,10 +457,10 @@ class TreeLayer(nn.Module):
         self.linear_tree = nn.Linear(hidden_size * 2, hidden_size).to(device=constants.device)
 
     def forward(self, words, head_index, mod_index):
-        #clown_tensor = torch.zeros_like(words).to(device=constants.device)
-        #clown_tensor[head_index,:] = words[mod_index,:].clone().detach()
-        clown_tensor = words.clone().detach()
-        clown_tensor[head_index,:] = words[mod_index,:]
+        clown_tensor = torch.zeros_like(words).to(device=constants.device)
+        clown_tensor[head_index,:] = words[mod_index,:].clone().detach()
+        #clown_tensor = words.clone().detach()
+        #clown_tensor[head_index,:] = words[mod_index,:]
         rep = torch.cat([words,clown_tensor],dim=-1)
         rep = nn.Tanh()(self.linear_tree(rep))
         return rep
