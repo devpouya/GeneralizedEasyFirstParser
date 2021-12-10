@@ -49,7 +49,7 @@ class Hypergraph(object):
     def make_arc(self, item):
         pass
 
-    def iterate_spans(self, item, pending, merge=False, prev_arc=None):
+    def iterate_spans(self, pending, prev_arc=None):
         arcs = []
         items = {}
         nus = {}
@@ -76,13 +76,17 @@ class Hypergraph(object):
 
 
 class MH4(Hypergraph):
-    def __init__(self, n):
+    def __init__(self, n, is_easy_first = True):
         super().__init__(n)
         self.made_arcs = []
         self.derived_items = {}
         self.bucket = defaultdict(int)
         self.scored_items = {}
         self.item_table = ItemTable()
+        if is_easy_first:
+            self.iterate_spans = self.iterate_spans_easy_first
+        else:
+            self.iterate_spans = self.iterate_spans_shift_reduce
 
     def initialize_derived(self, dict):
         self.derived_items = copy.deepcopy(dict)
@@ -326,24 +330,23 @@ class MH4(Hypergraph):
             pending[new_item.key] = new_item
         return pending
 
-    def iterate_spans(self, item, pending, merge=False, prev_arc=None):
+    def iterate_spans_shift_reduce(self, pending, prev_arc=None):
+
+        pass
+    def iterate_spans_easy_first(self, pending, prev_arc=None):
         arcs = []
         items = []
-        nus = {}
-        if merge:
-            nus = self.combine(item, pending)
-        else:
+        for item in pending.values():
+            possible_arcs, possible_items = self.link(item, arcs)
+            for (pa, pi) in zip(possible_arcs, possible_items):
+                if pa not in arcs:
+                    arcs.append(pa)
+                    items.append(pi)
+            # arcs = arcs + possible_arcs
+            # items = items + possible_items
 
-            for item in pending.values():
-                possible_arcs, possible_items = self.link(item, arcs)
-                for (pa, pi) in zip(possible_arcs, possible_items):
-                    if pa not in arcs:
-                        arcs.append(pa)
-                        items.append(pi)
-                # arcs = arcs + possible_arcs
-                # items = items + possible_items
 
-        return arcs, items, nus
+        return arcs, items
 
     def combine(self, item, pending):
         if len(item.heads) == 3:
@@ -399,7 +402,7 @@ class MH4(Hypergraph):
                     if i != j:
                         if not self.has_head[item.heads[j]]:
                             if item.heads[j] < self.n and item.heads[i] < self.n:
-                                if not self.has_head[item.heads[i]]:
+                                if not self.has_head[item.heads[j]]:
                                     new_heads = item.heads.copy()
                                     new_heads.pop(j)
                                     new_item = ItemMH4(new_heads, item, item)
