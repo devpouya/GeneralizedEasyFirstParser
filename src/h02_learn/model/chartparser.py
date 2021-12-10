@@ -168,7 +168,7 @@ class ChartParser(BertParser):
         arcs.append(made_arc)
         return scores, gold_index, h, m, arcs, hypergraph, pending
 
-    def forward(self, x, map, transitions, heads, rels):
+    def forward(self, x, map, transitions, heads, rels, is_easy_first):
         x_ = x[:, 1:]
         out = self.bert(x_.to(device=constants.device))[2]
         x_emb = torch.stack(out[-8:]).mean(0)
@@ -203,7 +203,7 @@ class ChartParser(BertParser):
 
             words = s  # .clone()
 
-            hypergraph = self.hypergraph(n)
+            hypergraph = self.hypergraph(n, is_easy_first=is_easy_first)
 
             pending = self.init_pending(n, hypergraph)
             for iter, gold_arc in enumerate(ordered_arcs):
@@ -218,7 +218,6 @@ class ChartParser(BertParser):
                     loss += nn.CrossEntropyLoss(reduction='sum')(scores, gold_index)
 
                 words = self.tree_layer(words, h, m)
-
 
             loss /= len(ordered_arcs)
             pred_heads = self.heads_from_arcs(arcs, n)

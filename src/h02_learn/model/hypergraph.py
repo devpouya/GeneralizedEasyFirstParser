@@ -74,9 +74,14 @@ class Hypergraph(object):
 
 
 class MH4(Hypergraph):
-    def __init__(self, n):
+    def __init__(self, n, is_easy_first = True):
         super().__init__(n)
         self.made_arcs = []
+        self.is_easy_first = is_easy_first
+        self.derived = set()
+
+    def derive(self, item):
+        self.derived.add(i for i in item.key if i != -1)
 
     def axiom(self, i):
         return ItemMH4([i, i + 1], i, i)
@@ -246,17 +251,25 @@ class MH4(Hypergraph):
             pending[new_item.key] = new_item
         return pending
 
+
     def calculate_pending(self):
         remaining = []
         pending = {}
-        for i in range(self.n):
-            if not self.has_head[i]:
-                remaining.append(i)
+        if self.is_easy_first:
+            for i in range(self.n):
+                if not self.has_head[i]:
+                    remaining.append(i)
+        else:
+            for i in range(self.n):
+                if not self.has_head[i]:
+                    # if an item with i is in derived
+                    # or, if items with k <= i are all derived
+                    if i in self.derived or all(k in self.derived for k in range(i)):
+                        remaining.append(i)
         if len(remaining) <= 4:
             new_item = ItemMH4(remaining, 0, 0)
             pending[new_item.key] = new_item
             return pending
-        combs = []
         for i in range(len(remaining)-4):
             new_item = ItemMH4(remaining[i:i+4], 0, 0)
             pending[new_item.key] = new_item
@@ -325,6 +338,16 @@ class MH4(Hypergraph):
                     new_item = ItemMH4(new_heads, other, item)
                     all_items.append(new_item)
         return all_items
+    def link_shift_reduce(self, item, prev_arcs):
+        all_items = []
+        arcs = []
+        if len(item.heads) > 2:
+            for j in range(len(item.heads)-1):
+                for i in range(len(item.heads)):
+                    if i!= j:
+                        if not self.has_head[item.heads[j]]:
+                            if item.heads[j] < self.n and item.heads[i] < self.n:
+                                new_heads = item.heads.copy()
 
     def link(self, item, prev_arcs):
         all_items = []
