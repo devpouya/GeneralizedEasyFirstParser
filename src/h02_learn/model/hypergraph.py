@@ -1,5 +1,7 @@
-from .modules import ItemMH4
-
+from .modules import ItemMH4, Chart, ItemTable
+import itertools
+import copy
+from collections import defaultdict
 
 class Hypergraph(object):
 
@@ -77,6 +79,13 @@ class MH4(Hypergraph):
     def __init__(self, n):
         super().__init__(n)
         self.made_arcs = []
+        self.derived_items = {}
+        self.bucket = defaultdict(int)
+        self.scored_items = {}
+        self.item_table = ItemTable()
+
+    def initialize_derived(self, dict):
+        self.derived_items = copy.deepcopy(dict)
 
     def axiom(self, i):
         return ItemMH4([i, i + 1], i, i)
@@ -205,25 +214,24 @@ class MH4(Hypergraph):
 
         return pending
 
-    def calculate_pending_help(self,pending,updated):
+    def calculate_pending_help(self, pending, updated):
         pending_new = {}
-        window_lower = updated-3
-        window_upper = updated+4
+        window_lower = updated - 3
+        window_upper = updated + 4
 
         for item in pending.values():
             if updated in item.heads:
                 new_heads = item.heads.copy()
                 new_heads.remove(updated)
                 if updated < self.n:
-                    new_heads.append(updated+1)
+                    new_heads.append(updated + 1)
                 new_heads = sorted(list(set(new_heads)))
                 if 1 < len(new_heads) <= 4:
-                    item_new = ItemMH4(new_heads,0,0)
+                    item_new = ItemMH4(new_heads, 0, 0)
                     pending_new[item_new.key] = item_new
             else:
                 pending_new[item.key] = item
         return pending_new
-
 
     def calculate_pending_2(self):
         remaining = []
@@ -246,6 +254,62 @@ class MH4(Hypergraph):
             pending[new_item.key] = new_item
         return pending
 
+    def possible_arcs_items(self, is_easy_first=True):
+        # do all possible shifts
+
+        possible_derivations = copy.deepcopy(self.derived_items)
+
+        for item in self.derived_items.values():
+            last_head = item.last_head
+            if last_head <= self.n:
+                    new_item = ItemMH4([last_head, last_head + 1], item, item)
+                    possible_derivations[new_item.key] = new_item
+        # do all possible combines
+        combined = {}
+        new_item_list = []
+        for item_l in possible_derivations.values():
+            for item_r in possible_derivations.values():
+                    if item_l.last_head == item_r.first_head and not item_l.key in combined and not item_r.key in combined:
+                        tmp = set(item_r.heads + item_l.heads)
+                        if len(tmp) <= 4:
+                            new_item = ItemMH4(list(tmp), item_l, item_r)
+                            #possible_derivations[new_item.key] = new_item
+                            new_item_list.append(new_item)
+                            self.item_table[new_item] = new_item
+                            combined[item_l.key] = True
+                            combined[item_r.key] = True
+        # update possible
+        for item_key in combined.keys():
+            possible_derivations.pop(item_key, None)
+        for item in new_item_list:
+            possible_derivations[item.key] = item
+
+        # compute possible links
+        possible_arcs = []
+        final_derived_items = []
+        for item in possible_derivations.values():
+                heads = item.heads
+                all_combinations = list(itertools.product(heads, heads))
+                for (i, j) in all_combinations:
+                    if i!= j:
+                        if 1 <= i <= self.n and 1 < j < self.n:
+                            possible_arcs.append((i, j))
+                            new_heads = heads.copy()
+                            new_heads.remove(j)
+                            new_item = ItemMH4(new_heads, item, item)
+                            final_derived_items.append(new_item)
+        return possible_arcs, final_derived_items
+
+    def derive_item(self, arc, item):
+        self.derived_items[item.key] = item
+        self.bucket[item.l] += 1
+        self.bucket[item.r] += 1
+        j = arc[1]
+        for item in self.derived_items.values():
+            if j in item.heads:
+                item.pop(j)
+        self.set_head(arc[1])
+
     def calculate_pending(self):
         remaining = []
         pending = {}
@@ -256,9 +320,9 @@ class MH4(Hypergraph):
             new_item = ItemMH4(remaining, 0, 0)
             pending[new_item.key] = new_item
             return pending
-        combs = []
-        for i in range(len(remaining)-4):
-            new_item = ItemMH4(remaining[i:i+4], 0, 0)
+
+        for i in range(len(remaining) - 4):
+            new_item = ItemMH4(remaining[i:i + 4], 0, 0)
             pending[new_item.key] = new_item
         return pending
 

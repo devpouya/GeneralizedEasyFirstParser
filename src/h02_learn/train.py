@@ -90,7 +90,7 @@ def simple_attachment_scores(predicted_heads, heads, lengths):
     return correct / total
 
 
-def _evaluate(evalloader, model):
+def _evaluate(evalloader, model, is_easy_first):
     # pylint: disable=too-many-locals
     dev_loss, dev_las, dev_uas, n_instances = 0, 0, 0, 0
     steps = 0
@@ -101,7 +101,7 @@ def _evaluate(evalloader, model):
         heads, rels = heads.to(device=constants.device), rels.to(device=constants.device)
         transitions = transitions.to(device=constants.device)
         loss, predicted_heads, predicted_rels = model((text, maps), transitions, heads=heads,
-                                                      rels=rels)
+                                                      rels=rels, is_easy_first=is_easy_first)
 
         las, uas = calculate_attachment_score(predicted_heads, heads, predicted_rels, rels)
         batch_size = text.shape[0]
@@ -113,15 +113,15 @@ def _evaluate(evalloader, model):
     return dev_loss / n_instances, dev_las / n_instances, dev_uas / n_instances
 
 
-def evaluate(evalloader, model):
+def evaluate(evalloader, model, is_easy_first = True):
     model.eval()
     with torch.no_grad():
-        result = _evaluate(evalloader, model)
+        result = _evaluate(evalloader, model, is_easy_first)
     model.train()
     return result
 
 
-def train_batch(text, heads, rels, transitions, maps, model, optimizer):
+def train_batch(text, heads, rels, transitions, maps, model, optimizer,is_easy_first):
     optimizer.zero_grad()
     maps = maps.to(device=constants.device)
     text = text.to(device=constants.device)#, pos.to(device=constants.device)
@@ -130,7 +130,7 @@ def train_batch(text, heads, rels, transitions, maps, model, optimizer):
     transitions = transitions.to(device=constants.device)
     #relations_in_order = relations_in_order.to(device=constants.device)
 
-    loss, pred_h, pred_rel = model(text,maps, transitions, heads=heads, rels=rels)
+    loss, pred_h, pred_rel = model(text,maps, transitions, heads=heads, rels=rels, is_easy_first=is_easy_first)
 
     loss.backward()
     optimizer.step()
@@ -139,7 +139,7 @@ def train_batch(text, heads, rels, transitions, maps, model, optimizer):
 
 
 def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_alg, lr_decay, weight_decay,
-          save_path, save_batch=False, file=None):
+          save_path, save_batch=False, file=None, is_easy_first=True):
     # pylint: disable=too-many-locals,too-many-arguments
     torch.autograd.set_detect_anomaly(True)
 
@@ -150,7 +150,7 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
         for (text, maps), (heads, rels), transitions in trainloader:
             steps += 1
             # maps are used to average the split embeddings from BERT
-            loss = train_batch(text, heads, rels, transitions, maps, model, optimizer)
+            loss = train_batch(text, heads, rels, transitions, maps, model, optimizer, is_easy_first)
             train_info.new_batch(loss)
             if train_info.eval:
                 dev_results = evaluate(devloader, model)
@@ -181,9 +181,11 @@ def main():
     wandb.login(key=args.key)
 
     if args.easy_first == "True":
+        print("RUNNING AN EASY-FIRST MH4 PARSER")
         s = "EasyFirst"
         ef = True
     else:
+        print("RUNNING A SHIFT-REDUCE MH4 PARSER")
         s = "ShiftReduce"
         ef = False
     trainloader, devloader, testloader, vocabs = \
@@ -202,11 +204,11 @@ def main():
     wandb.watch(model)
     # if args.model != 'agenda-std':
     train(trainloader, devloader, model, args.eval_batches, args.wait_iterations,
-          args.optim, args.lr_decay, args.weight_decay, args.save_path, args.save_periodically, file=file1)
+          args.optim, args.lr_decay, args.weight_decay, args.save_path, args.save_periodically, file=file1, is_easy_first=ef)
     model.save(args.save_path)
-    train_loss, train_las, train_uas = evaluate(trainloader, model)
-    dev_loss, dev_las, dev_uas = evaluate(devloader, model)
-    test_loss, test_las, test_uas = evaluate(testloader, model)
+    train_loss, train_las, train_uas = evaluate(trainloader, model, is_easy_first = ef)
+    dev_loss, dev_las, dev_uas = evaluate(devloader, model, is_easy_first = ef)
+    test_loss, test_las, test_uas = evaluate(testloader, model, is_easy_first = ef)
 
     file1.write('Final Training loss: %.4f Dev loss: %.4f Test loss: %.4f' %
                 (train_loss, dev_loss, test_loss))

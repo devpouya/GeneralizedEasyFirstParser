@@ -1,10 +1,10 @@
 from os import path
 from torch.utils.data import DataLoader
 
-from h01_data import load_vocabs, load_embeddings, get_ud_fname, get_oracle_actions#,get_oracle_actions_small,get_ud_fname_small
+from h01_data import load_vocabs, get_ud_fname, get_oracle_actions
 from utils import constants
 from .syntax import SyntaxDataset
-from transformers import BertTokenizer, BertTokenizerFast
+from transformers import BertTokenizer
 from transformers import AutoTokenizer
 
 
