@@ -153,7 +153,7 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
             loss = train_batch(text, heads, rels, transitions, maps, model, optimizer, is_easy_first)
             train_info.new_batch(loss)
             if train_info.eval:
-                dev_results = evaluate(devloader, model)
+                dev_results = evaluate(devloader, model, is_easy_first)
                 if train_info.is_best(dev_results):
                     model.set_best()
                     #if save_batch:

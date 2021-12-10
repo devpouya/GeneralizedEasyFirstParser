@@ -31,7 +31,9 @@ class SyntaxDataset(Dataset):
                 self.mappings += [mapping]
                 self.heads += [self.list2tensor([word['head'] for word in sentence])]
                 self.rels += [self.list2tensor([word['rel_id'] for word in sentence])]
-                self.actions += [self.hypergraph2tensor(tranisiton['transition'])]
+                #self.actions += [self.hypergraph2tensor(tranisiton['transition'])]
+                self.actions += [self.actionsequence2tensor(tranisiton['transition'])]
+
                 self.words += [self.list2tensor([word['word_id'] for word in sentence])]
 
 
@@ -59,6 +61,7 @@ class SyntaxDataset(Dataset):
             token_mapping2.append(tokenout)
 
         return encoded['input_ids'].squeeze(0), torch.LongTensor(token_mapping).to(device=constants.device)
+
     def hypergraph2tensor(self, hypergraph):
         all_graphs = []
         for left in hypergraph:
@@ -72,6 +75,11 @@ class SyntaxDataset(Dataset):
     @staticmethod
     def list2tensor(data):
         return torch.LongTensor(data).to(device=constants.device)
+
+    def actionsequence2tensor(self, actions):
+        acts = []
+        return self.hypergraph2tensor(actions)
+
 
     @staticmethod
     def get_n_instances(fname):

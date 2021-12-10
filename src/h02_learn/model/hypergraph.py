@@ -78,11 +78,11 @@ class MH4(Hypergraph):
         super().__init__(n)
         self.made_arcs = []
         self.is_easy_first = is_easy_first
-        self.derived = set()
+        self.derived = {0, 1}
 
     def derive(self, item):
         self.derived.add(i for i in item.key if i != -1)
-
+        return self
     def axiom(self, i):
         return ItemMH4([i, i + 1], i, i)
 
