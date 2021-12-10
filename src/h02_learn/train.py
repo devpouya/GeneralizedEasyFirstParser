@@ -100,8 +100,8 @@ def _evaluate(evalloader, model, is_easy_first):
         text = text.to(device=constants.device)
         heads, rels = heads.to(device=constants.device), rels.to(device=constants.device)
         transitions = transitions.to(device=constants.device)
-        loss, predicted_heads, predicted_rels = model((text, maps), transitions, heads=heads,
-                                                      rels=rels, is_easy_first=is_easy_first)
+
+        loss, predicted_heads, predicted_rels = model(text, maps, transitions, heads=heads, rels=rels, is_easy_first=is_easy_first)
 
         las, uas = calculate_attachment_score(predicted_heads, heads, predicted_rels, rels)
         batch_size = text.shape[0]
