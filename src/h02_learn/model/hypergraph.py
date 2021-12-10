@@ -402,7 +402,7 @@ class MH4(Hypergraph):
                     if i != j:
                         if not self.has_head[item.heads[j]]:
                             if item.heads[j] < self.n and item.heads[i] < self.n:
-                                if not self.has_head[item.heads[j]]:
+                                if not self.has_head[item.heads[i]]:
                                     new_heads = item.heads.copy()
                                     new_heads.pop(j)
                                     new_item = ItemMH4(new_heads, item, item)
