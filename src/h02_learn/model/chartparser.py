@@ -228,7 +228,7 @@ class ChartParser(BertParser):
             loss /= len(ordered_arcs)
             pred_heads = self.heads_from_arcs(arcs, n)
             heads_batch[i, :n] = pred_heads
-            h_t_noeos[i, :n, :] = x_mapped[i, :n, :]
+            h_t_noeos[i, :n, :] = words[:n, :]
             batch_loss += loss
         batch_loss /= x_emb.shape[0]
         heads = heads_batch
