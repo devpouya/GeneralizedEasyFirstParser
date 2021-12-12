@@ -34,7 +34,7 @@ def get_args():
     parser.add_argument('--model', choices=['easy-first', 'easy-first-hybrid', 'biaffine', 'mst', 'arc-standard',
                                             'arc-eager', 'hybrid', 'mh4', 'easy-first-mh4', 'chart', 'agenda-std',
                                             'agenda-hybrid', 'agenda-eager', 'agenda-mh4'],
-                        default='agenda-std')
+                        default='agenda-mh4')
     parser.add_argument('--mode', choices=['shift-reduce', 'easy-first'], default='easy-first')
     parser.add_argument('--bert-model', type=str, default='bert-base-cased')
     # Optimization
@@ -50,9 +50,9 @@ def get_args():
 
     args = parser.parse_args()
     args.wait_iterations = 3#args.wait_epochs * args.eval_batches
-    args.save_path = '%s/%s/%s/%s/' % (args.checkpoints_path, args.language, args.model, args.name)
+
+    args.save_path = '%s/%s/%s/%s/' % (args.checkpoints_path, args.language, args.mode , args.name)
     utils.config(args.seed)
-    print("RUNNING {}".format(args.name))
     return args
 
 
@@ -70,41 +70,19 @@ def get_optimizer(paramters, optim_alg, lr_decay, weight_decay):
 
 
 def get_model(vocabs, args, max_sent_len):
-    if args.model == 'arc-standard':  # or args.model=='easy-first':
-        tr = constants.arc_standard
-        hg = None
-    elif args.model == 'arc-eager':
-        tr = constants.arc_eager
-        hg = None
-    elif args.model == 'hybrid':
-        tr = constants.hybrid
-        hg = None
-    elif args.model == 'mh4':
-        tr = constants.mh4
-        hg = None
-    elif args.model == 'agenda-std':
-        hg = ArcStandard
-        tr = None
-    elif args.model == 'agenda-hybrid':
-        hg = Hybrid
-        tr = None
-    elif args.model == 'agenda-mh4':
-        hg = MH4
-        tr = None
 
     if args.mode == 'easy-first':
         return ChartParser(language=args.language, vocabs=vocabs, hidden_size=args.hidden_size,
                            embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size,
                            batch_size=args.batch_size,
-                           hypergraph=hg, dropout=args.dropout,mode=args.model).to(
+                           hypergraph=MH4, dropout=args.dropout,mode=args.model, is_easy_first=True).to(
             device=constants.device)
     else:
-        return NeuralTransitionParser(language=args.language,
-            vocabs=vocabs, embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size,
-            batch_size=args.batch_size,
-            dropout=args.dropout,
-            transition_system=tr) \
-            .to(device=constants.device)
+        return ChartParser(language=args.language, vocabs=vocabs, hidden_size=args.hidden_size,
+                           embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size,
+                           batch_size=args.batch_size,
+                           hypergraph=MH4, dropout=args.dropout, mode=args.model, is_easy_first=False).to(
+            device=constants.device)
 
 
 def calculate_attachment_score(heads_tgt, heads, predicted_rels, rels):
@@ -244,9 +222,13 @@ def main():
         fname = "arc-standard"
     else:
         fname = args.model
+    if args.mode == "easy-first":
+        ef = True
+    else:
+        ef = False
     trainloader, devloader, testloader, vocabs, max_sent_len = \
         get_data_loaders(args.data_path, args.language, args.batch_size, args.batch_size_eval, fname,
-                         transition_system=transition_system, bert_model=args.bert_model)
+                         transition_system=transition_system, bert_model=args.bert_model, is_easy_first=ef)
     print('Train size: %d Dev size: %d Test size: %d' %
           (len(trainloader.dataset), len(devloader.dataset), len(testloader.dataset)))
     save_name = "final_output_%s.txt".format(args.model)

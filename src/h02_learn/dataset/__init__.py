@@ -73,7 +73,7 @@ def get_data_loader(fname, transitions_file, transition_system, tokenizer, batch
 
 
 def get_data_loaders(data_path, language, batch_size, batch_size_eval, transitions=None, transition_system=None,
-                     bert_model=None):
+                     bert_model=None, is_easy_first = True):
     src_path = path.join(data_path, constants.UD_PATH_PROCESSED, language)
     (fname_train, fname_dev, fname_test) = get_ud_fname(src_path)
     transitions_train, transitions_dev, transitions_test = None, None, None
@@ -83,7 +83,8 @@ def get_data_loaders(data_path, language, batch_size, batch_size_eval, transitio
             is_agenda=True
         else:
             is_agenda=False
-        (transitions_train, transitions_dev, transitions_test) = get_oracle_actions(src_path, transitions,is_agenda)
+
+        (transitions_train, transitions_dev, transitions_test) = get_oracle_actions(src_path, transitions,is_easy_first)
     vocabs = load_vocabs(src_path)
 
 

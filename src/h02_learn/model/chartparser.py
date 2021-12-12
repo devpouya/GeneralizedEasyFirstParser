@@ -34,7 +34,7 @@ def print_yellow(s):
 
 class ChartParser(BertParser):
     def __init__(self,vocabs, embedding_size, rel_embedding_size, batch_size,hidden_size=100, hypergraph=ArcStandard,language="en",
-                 dropout=0.33, eos_token_id=28996,mode="agenda-std",transition_system=None):
+                 dropout=0.33, eos_token_id=28996,mode="agenda-std",transition_system=None, is_easy_first=True):
         super().__init__(language, vocabs,
                          embedding_size=embedding_size, rel_embedding_size=rel_embedding_size,
                          batch_size=batch_size, dropout=dropout)
@@ -44,7 +44,7 @@ class ChartParser(BertParser):
         self.dropout = nn.Dropout(dropout)
         self.mode = mode
         self.parse_step_chart = self.parse_step_mh4
-
+        self.is_easy_first = is_easy_first
         # self.linear_label = nn.Linear(hidden_size * 2, self.rel_embedding_size)
 
         # self.biaffine = Biaffine(200, 200)
@@ -267,7 +267,7 @@ class ChartParser(BertParser):
 
             words = s  # .clone()
 
-            hypergraph = self.hypergraph(n)
+            hypergraph = self.hypergraph(n, self.is_easy_first)
 
             pending = self.init_pending(n, hypergraph)
             for iter, gold_arc in enumerate(ordered_arcs):
@@ -294,7 +294,7 @@ class ChartParser(BertParser):
         heads = heads_batch
         l_logits = self.get_label_logits(h_t_noeos, heads)
         rels_batch = torch.argmax(l_logits, dim=-1)
-        batch_loss += self.loss(batch_loss, l_logits, rels)
+        batch_loss = self.loss(batch_loss, l_logits, rels)
         return batch_loss, heads_batch, rels_batch
 
 
