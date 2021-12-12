@@ -86,7 +86,7 @@ class ChartParser(BertParser):
         arcs = []
         all_items = []
 
-        arcs_new, all_items_new, _ = hypergraph.iterate_spans(None, pending, merge=False, prev_arc=prev_arcs)
+        arcs_new, all_items_new = hypergraph.iterate_spans(pending)
         for (pa, pi) in zip(arcs_new, all_items_new):
             if pa not in prev_arcs:
                 arcs.append(pa)
@@ -153,10 +153,13 @@ class ChartParser(BertParser):
         pending = hypergraph.calculate_pending()
 
         possible_arcs, items = self.possible_arcs_mh4(pending, hypergraph, arcs)
-        #print_green("////////////////////")
-        #print_green(possible_arcs)
-        #print_red(gold_arc)
-        #print_green("////////////////////")
+        #if self.training:
+        #    print_green("////////////////////")
+        #    print_green(possible_arcs)
+        #    print_red(gold_arc)
+        #    if (gold_arc[0].item(),gold_arc[1].item()) not in possible_arcs:
+        #        raise Exception
+        #    print_green("////////////////////")
         scores, gold_index, gold_key = self.score_arcs_mh4(possible_arcs,
                                                            gold_arc, items, words)
         gind = gold_index.item()
@@ -207,9 +210,7 @@ class ChartParser(BertParser):
             loss = 0
 
             words = s  # .clone()
-
             hypergraph = self.hypergraph(n, is_easy_first=is_easy_first)
-            print_red(ordered_arcs)
             #pending = self.init_pending(n, hypergraph)
             for iter, gold_arc in enumerate(ordered_arcs):
 

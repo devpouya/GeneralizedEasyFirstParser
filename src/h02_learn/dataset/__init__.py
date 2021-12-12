@@ -34,7 +34,7 @@ def generate_batch(batch):
     max_length_text = max([len(entry[0][0]) for entry in batch])
     max_length = max([len(entry[0][1]) for entry in batch])
     map_length = max([len(entry[0][1]) for entry in batch])
-    max_length_actions = max([len(entry[2][0]) for entry in batch])
+    max_length_actions = max([len(entry[2]) for entry in batch])
     text = tensor.new_zeros(batch_size, max_length_text)
     text_mappings = tensor.new_ones(batch_size, map_length) * -1
     heads = tensor.new_ones(batch_size, max_length) * -1
@@ -51,8 +51,8 @@ def generate_batch(batch):
         rels[i, :head_len] = sentence[1][1]
 
     for i, sentence in enumerate(batch):
-        num_actions = len(sentence[2][0])
-        transitions[i, :num_actions] = sentence[2][0]
+        num_actions = len(sentence[2])
+        transitions[i, :num_actions] = sentence[2]
 
 
     return (text, text_mappings), (heads, rels), transitions
