@@ -51,10 +51,10 @@ class ChartParser(BertParser):
         # self.biaffine_h = Biaffine(200, 200)
         bert_hidden_size = 768
 
-        linear_items1 = nn.Linear(bert_hidden_size* 4, bert_hidden_size* 3).to(device=constants.device)
-        linear_items2 = nn.Linear(bert_hidden_size*3, bert_hidden_size*2).to(device=constants.device)
-        linear_items3 = nn.Linear(bert_hidden_size*2 , bert_hidden_size).to(device=constants.device)
-        linear_items4 = nn.Linear(bert_hidden_size , 1).to(device=constants.device)
+        linear_items1 = nn.Linear(bert_hidden_size* 3, bert_hidden_size* 2).to(device=constants.device)
+        linear_items2 = nn.Linear(bert_hidden_size*2, bert_hidden_size).to(device=constants.device)
+        linear_items3 = nn.Linear(bert_hidden_size , 500).to(device=constants.device)
+        linear_items4 = nn.Linear(500, 1).to(device=constants.device)
 
 
         layers = [linear_items1, nn.ReLU(), nn.Dropout(dropout), linear_items2, nn.ReLU(), nn.Dropout(dropout),
@@ -195,8 +195,11 @@ class ChartParser(BertParser):
                 span_1 = words[i,:] #torch.cat([words_f[i,:], words_b[i,:]], dim=-1)#.to(device=constants.device).unsqueeze(0)
                 span_2 = torch.zeros_like(span_1).to(device=constants.device)
 
-            span = torch.cat([span_1,span_2],dim=-1).to(device=constants.device).unsqueeze(0)
-
+            #span = torch.cat([span_1,span_2],dim=-1).to(device=constants.device).unsqueeze(0)
+            #print(span.shape)
+            span = torch.cat([span_1.unsqueeze(0),span_2.unsqueeze(0)],dim=0).to(device = constants.device)
+            span = torch.mean(span,0).unsqueeze(0)
+            #print("hhh {}".format(span.shape))
             index2key[iter] = item.key
 
             fwd_rep = torch.cat([words[u, :], words[v, :]], dim=-1).unsqueeze(0)
@@ -205,6 +208,7 @@ class ChartParser(BertParser):
             s = self.mlp(rep)
             scores.append(s)
         scores = torch.stack(scores, dim=-1).squeeze(0)
+        #print(scores.shape)
         if not self.training or gold_index is None:
             gold_index = torch.argmax(scores, dim=-1)
             gold_key = index2key[gold_index.item()]
