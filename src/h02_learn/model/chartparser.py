@@ -56,6 +56,15 @@ class ChartParser(BertParser):
         linear_items3 = nn.Linear(bert_hidden_size , 500).to(device=constants.device)
         self.linear_items4 = nn.Linear(500, 1).to(device=constants.device)
 
+        #torch.nn.init.normal_(linear_items1.weight, std=0.02)
+        #torch.nn.init.normal_(linear_items2.weight, std=0.02)
+        #torch.nn.init.normal_(linear_items3.weight, std=0.02)
+        #torch.nn.init.normal_(self.linear_items4.weight, std=0.02)
+        torch.nn.init.xavier_normal_(self.linear_items4.weight)
+        torch.nn.init.xavier_normal_(linear_items3.weight)
+        torch.nn.init.xavier_normal_(linear_items2.weight)
+        torch.nn.init.xavier_normal_(linear_items1.weight)
+
 
         layers = [linear_items1, nn.ReLU(), nn.Dropout(dropout), linear_items2, nn.ReLU(), nn.Dropout(dropout),
                   linear_items3, nn.ReLU(), nn.Dropout(dropout)]#, linear_items4]
@@ -66,7 +75,12 @@ class ChartParser(BertParser):
 
         self.linear_labels_dep = nn.Linear(bert_hidden_size, 500).to(device=constants.device)
         self.linear_labels_head = nn.Linear(bert_hidden_size, 500).to(device=constants.device)
+        torch.nn.init.xavier_normal_(self.linear_labels_dep.weight)
+        torch.nn.init.xavier_normal_(self.linear_labels_head.weight)
+
         self.bilinear_label = Bilinear(500, 500, self.num_rels)
+        #torch.nn.init.normal_(self.linear_labels_dep.weight, std=0.02)
+        #torch.nn.init.normal_(self.linear_labels_head.weight, std=0.02)
         #self.linear_reduce = nn.Linear(768,400).to(device=constants.device)
         #self.lstm = nn.LSTM(868, self.hidden_size, 2, batch_first=True, bidirectional=True).to(device=constants.device)
         #self.lstm_tree = nn.LSTM(self.hidden_size, self.hidden_size, 1, batch_first=False, bidirectional=False).to(
@@ -240,7 +254,10 @@ class ChartParser(BertParser):
 
     def forward(self, x, transitions, relations, map, heads, rels):
         x_ = x[0][:, 1:]
-        out = self.bert(x_.to(device=constants.device))[2]
+        out = self.bert(x_.to(device=constants.device),output_hidden_states=True).hidden_states#[2]
+        #print("xshape {}".format(len(out)))
+        #print("xshape {}".format(out[0].shape))
+        #x_emb = torch.mean(out[:,-4:,:],1)
         x_emb = torch.stack(out[-8:]).mean(0)
         heads_batch = torch.ones((x_emb.shape[0], heads.shape[1])).to(device=constants.device)  # * -1
         batch_loss = 0

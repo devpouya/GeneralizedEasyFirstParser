@@ -6,6 +6,7 @@ import torch.nn as nn
 from utils import constants
 from utils import utils
 from transformers import BertModel, AutoModel
+from transformers import RobertaTokenizer, RobertaModel
 
 
 
@@ -82,7 +83,7 @@ class BertParser(BaseParser):
             self.bert = AutoModel.from_pretrained("ixa-ehu/berteus-base-cased", output_hidden_states=True).to(device=constants.device).train()
         elif language == "tr":
             self.bert = AutoModel.from_pretrained("dbmdz/bert-base-turkish-cased",output_hidden_states=True).to(device=constants.device).train()
-
+        #self.bert = RobertaModel.from_pretrained("roberta-base").to(device=constants.device)#.train()
         self.bert.eval()
         for param in self.bert.parameters():
             param.requires_grad = True

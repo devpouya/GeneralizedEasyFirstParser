@@ -4,7 +4,7 @@ from torch.utils.data import DataLoader
 from h01_data import load_vocabs, load_embeddings, get_ud_fname, get_oracle_actions#,get_oracle_actions_small,get_ud_fname_small
 from utils import constants
 from .syntax import SyntaxDataset
-from transformers import BertTokenizer, BertTokenizerFast
+from transformers import BertTokenizer, BertTokenizerFast, RobertaTokenizer
 from transformers import AutoTokenizer
 
 
@@ -103,6 +103,7 @@ def get_data_loaders(data_path, language, batch_size, batch_size_eval, transitio
         tokenizer = AutoTokenizer.from_pretrained("ixa-ehu/berteus-base-cased")
     elif language == "tr":
         tokenizer = AutoTokenizer.from_pretrained("dbmdz/bert-base-turkish-cased")
+    #tokenizer = RobertaTokenizer.from_pretrained("roberta-base")
 
     trainloader, max_sent_len_train = get_data_loader(fname_train, transitions_train, transition_system, tokenizer,
                                                       batch_size,
