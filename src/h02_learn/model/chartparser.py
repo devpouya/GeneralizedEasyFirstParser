@@ -39,7 +39,6 @@ class ChartParser(BertParser):
                          embedding_size=embedding_size, rel_embedding_size=rel_embedding_size,
                          batch_size=batch_size, dropout=dropout)
         self.eos_token_id = eos_token_id
-        self.hidden_size = 400#hidden_size
         self.hypergraph = hypergraph
         self.dropout = nn.Dropout(dropout)
         self.mode = mode
@@ -50,15 +49,16 @@ class ChartParser(BertParser):
         # self.biaffine = Biaffine(200, 200)
         # self.biaffine_h = Biaffine(200, 200)
         bert_hidden_size = 768
+        self.hidden_size = bert_hidden_size#hidden_size
 
         linear_items1 = nn.Linear(bert_hidden_size* 3, bert_hidden_size* 2).to(device=constants.device)
         linear_items2 = nn.Linear(bert_hidden_size*2, bert_hidden_size).to(device=constants.device)
         linear_items3 = nn.Linear(bert_hidden_size , 500).to(device=constants.device)
-        linear_items4 = nn.Linear(500, 1).to(device=constants.device)
+        self.linear_items4 = nn.Linear(500, 1).to(device=constants.device)
 
 
         layers = [linear_items1, nn.ReLU(), nn.Dropout(dropout), linear_items2, nn.ReLU(), nn.Dropout(dropout),
-                  linear_items3, nn.ReLU(), nn.Dropout(dropout), linear_items4]
+                  linear_items3, nn.ReLU(), nn.Dropout(dropout)]#, linear_items4]
 
 
 
@@ -161,7 +161,7 @@ class ChartParser(BertParser):
 
         ga = (gold_arc[0].item(), gold_arc[1].item())
         index2key = {}
-
+        reps = torch.zeros((len(possible_arcs),self.hidden_size*3)).to(device=constants.device)
         for iter, ((u, v), item) in enumerate(zip(possible_arcs, possible_items)):
             if (u, v) == ga:
                 gold_index = torch.tensor([iter], dtype=torch.long).to(device=constants.device)
@@ -205,15 +205,17 @@ class ChartParser(BertParser):
             fwd_rep = torch.cat([words[u, :], words[v, :]], dim=-1).unsqueeze(0)
             #bckw_rep = torch.cat([words_b[u, :], words_b[v, :]], dim=-1).unsqueeze(0)
             rep = torch.cat([span, fwd_rep], dim=-1)
-            s = self.mlp(rep)
-            scores.append(s)
-        scores = torch.stack(scores, dim=-1).squeeze(0)
-        #print(scores.shape)
+            reps[iter,:] = rep
+            #s = self.mlp(rep)
+            #scores.append(s)
+        reps = self.mlp(reps)
+        scores = self.linear_items4(reps).permute(1,0)
+        #scores = torch.stack(scores, dim=-1).squeeze(0)
         if not self.training or gold_index is None:
             gold_index = torch.argmax(scores, dim=-1)
             gold_key = index2key[gold_index.item()]
 
-        return scores, gold_index, gold_key
+        return scores, gold_index, gold_key, reps[gold_index,:]
 
 
 
@@ -221,7 +223,7 @@ class ChartParser(BertParser):
         pending = hypergraph.calculate_pending()
 
         possible_arcs, items = self.possible_arcs_mh4(pending, hypergraph, arcs)
-        scores, gold_index, gold_key = self.score_arcs_mh4(possible_arcs,
+        scores, gold_index, gold_key, reps = self.score_arcs_mh4(possible_arcs,
                                                            gold_arc, items, words)
         gind = gold_index.item()
 
@@ -234,7 +236,7 @@ class ChartParser(BertParser):
         m = min(m,hypergraph.n-1)
         hypergraph = hypergraph.set_head(m)
         arcs.append(made_arc)
-        return scores, gold_index, h, m, arcs, hypergraph, pending
+        return scores, gold_index, h, m, arcs, hypergraph, pending, reps
 
     def forward(self, x, transitions, relations, map, heads, rels):
         x_ = x[0][:, 1:]
@@ -276,7 +278,7 @@ class ChartParser(BertParser):
             pending = self.init_pending(n, hypergraph)
             for iter, gold_arc in enumerate(ordered_arcs):
 
-                scores, gold_index, h, m, arcs, hypergraph,pending = self.parse_step_chart(pending,
+                scores, gold_index, h, m, arcs, hypergraph,pending, reps = self.parse_step_chart(pending,
                                                                                             hypergraph,
                                                                                             arcs,
                                                                                             gold_arc,
@@ -285,7 +287,7 @@ class ChartParser(BertParser):
                 if self.training:
                     loss += nn.CrossEntropyLoss(reduction='sum')(scores, gold_index)
 
-                words = self.tree_layer(words, h, m)
+                words = self.tree_layer(words, h, m, reps)
 
 
             loss /= len(ordered_arcs)
