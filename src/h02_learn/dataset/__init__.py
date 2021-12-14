@@ -91,19 +91,19 @@ def get_data_loaders(data_path, language, batch_size, batch_size_eval, transitio
 
 
     #embeddings = load_embeddings(src_path)
-    #if language == "en":
-    #    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-    #elif language == "de":
-    #    tokenizer = BertTokenizer.from_pretrained('bert-base-german-cased')
-    #elif language == "cs":
-    #    #tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased')
-    #    tokenizer = AutoTokenizer.from_pretrained("DeepPavlov/bert-base-bg-cs-pl-ru-cased")
-    #elif language == "eu":
-    #    # Basque
-    #    tokenizer = AutoTokenizer.from_pretrained("ixa-ehu/berteus-base-cased")
-    #elif language == "tr":
-    #    tokenizer = AutoTokenizer.from_pretrained("dbmdz/bert-base-turkish-cased")
-    tokenizer = RobertaTokenizer.from_pretrained("roberta-base")
+    if language == "en":
+        tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+    elif language == "de":
+        tokenizer = BertTokenizer.from_pretrained('bert-base-german-cased')
+    elif language == "cs":
+        #tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased')
+        tokenizer = AutoTokenizer.from_pretrained("DeepPavlov/bert-base-bg-cs-pl-ru-cased")
+    elif language == "eu":
+        # Basque
+        tokenizer = AutoTokenizer.from_pretrained("ixa-ehu/berteus-base-cased")
+    elif language == "tr":
+        tokenizer = AutoTokenizer.from_pretrained("dbmdz/bert-base-turkish-cased")
+    #tokenizer = RobertaTokenizer.from_pretrained("roberta-base")
 
     trainloader, max_sent_len_train = get_data_loader(fname_train, transitions_train, transition_system, tokenizer,
                                                       batch_size,
