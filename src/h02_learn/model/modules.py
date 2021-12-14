@@ -456,7 +456,7 @@ class TreeLayer(nn.Module):
         super().__init__()
         self.linear_tree = nn.Linear(hidden_size * 2+500, hidden_size).to(device=constants.device)
         #torch.nn.init.normal_(self.linear_tree.weight, std=0.02)
-        torch.nn.init.xavier_normal_(self.linear_tree.weight)
+        torch.nn.init.normal_(self.linear_tree.weight,std=0.02)
 
         self.hidden_size = hidden_size
         #self.linear_item = nn.Linear(hidden_size+500, hidden_size).to(device=constants.device)
@@ -564,9 +564,9 @@ class Bilinear(nn.Module):
         self.linear_r = nn.Linear(dim_right, dim_out)
         #torch.nn.init.normal_(self.linear_l.weight, std=0.02)
         #torch.nn.init.normal_(self.linear_r.weight, std=0.02)
-        torch.nn.init.xavier_normal_(self.linear_l.weight)
-        torch.nn.init.xavier_normal_(self.linear_r.weight)
-        torch.nn.init.xavier_normal_(self.bilinear.weight)
+        torch.nn.init.normal_(self.linear_l.weight,std=0.02)
+        torch.nn.init.normal_(self.linear_r.weight,std=0.02)
+        torch.nn.init.normal_(self.bilinear.weight,std=0.02)
 
 
     def forward(self, x_l, x_r):

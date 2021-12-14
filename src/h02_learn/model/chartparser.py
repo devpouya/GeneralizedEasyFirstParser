@@ -51,23 +51,25 @@ class ChartParser(BertParser):
         bert_hidden_size = 768
         self.hidden_size = bert_hidden_size#hidden_size
 
-        linear_items1 = nn.Linear(bert_hidden_size* 3, bert_hidden_size* 2).to(device=constants.device)
-        linear_items2 = nn.Linear(bert_hidden_size*2, bert_hidden_size).to(device=constants.device)
-        linear_items3 = nn.Linear(bert_hidden_size , 500).to(device=constants.device)
-        self.linear_items4 = nn.Linear(500, 1).to(device=constants.device)
+        linear_items1 = nn.Linear(bert_hidden_size* 4, bert_hidden_size* 3).to(device=constants.device)
+        linear_items2 = nn.Linear(bert_hidden_size*3, bert_hidden_size*2).to(device=constants.device)
+        linear_items3 = nn.Linear(bert_hidden_size*2 , bert_hidden_size).to(device=constants.device)
+        linear_items4 = nn.Linear(bert_hidden_size , 500).to(device=constants.device)
+        self.linear_items5= nn.Linear(500, 1).to(device=constants.device)
 
         #torch.nn.init.normal_(linear_items1.weight, std=0.02)
         #torch.nn.init.normal_(linear_items2.weight, std=0.02)
         #torch.nn.init.normal_(linear_items3.weight, std=0.02)
         #torch.nn.init.normal_(self.linear_items4.weight, std=0.02)
-        torch.nn.init.xavier_normal_(self.linear_items4.weight)
-        torch.nn.init.xavier_normal_(linear_items3.weight)
-        torch.nn.init.xavier_normal_(linear_items2.weight)
-        torch.nn.init.xavier_normal_(linear_items1.weight)
+        torch.nn.init.normal_(self.linear_items5.weight,std=0.02)
+        torch.nn.init.normal_(linear_items4.weight,std=0.02)
+        torch.nn.init.normal_(linear_items3.weight,std=0.02)
+        torch.nn.init.normal_(linear_items2.weight,std=0.02)
+        torch.nn.init.normal_(linear_items1.weight,std=0.02)
 
 
         layers = [linear_items1, nn.ReLU(), nn.Dropout(dropout), linear_items2, nn.ReLU(), nn.Dropout(dropout),
-                  linear_items3, nn.ReLU(), nn.Dropout(dropout)]#, linear_items4]
+                  linear_items3, nn.ReLU(), nn.Dropout(dropout), linear_items4]
 
 
 
@@ -75,8 +77,8 @@ class ChartParser(BertParser):
 
         self.linear_labels_dep = nn.Linear(bert_hidden_size, 500).to(device=constants.device)
         self.linear_labels_head = nn.Linear(bert_hidden_size, 500).to(device=constants.device)
-        torch.nn.init.xavier_normal_(self.linear_labels_dep.weight)
-        torch.nn.init.xavier_normal_(self.linear_labels_head.weight)
+        torch.nn.init.normal_(self.linear_labels_dep.weight,std=0.02)
+        torch.nn.init.normal_(self.linear_labels_head.weight,std=0.02)
 
         self.bilinear_label = Bilinear(500, 500, self.num_rels)
         #torch.nn.init.normal_(self.linear_labels_dep.weight, std=0.02)
@@ -175,7 +177,7 @@ class ChartParser(BertParser):
 
         ga = (gold_arc[0].item(), gold_arc[1].item())
         index2key = {}
-        reps = torch.zeros((len(possible_arcs),self.hidden_size*3)).to(device=constants.device)
+        reps = torch.zeros((len(possible_arcs),self.hidden_size*4)).to(device=constants.device)
         for iter, ((u, v), item) in enumerate(zip(possible_arcs, possible_items)):
             if (u, v) == ga:
                 gold_index = torch.tensor([iter], dtype=torch.long).to(device=constants.device)
@@ -209,10 +211,10 @@ class ChartParser(BertParser):
                 span_1 = words[i,:] #torch.cat([words_f[i,:], words_b[i,:]], dim=-1)#.to(device=constants.device).unsqueeze(0)
                 span_2 = torch.zeros_like(span_1).to(device=constants.device)
 
-            #span = torch.cat([span_1,span_2],dim=-1).to(device=constants.device).unsqueeze(0)
+            span = torch.cat([span_1,span_2],dim=-1).to(device=constants.device).unsqueeze(0)
             #print(span.shape)
-            span = torch.cat([span_1.unsqueeze(0),span_2.unsqueeze(0)],dim=0).to(device = constants.device)
-            span = torch.mean(span,0).unsqueeze(0)
+            #span = torch.cat([span_1.unsqueeze(0),span_2.unsqueeze(0)],dim=0).to(device = constants.device)
+            #span = torch.mean(span,0).unsqueeze(0)
             #print("hhh {}".format(span.shape))
             index2key[iter] = item.key
 
@@ -223,7 +225,7 @@ class ChartParser(BertParser):
             #s = self.mlp(rep)
             #scores.append(s)
         reps = self.mlp(reps)
-        scores = self.linear_items4(reps).permute(1,0)
+        scores = self.linear_items5(reps).permute(1,0)
         #scores = torch.stack(scores, dim=-1).squeeze(0)
         if not self.training or gold_index is None:
             gold_index = torch.argmax(scores, dim=-1)
@@ -303,7 +305,6 @@ class ChartParser(BertParser):
 
                 if self.training:
                     loss += nn.CrossEntropyLoss(reduction='sum')(scores, gold_index)
-
                 words = self.tree_layer(words, h, m, reps)
 
 
