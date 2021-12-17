@@ -125,7 +125,10 @@ class ItemMH4(object):
 
         self.l = l
         self.r =r
-        #for i, item in enumerate(sorted(heads)):
+        self.rep = None
+        self.pre_computed = False
+        #for i, item in en
+        #umerate(sorted(heads)):
         #    self.heads[i] = heads
         if len(heads) == 4:
             self.key = (self.heads[0],self.heads[1],self.heads[2],self.heads[3])
@@ -149,6 +152,10 @@ class ItemMH4(object):
 
     def __hash__(self):
         return hash(self.key)
+
+    def set_rep(self, rep):
+        self.rep = rep
+        self.pre_computed = True
 
 class ItemMH4old(object):
     def __init__(self, h_1, h_2, h_3, h_b, item_prev,item_prev_2=None):

@@ -478,6 +478,7 @@ class MH4(Hypergraph):
     def __init__(self, n):
         super().__init__(n)
         self.made_arcs = []
+        self.made_items = {}
 
     def axiom(self, i):
         return ItemMH4([i, i + 1], i, i)
@@ -727,6 +728,9 @@ class MH4(Hypergraph):
                     all_items.append(new_item)
         return all_items
 
+    def add_item(self, item):
+        self.made_items[item.key] = item
+
     def link(self, item, prev_arcs):
         all_items = []
         arcs = []
@@ -740,26 +744,35 @@ class MH4(Hypergraph):
                                     new_heads = item.heads.copy()
                                     new_heads.pop(j)
                                     new_item = ItemMH4(new_heads, item, item)
+                                    if new_item.key in self.made_items:
+                                        new_item = self.made_items[new_item.key]
                                     new_arc = (item.heads[i], item.heads[j])
                                     if new_arc not in prev_arcs:
                                         arcs.append(new_arc)
                                         all_items.append(new_item)
+
                                 if not self.has_head[item.heads[i]]:
                                     new_heads = item.heads.copy()
                                     new_heads.pop(i)
                                     new_item = ItemMH4(new_heads, item, item)
                                     new_arc = (item.heads[j], item.heads[i])
+                                    if new_item.key in self.made_items:
+                                        new_item = self.made_items[new_item.key]
                                     if new_arc not in prev_arcs:
                                         arcs.append(new_arc)
                                         all_items.append(new_item)
         else:
             new_arc_1 = (item.heads[1], item.heads[0])
             new_item_1 = ItemMH4([item.heads[1]], item, item)
+            if new_item_1.key in self.made_items:
+                new_item_1 = self.made_items[new_item_1.key]
             if new_arc_1 not in prev_arcs:
                 arcs.append(new_arc_1)
                 all_items.append(new_item_1)
             new_arc_2 = (item.heads[0], item.heads[1])
             new_item_2 = ItemMH4([item.heads[0]], item, item)
+            if new_item_2.key in self.made_items:
+                new_item_2 = self.made_items[new_item_2.key]
             if new_arc_2 not in prev_arcs:
                 arcs.append(new_arc_2)
                 all_items.append(new_item_2)

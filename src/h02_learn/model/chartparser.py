@@ -12,6 +12,7 @@ from .modules import Biaffine, Bilinear, LabelSmoothingLoss, TreeLayer
 from .hypergraph import ArcStandard, ArcEager, Hybrid, MH4
 from collections import defaultdict
 
+
 # loool
 from termcolor import colored
 
@@ -153,7 +154,7 @@ class ChartParser(BertParser):
 
         return arcs, all_items
 
-    def score_arcs_mh4(self, possible_arcs, gold_arc, possible_items, words):
+    def score_arcs_mh4(self, possible_arcs, gold_arc, possible_items, words, hypergraph):
         gold_index = None
         gold_key = None
         n = len(words)
@@ -161,58 +162,65 @@ class ChartParser(BertParser):
 
         ga = (gold_arc[0].item(), gold_arc[1].item())
         index2key = {}
-        rep_tensor = torch.zeros((len(possible_arcs),self.hidden_size*4)).to(device=constants.device)
+        #rep_tensor = torch.zeros((len(possible_arcs),self.hidden_size*4)).to(device=constants.device)
         for iter, ((u, v), item) in enumerate(zip(possible_arcs, possible_items)):
             if (u, v) == ga:
                 gold_index = torch.tensor([iter], dtype=torch.long).to(device=constants.device)
                 gold_key = item.key
         for iter, ((u, v), item) in enumerate(zip(possible_arcs, possible_items)):
             #(h1, h2, h3, h4) = item.key
-            if len(item.heads) == 2:
-                i = item.heads[0]
-                j = item.heads[1]
-                span_1 = self.span_rep(words, i, j, n)#.unsqueeze(0)
-                span_2 = torch.zeros_like(span_1).to(device=constants.device)
-
-            elif len(item.heads) == 3:
-                i = item.heads[0]
-                mid = item.heads[1]
-                j = item.heads[2]
-                span_1 = self.span_rep(words, i, mid, n)#.unsqueeze(0)
-                span_2 = self.span_rep(words, mid, j, n)#.unsqueeze(0)
-                #span = span_1-span_2
-            elif len(item.heads)==4:
-                i1 = item.heads[0]
-                j1 = item.heads[1]
-                i2 = item.heads[2]
-                j2 = item.heads[3]
-                span_1 = self.span_rep(words, i1, j1, n)#.unsqueeze(0)
-                span_2 = self.span_rep(words, i2, j2, n)#.unsqueeze(0)
-                #span = span_1-span_2
+            if item.pre_computed:
+                s = self.mlp(item.rep)
+                scores.append(s)
             else:
-                # len == 1:
-                i = item.heads[0]
-                span_1 = words[i,:] #torch.cat([words_f[i,:], words_b[i,:]], dim=-1)#.to(device=constants.device).unsqueeze(0)
-                span_2 = torch.zeros_like(span_1).to(device=constants.device)
+                if len(item.heads) == 2:
+                    i = item.heads[0]
+                    j = item.heads[1]
+                    span_1 = self.span_rep(words, i, j, n)#.unsqueeze(0)
+                    span_2 = torch.zeros_like(span_1).to(device=constants.device)
 
-            span = torch.cat([span_1,span_2],dim=-1).to(device=constants.device).unsqueeze(0)
+                elif len(item.heads) == 3:
+                    i = item.heads[0]
+                    mid = item.heads[1]
+                    j = item.heads[2]
+                    span_1 = self.span_rep(words, i, mid, n)#.unsqueeze(0)
+                    span_2 = self.span_rep(words, mid, j, n)#.unsqueeze(0)
+                    #span = span_1-span_2
+                elif len(item.heads)==4:
+                    i1 = item.heads[0]
+                    j1 = item.heads[1]
+                    i2 = item.heads[2]
+                    j2 = item.heads[3]
+                    span_1 = self.span_rep(words, i1, j1, n)#.unsqueeze(0)
+                    span_2 = self.span_rep(words, i2, j2, n)#.unsqueeze(0)
+                    #span = span_1-span_2
+                else:
+                    # len == 1:
+                    i = item.heads[0]
+                    span_1 = words[i,:] #torch.cat([words_f[i,:], words_b[i,:]], dim=-1)#.to(device=constants.device).unsqueeze(0)
+                    span_2 = torch.zeros_like(span_1).to(device=constants.device)
 
+                span = torch.cat([span_1,span_2],dim=-1).to(device=constants.device).unsqueeze(0)
+
+                fwd_rep = torch.cat([words[u, :], words[v, :]], dim=-1).unsqueeze(0)
+                #bckw_rep = torch.cat([words_b[u, :], words_b[v, :]], dim=-1).unsqueeze(0)
+                rep = torch.cat([span, fwd_rep], dim=-1)
+                #rep_tensor[iter,:] = rep
+
+                item.set_rep(rep)
+                hypergraph.add_item(item)
+                s = self.mlp(rep)
+                scores.append(s)
             index2key[iter] = item.key
 
-            fwd_rep = torch.cat([words[u, :], words[v, :]], dim=-1).unsqueeze(0)
-            #bckw_rep = torch.cat([words_b[u, :], words_b[v, :]], dim=-1).unsqueeze(0)
-            rep = torch.cat([span, fwd_rep], dim=-1)
-            rep_tensor[iter,:] = rep
-            #s = self.mlp(rep)
-            #scores.append(s)
-        scores = self.mlp(rep_tensor).permute(1,0)
-        #print(scores.shape)
-        #scores = torch.stack(scores, dim=-1).squeeze(0)
+        #scores = self.mlp(rep_tensor).permute(1,0)
+        scores = torch.stack(scores, dim=-1).squeeze(0)
+
         if not self.training or gold_index is None:
             gold_index = torch.argmax(scores, dim=-1)
             gold_key = index2key[gold_index.item()]
 
-        return scores, gold_index, gold_key, rep_tensor[gold_index,:]
+        return scores, gold_index, gold_key
 
 
 
@@ -220,8 +228,8 @@ class ChartParser(BertParser):
         pending = hypergraph.calculate_pending()
 
         possible_arcs, items = self.possible_arcs_mh4(pending, hypergraph, arcs)
-        scores, gold_index, gold_key, winner_rep = self.score_arcs_mh4(possible_arcs,
-                                                           gold_arc, items, words)
+        scores, gold_index, gold_key = self.score_arcs_mh4(possible_arcs,
+                                                           gold_arc, items, words, hypergraph)
         gind = gold_index.item()
 
         made_arc = possible_arcs[gind]
@@ -233,11 +241,15 @@ class ChartParser(BertParser):
         m = min(m,hypergraph.n-1)
         hypergraph = hypergraph.set_head(m)
         arcs.append(made_arc)
-        return scores, gold_index, h, m, arcs, hypergraph, pending, winner_rep
+        return scores, gold_index, h, m, arcs, hypergraph, pending
 
     def forward(self, x, transitions, relations, map, heads, rels):
         x_ = x[0][:, 1:]
         out = self.bert(x_.to(device=constants.device))[2]
+        #out = self.bert(x_.to(device=constants.device)).logits
+        #print(out)
+        #print(len(out))
+        #print(out.shape)
         x_emb = torch.stack(out[-8:]).mean(0)
         heads_batch = torch.ones((x_emb.shape[0], heads.shape[1])).to(device=constants.device)  # * -1
         batch_loss = 0
@@ -275,7 +287,7 @@ class ChartParser(BertParser):
             pending = self.init_pending(n, hypergraph)
             for iter, gold_arc in enumerate(ordered_arcs):
 
-                scores, gold_index, h, m, arcs, hypergraph,pending, winner_rep = self.parse_step_chart(pending,
+                scores, gold_index, h, m, arcs, hypergraph,pending = self.parse_step_chart(pending,
                                                                                             hypergraph,
                                                                                             arcs,
                                                                                             gold_arc,
@@ -283,8 +295,8 @@ class ChartParser(BertParser):
 
                 if self.training:
                     loss += nn.CrossEntropyLoss(reduction='sum')(scores, gold_index)
-
-                words = self.tree_layer(words, h, m, winner_rep)
+                #print(loss)
+                #words = self.tree_layer(words, h, m, winner_rep)
 
 
             loss /= len(ordered_arcs)
