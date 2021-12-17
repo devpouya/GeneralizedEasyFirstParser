@@ -83,7 +83,7 @@ class BertParser(BaseParser):
         #    self.bert = AutoModel.from_pretrained("ixa-ehu/berteus-base-cased", output_hidden_states=True).to(device=constants.device).train()
         #elif language == "tr":
         #    self.bert = AutoModel.from_pretrained("dbmdz/bert-base-turkish-cased",output_hidden_states=True).to(device=constants.device).train()
-        self.bert = AutoModelForMaskedLM.from_pretrained("xlm-roberta-large", output_hidden_states = True).to(device=constants.device)
+        self.bert = AutoModelForMaskedLM.from_pretrained("xlm-roberta-base", output_hidden_states = True).to(device=constants.device)
         self.bert.eval()
         for param in self.bert.parameters():
             param.requires_grad = True

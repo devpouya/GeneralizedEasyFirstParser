@@ -102,7 +102,7 @@ def get_data_loaders(data_path, language, batch_size, batch_size_eval, transitio
     #    tokenizer = AutoTokenizer.from_pretrained("ixa-ehu/berteus-base-cased")
     #elif language == "tr":
     #    tokenizer = AutoTokenizer.from_pretrained("dbmdz/bert-base-turkish-cased")
-    tokenizer = AutoTokenizer.from_pretrained("xlm-roberta-large")
+    tokenizer = AutoTokenizer.from_pretrained("xlm-roberta-base")
     trainloader, max_sent_len_train = get_data_loader(fname_train, transitions_train, transition_system, tokenizer,
                                                       batch_size,
                                                       shuffle=True)
