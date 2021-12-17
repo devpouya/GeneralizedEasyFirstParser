@@ -454,11 +454,14 @@ class StackLSTM(nn.Module):
 class TreeLayer(nn.Module):
     def __init__(self, hidden_size):
         super().__init__()
-        self.linear_tree = nn.Linear(hidden_size * 2, hidden_size).to(device=constants.device)
+        self.linear_tree = nn.Linear(hidden_size * 6, hidden_size).to(device=constants.device)
+        self.hidden_size = hidden_size
 
-    def forward(self, words, head_index, mod_index):
-        clown_tensor = torch.zeros_like(words).to(device=constants.device)
-        clown_tensor[head_index,:] = words[mod_index,:].clone().detach()
+    def forward(self, words, head_index, mod_index, winner_rep):
+        #clown_tensor = torch.zeros_like(words).to(device=constants.device)
+        clown_tensor = torch.zeros((words.shape[0],words.shape[1]+self.hidden_size*4)).to(device=constants.device)
+        clown_tensor[head_index,:words.shape[1]] = words[mod_index,:].clone().detach()
+        clown_tensor[head_index,words.shape[1]:] = winner_rep #words[mod_index,:].clone().detach()
         #clown_tensor = words.clone().detach()
         #clown_tensor[head_index,:] = words[mod_index,:]
         rep = torch.cat([words,clown_tensor],dim=-1)
