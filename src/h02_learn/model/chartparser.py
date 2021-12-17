@@ -50,7 +50,7 @@ class ChartParser(BertParser):
 
         # self.biaffine = Biaffine(200, 200)
         # self.biaffine_h = Biaffine(200, 200)
-        bert_hidden_size = 768
+        bert_hidden_size = 1024#768
         self.hidden_size = bert_hidden_size
         #linear_items1 = nn.Linear(bert_hidden_size* 4, bert_hidden_size* 3).to(device=constants.device)
         #linear_items2 = nn.Linear(bert_hidden_size*3, bert_hidden_size*2).to(device=constants.device)
@@ -249,12 +249,12 @@ class ChartParser(BertParser):
 
     def forward(self, x, transitions, relations, map, heads, rels):
         x_ = x[0][:, 1:]
-        out = self.bert(x_.to(device=constants.device))[2]
-        #out = self.bert(x_.to(device=constants.device)).logits
-        #print(out)
-        #print(len(out))
+        #out = self.bert(x_.to(device=constants.device))[2]
+        out = self.bert(x_.to(device=constants.device)).hidden_states#.logits
+        print(out)
+        print(len(out))
         #print(out.shape)
-        x_emb = torch.stack(out[-8:]).mean(0)
+        x_emb = torch.stack(out[-4:]).mean(0)
         heads_batch = torch.ones((x_emb.shape[0], heads.shape[1])).to(device=constants.device)  # * -1
         batch_loss = 0
         x_mapped = torch.zeros((x_emb.shape[0], heads.shape[1] + 1, x_emb.shape[2])).to(device=constants.device)
