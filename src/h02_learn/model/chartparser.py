@@ -52,11 +52,14 @@ class ChartParser(BertParser):
         # self.biaffine_h = Biaffine(200, 200)
         bert_hidden_size = 768
         self.hidden_size = bert_hidden_size
-        linear_items1 = nn.Linear(bert_hidden_size* 4, bert_hidden_size* 3).to(device=constants.device)
-        linear_items2 = nn.Linear(bert_hidden_size*3, bert_hidden_size*2).to(device=constants.device)
-        linear_items3 = nn.Linear(bert_hidden_size*2 , bert_hidden_size).to(device=constants.device)
-        linear_items4 = nn.Linear(bert_hidden_size , 1).to(device=constants.device)
-
+        #linear_items1 = nn.Linear(bert_hidden_size* 4, bert_hidden_size* 3).to(device=constants.device)
+        #linear_items2 = nn.Linear(bert_hidden_size*3, bert_hidden_size*2).to(device=constants.device)
+        #linear_items3 = nn.Linear(bert_hidden_size*2 , bert_hidden_size).to(device=constants.device)
+        #linear_items4 = nn.Linear(bert_hidden_size , 1).to(device=constants.device)
+        linear_items1 = nn.Linear(bert_hidden_size * 3, bert_hidden_size * 2).to(device=constants.device)
+        linear_items2 = nn.Linear(bert_hidden_size*2, bert_hidden_size).to(device=constants.device)
+        linear_items3 = nn.Linear(bert_hidden_size , 500).to(device=constants.device)
+        linear_items4 = nn.Linear(500 , 1).to(device=constants.device)
 
         layers = [linear_items1, nn.ReLU(), nn.Dropout(dropout), linear_items2, nn.ReLU(), nn.Dropout(dropout),
                   linear_items3, nn.ReLU(), nn.Dropout(dropout), linear_items4]
@@ -168,49 +171,50 @@ class ChartParser(BertParser):
                 gold_index = torch.tensor([iter], dtype=torch.long).to(device=constants.device)
                 gold_key = item.key
         for iter, ((u, v), item) in enumerate(zip(possible_arcs, possible_items)):
-            #(h1, h2, h3, h4) = item.key
-            if item.pre_computed:
-                s = self.mlp(item.rep)
-                scores.append(s)
+
+            #if len(item.heads) == 2:
+            #    i = item.heads[0]
+            #    j = item.heads[1]
+            #    span_1 = self.span_rep(words, i, j, n)#.unsqueeze(0)
+            #    span_2 = torch.zeros_like(span_1).to(device=constants.device)
+            #elif len(item.heads) == 3:
+            #    i = item.heads[0]
+            #    mid = item.heads[1]
+            #    j = item.heads[2]
+            #    span_1 = self.span_rep(words, i, mid, n)#.unsqueeze(0)
+            #    span_2 = self.span_rep(words, mid, j, n)#.unsqueeze(0)
+            #    #span = span_1-span_2
+            #elif len(item.heads)==4:
+            #    i1 = item.heads[0]
+            #    j1 = item.heads[1]
+            #    i2 = item.heads[2]
+            #    j2 = item.heads[3]
+            #    span_1 = self.span_rep(words, i1, j1, n)#.unsqueeze(0)
+            #    span_2 = self.span_rep(words, i2, j2, n)#.unsqueeze(0)
+            #    #span = span_1-span_2
+            #else:
+            #    # len == 1:
+            #    i = item.heads[0]
+            #    span_1 = words[i,:] #torch.cat([words_f[i,:], words_b[i,:]], dim=-1)#.to(device=constants.device).unsqueeze(0)
+            #    span_2 = torch.zeros_like(span_1).to(device=constants.device)
+            #span = torch.cat([span_1,span_2],dim=-1).to(device=constants.device).unsqueeze(0)
+            if len(item.heads)>1:
+                span = torch.mean(words[item.heads[0]:item.heads[-1],:],0)
+                span = span.reshape(1,self.hidden_size)
             else:
-                if len(item.heads) == 2:
-                    i = item.heads[0]
-                    j = item.heads[1]
-                    span_1 = self.span_rep(words, i, j, n)#.unsqueeze(0)
-                    span_2 = torch.zeros_like(span_1).to(device=constants.device)
+                span = words[item.heads[0],:]
+                span = span.reshape(1,self.hidden_size)
 
-                elif len(item.heads) == 3:
-                    i = item.heads[0]
-                    mid = item.heads[1]
-                    j = item.heads[2]
-                    span_1 = self.span_rep(words, i, mid, n)#.unsqueeze(0)
-                    span_2 = self.span_rep(words, mid, j, n)#.unsqueeze(0)
-                    #span = span_1-span_2
-                elif len(item.heads)==4:
-                    i1 = item.heads[0]
-                    j1 = item.heads[1]
-                    i2 = item.heads[2]
-                    j2 = item.heads[3]
-                    span_1 = self.span_rep(words, i1, j1, n)#.unsqueeze(0)
-                    span_2 = self.span_rep(words, i2, j2, n)#.unsqueeze(0)
-                    #span = span_1-span_2
-                else:
-                    # len == 1:
-                    i = item.heads[0]
-                    span_1 = words[i,:] #torch.cat([words_f[i,:], words_b[i,:]], dim=-1)#.to(device=constants.device).unsqueeze(0)
-                    span_2 = torch.zeros_like(span_1).to(device=constants.device)
+            #print(span.shape)
 
-                span = torch.cat([span_1,span_2],dim=-1).to(device=constants.device).unsqueeze(0)
-
-                fwd_rep = torch.cat([words[u, :], words[v, :]], dim=-1).unsqueeze(0)
-                #bckw_rep = torch.cat([words_b[u, :], words_b[v, :]], dim=-1).unsqueeze(0)
-                rep = torch.cat([span, fwd_rep], dim=-1)
-                #rep_tensor[iter,:] = rep
-
-                item.set_rep(rep)
-                hypergraph.add_item(item)
-                s = self.mlp(rep)
-                scores.append(s)
+            fwd_rep = torch.cat([words[u, :], words[v, :]], dim=-1).unsqueeze(0)
+            #bckw_rep = torch.cat([words_b[u, :], words_b[v, :]], dim=-1).unsqueeze(0)
+            rep = torch.cat([span, fwd_rep], dim=-1)
+            #rep_tensor[iter,:] = rep
+            item.set_rep(rep)
+            hypergraph.add_item(item)
+            s = self.mlp(rep)
+            scores.append(s)
             index2key[iter] = item.key
 
         #scores = self.mlp(rep_tensor).permute(1,0)
