@@ -251,8 +251,8 @@ class ChartParser(BertParser):
         x_ = x[0][:, 1:]
         #out = self.bert(x_.to(device=constants.device))[2]
         out = self.bert(x_.to(device=constants.device)).hidden_states#.logits
-        print(out)
-        print(len(out))
+        #print(out)
+        #print(len(out))
         #print(out.shape)
         x_emb = torch.stack(out[-4:]).mean(0)
         heads_batch = torch.ones((x_emb.shape[0], heads.shape[1])).to(device=constants.device)  # * -1
@@ -299,7 +299,7 @@ class ChartParser(BertParser):
 
                 if self.training:
                     loss += nn.CrossEntropyLoss(reduction='sum')(scores, gold_index)
-                #print(loss)
+                #print("going nuts {}".format(loss))
                 #words = self.tree_layer(words, h, m, winner_rep)
 
 
