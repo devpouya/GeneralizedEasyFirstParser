@@ -12,6 +12,7 @@ from h02_learn.train_info import TrainInfo
 from h02_learn.algorithm.mst import get_mst_batch
 from utils import constants
 from utils import utils
+import numpy as np
 
 import wandb
 
@@ -19,8 +20,8 @@ import wandb
 def get_args():
     parser = argparse.ArgumentParser()
     # Data
-    parser.add_argument('--language', type=str, required=True)
-    parser.add_argument('--data-path', type=str, default='data/')
+    # parser.add_argument('--language', type=str, required=True)
+    parser.add_argument('--data-path', type=str, default='data_nonproj/')
     parser.add_argument('--batch-size', type=int, default=32)
     parser.add_argument('--batch-size-eval', type=int, default=128)
     parser.add_argument('--key', type=str)
@@ -34,7 +35,7 @@ def get_args():
     parser.add_argument('--model', choices=['easy-first', 'easy-first-hybrid', 'biaffine', 'mst', 'arc-standard',
                                             'arc-eager', 'hybrid', 'mh4', 'easy-first-mh4', 'chart', 'agenda-std',
                                             'agenda-hybrid', 'agenda-eager', 'agenda-mh4'],
-                        default='agenda-std')
+                        default='agenda-mh4')
     parser.add_argument('--mode', choices=['shift-reduce', 'easy-first'], default='easy-first')
     parser.add_argument('--bert-model', type=str, default='bert-base-cased')
     # Optimization
@@ -49,8 +50,9 @@ def get_args():
     parser.add_argument('--save-periodically', action='store_true')
 
     args = parser.parse_args()
-    args.wait_iterations = 3#args.wait_epochs * args.eval_batches
-    args.save_path = '%s/%s/%s/%s/' % (args.checkpoints_path, args.language, args.model, args.name)
+    args.wait_iterations = 3  # args.wait_epochs * args.eval_batches
+    s = "MULTILINGUAL"
+    args.save_path = '%s/%s/%s/%s/' % (args.checkpoints_path, s, args.model, args.name)
     utils.config(args.seed)
     print("RUNNING {}".format(args.name))
     return args
@@ -69,42 +71,11 @@ def get_optimizer(paramters, optim_alg, lr_decay, weight_decay):
     return optimizer, lr_scheduler
 
 
-def get_model(vocabs, args, max_sent_len):
-    if args.model == 'arc-standard':  # or args.model=='easy-first':
-        tr = constants.arc_standard
-        hg = None
-    elif args.model == 'arc-eager':
-        tr = constants.arc_eager
-        hg = None
-    elif args.model == 'hybrid':
-        tr = constants.hybrid
-        hg = None
-    elif args.model == 'mh4':
-        tr = constants.mh4
-        hg = None
-    elif args.model == 'agenda-std':
-        hg = ArcStandard
-        tr = None
-    elif args.model == 'agenda-hybrid':
-        hg = Hybrid
-        tr = None
-    elif args.model == 'agenda-mh4':
-        hg = MH4
-        tr = None
-
-    if args.mode == 'easy-first':
-        return ChartParser(language=args.language, vocabs=vocabs, hidden_size=args.hidden_size,
-                           embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size,
-                           batch_size=args.batch_size,
-                           hypergraph=hg, dropout=args.dropout,mode=args.model).to(
-            device=constants.device)
-    else:
-        return NeuralTransitionParser(language=args.language,
-            vocabs=vocabs, embedding_size=args.embedding_size, rel_embedding_size=args.rel_embedding_size,
-            batch_size=args.batch_size,
-            dropout=args.dropout,
-            transition_system=tr) \
-            .to(device=constants.device)
+def get_model(num_rels, args):
+    return ChartParser(num_rels=num_rels,
+                       batch_size=args.batch_size,
+                       hypergraph=MH4, dropout=args.dropout).to(
+        device=constants.device)
 
 
 def calculate_attachment_score(heads_tgt, heads, predicted_rels, rels):
@@ -175,13 +146,13 @@ def train_batch(text, pos, heads, rels, transitions, relations_in_order, maps, m
     # las, uas = calculate_attachment_score(pred_h, heads, pred_rel, rels)
     loss.backward()
     optimizer.step()
-    #shit = 0
-    #total = 0
+    # shit = 0
+    # total = 0
     ##for item in model.parameters():
     ##    total += 1
     ##    if item.grad is None:
     #        shit += 1
-    #print("SHIT {} OF {}".format(shit, total))
+    # print("SHIT {} OF {}".format(shit, total))
     return loss.item()
 
 
@@ -189,7 +160,6 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
           save_path, save_batch=False, file=None):
     # pylint: disable=too-many-locals,too-many-arguments
     torch.autograd.set_detect_anomaly(True)
-
     optimizer, lr_scheduler = get_optimizer(model.parameters(), optim_alg, lr_decay, weight_decay)
     train_info = TrainInfo(wait_iterations, eval_batches)
     while not train_info.finish:
@@ -203,7 +173,7 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
                 dev_results = evaluate(devloader, model)
                 if train_info.is_best(dev_results):
                     model.set_best()
-                    #if save_batch:
+                    # if save_batch:
                     model.save(save_path)
                 elif train_info.reduce_lr:
                     lr_scheduler.step()
@@ -215,9 +185,7 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
                     break
                 train_info.print_progress(dev_results, file)
 
-
     model.recover_best()
-
 
 
 def main():
@@ -244,16 +212,26 @@ def main():
         fname = "arc-standard"
     else:
         fname = args.model
-    trainloader, devloader, testloader, vocabs, max_sent_len = \
-        get_data_loaders(args.data_path, args.language, args.batch_size, args.batch_size_eval, fname,
+
+    all_languages = ["af", "da", "eu", "ga", "hu", "ko", "la", "lt", "nl", "qhe", "sl", "ur"]
+    #all_languages = ["af", "da"]#, "eu", "ga", "hu", "ko", "la", "lt", "nl", "qhe", "sl", "ur"]
+    sizes = []
+    trainloader_dict = {}
+    testloader_dict = {}
+    devloader_dict = {}
+    max_num_rels = 0
+    #for ind, lang in enumerate(all_languages):
+    trainloader, devloader, testloader, vocabs, rels_size = \
+        get_data_loaders(args.data_path, all_languages, args.batch_size, args.batch_size_eval, fname,
                          transition_system=transition_system, bert_model=args.bert_model)
-    print('Train size: %d Dev size: %d Test size: %d' %
-          (len(trainloader.dataset), len(devloader.dataset), len(testloader.dataset)))
+
+
     save_name = "final_output_%s.txt".format(args.model)
     file1 = open(save_name, "w")
-    WANDB_PROJECT = f"{args.language}_{args.model}"
+    s = "MULTILINGUAL"
+    WANDB_PROJECT = f"{s}_{args.model}"
     # WANDB_PROJECT = "%s_%s".format(args.language,args.model)
-    model = get_model(vocabs, args, max_sent_len)
+    model = get_model(rels_size, args)
     run = wandb.init(project=WANDB_PROJECT, config={'wandb_nb': 'wandb_three_in_one_hm'},
                      settings=wandb.Settings(start_method="fork"))
 
@@ -263,6 +241,7 @@ def main():
     train(trainloader, devloader, model, args.eval_batches, args.wait_iterations,
           args.optim, args.lr_decay, args.weight_decay, args.save_path, args.save_periodically, file=file1)
     model.save(args.save_path)
+
     train_loss, train_las, train_uas = evaluate(trainloader, model)
     dev_loss, dev_las, dev_uas = evaluate(devloader, model)
     test_loss, test_las, test_uas = evaluate(testloader, model)

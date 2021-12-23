@@ -26,7 +26,7 @@ def get_args():
                                                            'hybrid', 'mh4', 'easy-first-std',
                                                            'easy-first-hybrid',
                                                            'agenda-std','agenda-hybrid','agenda-mh4'],
-                        default='agenda-std')
+                        default='agenda-mh4')
     return parser.parse_args()
 
 
@@ -106,7 +106,7 @@ def process_data(in_fname_base, out_path, mode, vocabs, oracle=None, transition_
     wrong = 0
     step = 0
     faileds = []
-    with open(in_fname, 'r') as file:
+    with open(in_fname, 'r',encoding='utf-8') as file:
         step = 0
         for sentence in get_sentence(file):
             step+=1
@@ -176,7 +176,7 @@ def get_vocabs(in_fname_base, out_path, min_count, embeddings=None, tokenizer=No
     words, tags, rels = Vocab(min_count), Vocab(min_count), Vocab(min_count)
     print('Getting vocabs: %s' % in_fname)
 
-    with open(in_fname, 'r') as file:
+    with open(in_fname, 'r',encoding='utf-8') as file:
         for sentence in get_sentence(file):
             add_sentence_vocab(sentence, words, tags, rels)
 
@@ -195,7 +195,7 @@ def read_embeddings(fname):
     embedd_dim = -1
     embedd_dict = OrderedDict()
     # with gzip.open(fname, 'rt') as file:
-    with open(fname, 'r') as file:
+    with open(fname, 'r',encoding='utf-8') as file:
         for line in file.readlines():
             line = line.strip()
             if len(line) == 0:
