@@ -60,7 +60,7 @@ def get_args():
 
 def get_optimizer(paramters, optim_alg, lr_decay, weight_decay):
     if optim_alg == "adamw":
-        optimizer = optim.AdamW(paramters, betas=(.9, .9), weight_decay=weight_decay)
+        optimizer = optim.AdamW(paramters, betas=(.9, .9), weight_decay=weight_decay,lr=1e-5)
     elif optim_alg == "adam":
         optimizer = optim.Adam(paramters, betas=(.9, .9), weight_decay=weight_decay)
     else:

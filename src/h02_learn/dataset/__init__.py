@@ -109,7 +109,8 @@ def get_data_loaders(data_path, all_languages, batch_size, batch_size_eval, tran
         #all_transitions_dev.append(transitions_dev)
 
 
-    tokenizer = AutoTokenizer.from_pretrained("bert-base-multilingual-cased")
+    #tokenizer = AutoTokenizer.from_pretrained("bert-base-multilingual-cased")
+    tokenizer = AutoTokenizer.from_pretrained("xlm-roberta-base")
     trainloader, _ = get_data_loader(all_fnames_train, all_transitions_train, transition_system, tokenizer,
                                                       batch_size,max_rels_size,
                                                       shuffle=True)
@@ -117,7 +118,6 @@ def get_data_loaders(data_path, all_languages, batch_size, batch_size_eval, tran
     devloader_lang_map = {}
     testloader_lang_map = {}
     for language in all_languages:
-        print(language)
         devloader, _ = get_data_loader(all_fnames_dev[language], all_transitions_dev[language], transition_system, tokenizer,
                                                       batch_size_eval,max_rels_size,
                                                       shuffle=False)

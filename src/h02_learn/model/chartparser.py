@@ -187,7 +187,7 @@ class ChartParser(BertParser):
 
     def forward(self, x, transitions, relations, map, heads, rels):
         x_ = x[0][:, 1:]
-
+        #print("kir")
         #out = self.bert(x_.to(device=constants.device))[2]
         out = self.bert(x_.to(device=constants.device)).hidden_states  # .logits
         # x_emb = torch.stack(out[-4:]).mean(0)
