@@ -15,7 +15,7 @@ def get_filenames(filepath):
 
 def append_json(fname, data):
     with open(fname, 'a') as f:
-        line = json.dumps(data)
+        line = json.dumps(data, ensure_ascii=False)
         f.write("%s\n" % line)
 
 

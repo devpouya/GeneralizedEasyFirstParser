@@ -3,6 +3,7 @@ from os import path
 import argparse
 from collections import OrderedDict
 import numpy as np
+import codecs
 
 sys.path.append('./src/')
 from h01_data import Vocab, save_vocabs, save_embeddings
@@ -106,18 +107,18 @@ def process_data(in_fname_base, out_path, mode, vocabs, oracle=None, transition_
     wrong = 0
     step = 0
     faileds = []
-    with open(in_fname, 'r',encoding='utf-8') as file:
+    with codecs.open(in_fname, 'r',encoding='utf-8') as file:
         step = 0
         for sentence in get_sentence(file):
             step+=1
             #if step >= 50:
             #    break
-            print(step)
+            #print(step)
             sent_processed, heads, relations,rel2id = process_sentence(sentence, vocabs)
             heads_proper = [0] + heads
 
             sentence_proper = list(range(len(heads_proper)))
-
+            #print(sentence)
             word2head = {w: h for (w, h) in zip(sentence_proper, heads_proper)}
             if is_projective(word2head) or transition_name == 'mh4' or transition_name == 'agenda-mh4':
                 true_arcs = get_arcs(word2head)
@@ -176,7 +177,7 @@ def get_vocabs(in_fname_base, out_path, min_count, embeddings=None, tokenizer=No
     words, tags, rels = Vocab(min_count), Vocab(min_count), Vocab(min_count)
     print('Getting vocabs: %s' % in_fname)
 
-    with open(in_fname, 'r',encoding='utf-8') as file:
+    with codecs.open(in_fname, 'r',encoding='utf-8') as file:
         for sentence in get_sentence(file):
             add_sentence_vocab(sentence, words, tags, rels)
 
@@ -195,7 +196,7 @@ def read_embeddings(fname):
     embedd_dim = -1
     embedd_dict = OrderedDict()
     # with gzip.open(fname, 'rt') as file:
-    with open(fname, 'r',encoding='utf-8') as file:
+    with codecs.open(fname, 'r',encoding='utf-8') as file:
         for line in file.readlines():
             line = line.strip()
             if len(line) == 0:

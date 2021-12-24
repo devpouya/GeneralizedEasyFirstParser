@@ -44,6 +44,7 @@ class SyntaxDataset(Dataset):
         with open(fname, 'r') as file, open(transition_file, 'r') as file2:
             for line, action in zip(file.readlines(), file2.readlines()):
                 sentence = json.loads(line)
+                #print(sentence)
                 tranisiton = json.loads(action)
                 self.words += [self.list2tensor([word['word_id'] for word in sentence])]
                 tokens, mapping = self.tokenize([word['word'] for word in sentence])
@@ -75,10 +76,13 @@ class SyntaxDataset(Dataset):
 
     def tokenize(self, wordlist):
         wordlist = wordlist  # + ["<EOS>"]
+        #print("wordlen {}".format(len(wordlist)))
         encoded = self.tokenizer(wordlist, is_split_into_words=True, return_tensors="pt",
                                  return_attention_mask=False,
                                  return_token_type_ids=False,
                                  add_special_tokens=True)
+        #print("encoded {}".format(len(encoded)))
+
         # print(encoded)
         # kj
         enc = [self.tokenizer.encode(x, add_special_tokens=False) for x in wordlist]
