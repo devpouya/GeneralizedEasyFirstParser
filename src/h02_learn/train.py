@@ -13,7 +13,7 @@ from h02_learn.algorithm.mst import get_mst_batch
 from utils import constants
 from utils import utils
 import numpy as np
-
+from transformers import get_linear_schedule_with_warmup
 import wandb
 
 
@@ -66,8 +66,9 @@ def get_optimizer(paramters, optim_alg, lr_decay, weight_decay):
     else:
         optimizer = optim.SGD(paramters, lr=0.01)
 
-    lr_scheduler = optim.lr_scheduler.ExponentialLR(optimizer, lr_decay)
+    #lr_scheduler = optim.lr_scheduler.ExponentialLR(optimizer, lr_decay)
     # lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, "max")
+    lr_scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0, num_training_steps=9)
     return optimizer, lr_scheduler
 
 
@@ -143,8 +144,8 @@ def evaluate_per_language(evalloader, model):
 
 
 
-def train_batch(text, pos, heads, rels, transitions, relations_in_order, maps, model, optimizer):
-    optimizer.zero_grad()
+def train_batch(text, pos, heads, rels, transitions, relations_in_order, maps, model, optimizer, lr_scheduler):
+    #optimizer.zero_grad()
     maps = maps.to(device=constants.device)
     text, pos = text.to(device=constants.device), pos.to(device=constants.device)
     heads, rels = heads.to(device=constants.device), rels.to(device=constants.device)
@@ -156,7 +157,10 @@ def train_batch(text, pos, heads, rels, transitions, relations_in_order, maps, m
 
     # las, uas = calculate_attachment_score(pred_h, heads, pred_rel, rels)
     loss.backward()
+    torch.nn.utils.clip_grad_norm_(model.parameters(),1.0)
     optimizer.step()
+    lr_scheduler.step()
+
     # shit = 0
     # total = 0
     ##for item in model.parameters():
@@ -171,14 +175,18 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
           save_path, save_batch=False, file=None):
     # pylint: disable=too-many-locals,too-many-arguments
     torch.autograd.set_detect_anomaly(True)
-    optimizer, lr_scheduler = get_optimizer(model.parameters(), optim_alg, lr_decay, weight_decay)
+    #optimizer, lr_scheduler = get_optimizer(model.parameters(), optim_alg, lr_decay, weight_decay)
+    optimizer = optim.Adam(model.parameters(), betas=(0.9, 0.999), eps=1e-08, lr=2e-5)
+    num_iter = trainloader.dataset.n_instances*5
+    lr_scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0, num_training_steps=num_iter)
     train_info = TrainInfo(wait_iterations, eval_batches)
-    while not train_info.finish:
+    for epoch in range(5):
         steps = 0
         for (text, pos), (heads, rels), (transitions, relations_in_order), maps in trainloader:
             steps += 1
             # maps are used to average the split embeddings from BERT
-            loss = train_batch(text, pos, heads, rels, transitions, relations_in_order, maps, model, optimizer)
+            model.zero_grad()
+            loss = train_batch(text, pos, heads, rels, transitions, relations_in_order, maps, model, optimizer, lr_scheduler)
             train_info.new_batch(loss)
             if train_info.eval:
                 dev_results = evaluate(devloader, model)
@@ -186,14 +194,14 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
                     model.set_best()
                     # if save_batch:
                     model.save(save_path)
-                elif train_info.reduce_lr:
-                    lr_scheduler.step()
-                    optimizer.state.clear()
-                    model.recover_best()
-                    print('\tReduced lr')
-                elif train_info.finish:
-                    train_info.print_progress(dev_results, file)
-                    break
+                #elif train_info.reduce_lr:
+                #    lr_scheduler.step()
+                #    optimizer.state.clear()
+                #    model.recover_best()
+                #    print('\tReduced lr')
+                #elif train_info.finish:
+                #    train_info.print_progress(dev_results, file)
+                #    break
                 train_info.print_progress(dev_results, file)
 
     model.recover_best()

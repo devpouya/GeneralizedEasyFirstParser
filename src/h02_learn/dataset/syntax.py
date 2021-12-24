@@ -32,7 +32,7 @@ class SyntaxDataset(Dataset):
                 self.load_data(fname, tf)
         else:
             self.load_data(fname_all, transition_file)
-        self.n_instances = len(self.words)
+        #self.n_instances = len(self.words)
 
 
     # save agenda actions in the same format as the rest
@@ -62,6 +62,7 @@ class SyntaxDataset(Dataset):
                 index += 1
         new_start = self.language_starts[-1] + index
         self.language_starts.append(new_start)
+        self.n_instances = index
 
     def check_lens(self, words, actions):
         n = len(words)
@@ -206,5 +207,4 @@ class LanguageBatchSampler(torch.utils.data.Sampler):
         return iter(self.final_indices)
 
     def __len__(self):
-
-        return sum([len(x) for x in self.final_indices])//self.batch_size
+        return max(self.lang_indicies, key=self.lang_indicies.get)#//self.batch_size
