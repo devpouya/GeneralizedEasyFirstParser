@@ -27,10 +27,11 @@ class SyntaxDataset(Dataset):
         self.mappings = []
         self.relations_in_order = []
         self.language_starts = [0]
-
-        for fname, tf in zip(fname_all, transition_file):
-
-            self.load_data(fname, tf)
+        if isinstance(fname_all,list):
+            for fname, tf in zip(fname_all, transition_file):
+                self.load_data(fname, tf)
+        else:
+            self.load_data(fname_all, transition_file)
         self.n_instances = len(self.words)
 
 

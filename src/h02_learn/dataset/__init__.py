@@ -74,16 +74,16 @@ def get_data_loader(fname, transitions_file, transition_system, tokenizer, batch
     #return DataLoader(dataset, collate_fn=lambda batch: generate_batch(batch,transition_system), batch_sampler=sampler), dataset.max_sent_len
 
 
-def get_data_loaders(data_path, language_all, batch_size, batch_size_eval, transitions=None, transition_system=None,
+def get_data_loaders(data_path, all_languages, batch_size, batch_size_eval, transitions=None, transition_system=None,
                      bert_model=None):
     all_fnames_train = []
-    all_fnames_test = []
-    all_fnames_dev = []
+    all_fnames_test = {}
+    all_fnames_dev = {}
     all_transitions_train = []
-    all_transitions_test = []
-    all_transitions_dev = []
+    all_transitions_test = {}
+    all_transitions_dev = {}
     max_rels_size = 0
-    for language in language_all:
+    for language in all_languages:
         src_path = path.join(data_path, constants.UD_PATH_PROCESSED, language)
         vocabs = load_vocabs(src_path)
         _,_,rels = vocabs
@@ -91,8 +91,10 @@ def get_data_loaders(data_path, language_all, batch_size, batch_size_eval, trans
             max_rels_size = rels.size
         (fname_train, fname_dev, fname_test) = get_ud_fname(src_path)
         all_fnames_train.append(fname_train)
-        all_fnames_test.append(fname_test)
-        all_fnames_dev.append(fname_dev)
+        all_fnames_test[language] = fname_test
+        all_fnames_dev[language] = fname_dev
+        #all_fnames_test.append(fname_test)
+        #all_fnames_dev.append(fname_dev)
         transitions_train, transitions_dev, transitions_test = None, None, None
         if transitions is not None:
             if transition_system == "AGENDA-PARSER":
@@ -101,20 +103,29 @@ def get_data_loaders(data_path, language_all, batch_size, batch_size_eval, trans
                 is_agenda=False
             (transitions_train, transitions_dev, transitions_test) = get_oracle_actions(src_path, transitions,is_agenda)
         all_transitions_train.append(transitions_train)
-        all_transitions_test.append(transitions_test)
-        all_transitions_dev.append(transitions_dev)
+        all_transitions_test[language] = transitions_test
+        all_transitions_dev[language] = transitions_dev
+        #all_transitions_test.append(transitions_test)
+        #all_transitions_dev.append(transitions_dev)
 
 
     tokenizer = AutoTokenizer.from_pretrained("bert-base-multilingual-cased")
     trainloader, _ = get_data_loader(all_fnames_train, all_transitions_train, transition_system, tokenizer,
                                                       batch_size,max_rels_size,
                                                       shuffle=True)
-    devloader, _ = get_data_loader(all_fnames_dev, all_transitions_dev, transition_system, tokenizer,
-                                                  batch_size_eval,max_rels_size,
-                                                  shuffle=False)
-    testloader, _ = get_data_loader(all_fnames_test, all_transitions_test, transition_system, tokenizer,
-                                                    batch_size_eval,max_rels_size,
-                                                    shuffle=False)
+
+    devloader_lang_map = {}
+    testloader_lang_map = {}
+    for language in all_languages:
+        print(language)
+        devloader, _ = get_data_loader(all_fnames_dev[language], all_transitions_dev[language], transition_system, tokenizer,
+                                                      batch_size_eval,max_rels_size,
+                                                      shuffle=False)
+        testloader, _ = get_data_loader(all_fnames_test[language], all_transitions_test[language], transition_system, tokenizer,
+                                                        batch_size_eval,max_rels_size,
+                                                        shuffle=False)
+        devloader_lang_map[language] = devloader
+        testloader_lang_map[language] = testloader
 
     #max_sent_len = max(max_sent_len_dev, max_sent_len_test, max_sent_len_train)
-    return trainloader, devloader, testloader, vocabs, max_rels_size
+    return trainloader, devloader_lang_map, testloader_lang_map, max_rels_size

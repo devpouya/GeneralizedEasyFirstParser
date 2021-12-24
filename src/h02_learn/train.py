@@ -127,9 +127,20 @@ def _evaluate(evalloader, model):
 def evaluate(evalloader, model):
     model.eval()
     with torch.no_grad():
-        result = _evaluate(evalloader, model)
+        #result = _evaluate(evalloader, model)
+        results_per_language = evaluate_per_language(evalloader,model)
+
     model.train()
-    return result
+    return results_per_language
+
+def evaluate_per_language(evalloader, model):
+    results_per_language = {}
+    for language in evalloader.keys():
+        evalloader_language = evalloader[language]
+        result_language = _evaluate(evalloader_language, model)
+        results_per_language[language] = result_language
+    return results_per_language
+
 
 
 def train_batch(text, pos, heads, rels, transitions, relations_in_order, maps, model, optimizer):
@@ -221,7 +232,7 @@ def main():
     devloader_dict = {}
     max_num_rels = 0
     #for ind, lang in enumerate(all_languages):
-    trainloader, devloader, testloader, vocabs, rels_size = \
+    trainloader, devloader, testloader, rels_size = \
         get_data_loaders(args.data_path, all_languages, args.batch_size, args.batch_size_eval, fname,
                          transition_system=transition_system, bert_model=args.bert_model)
 
@@ -242,31 +253,41 @@ def main():
           args.optim, args.lr_decay, args.weight_decay, args.save_path, args.save_periodically, file=file1)
     model.save(args.save_path)
 
-    train_loss, train_las, train_uas = evaluate(trainloader, model)
-    dev_loss, dev_las, dev_uas = evaluate(devloader, model)
-    test_loss, test_las, test_uas = evaluate(testloader, model)
-
-    file1.write('Final Training loss: %.4f Dev loss: %.4f Test loss: %.4f' %
-                (train_loss, dev_loss, test_loss))
-    file1.write('Final Training las: %.4f Dev las: %.4f Test las: %.4f' %
-                (train_las, dev_las, test_las))
-    file1.write('Final Training uas: %.4f Dev uas: %.4f Test uas: %.4f' %
-                (train_uas, dev_uas, test_uas))
-
-    log_dict_loss = {'Training loss': train_loss, 'Dev Loss': dev_loss, 'Test Loss': test_loss}
-    wandb.log(log_dict_loss)
-    log_dict_las = {"Training LAS": train_las, "Dev LAS": dev_las, "Test LAS": test_las}
-    wandb.log(log_dict_las)
-    log_dict_uas = {"Training UAS": train_uas, "Dev UAS": dev_uas, "Test UAS": test_uas}
-    wandb.log(log_dict_uas)
-    file1.close()
-    wandb.finish()
-    print('Final Training loss: %.4f Dev loss: %.4f Test loss: %.4f' %
-          (train_loss, dev_loss, test_loss))
-    print('Final Training las: %.4f Dev las: %.4f Test las: %.4f' %
-          (train_las, dev_las, test_las))
-    print('Final Training uas: %.4f Dev uas: %.4f Test uas: %.4f' %
-          (train_uas, dev_uas, test_uas))
+    #train_results = evaluate(trainloader, model)
+    #train_loss, train_las, train_uas = evaluate(trainloader, model)
+    dev_results = evaluate(devloader, model)
+    #dev_loss, dev_las, dev_uas = evaluate(devloader, model)
+    test_results = evaluate(testloader, model)
+    #test_loss, test_las, test_uas = evaluate(testloader, model)
+    for language in dev_results.keys():
+        dev_loss, dev_las, dev_uas = dev_results[language]
+        test_loss, test_las, test_uas = test_results[language]
+        #file1.write('Final Training loss: %.4f Dev loss: %.4f Test loss: %.4f' %
+        #            (train_loss, dev_loss, test_loss))
+        #file1.write('Final Training las: %.4f Dev las: %.4f Test las: %.4f' %
+        #            (train_las, dev_las, test_las))
+        #file1.write('Final Training uas: %.4f Dev uas: %.4f Test uas: %.4f' %
+        #            (train_uas, dev_uas, test_uas))
+        devlosslang_str = "Dev Loss {}".format(language)
+        devLASlang_str = "Dev LAS {}".format(language)
+        devUASlang_str = "Dev UAS {}".format(language)
+        testlosslang_str = "Test Loss {}".format(language)
+        testLASlang_str = "Test LAS {}".format(language)
+        testUASlang_str = "Test UAS {}".format(language)
+        log_dict_loss = {devlosslang_str: dev_loss, testlosslang_str: test_loss}
+        wandb.log(log_dict_loss)
+        log_dict_las = {devLASlang_str: dev_las, testLASlang_str: test_las}
+        wandb.log(log_dict_las)
+        log_dict_uas = {devUASlang_str: dev_uas, testUASlang_str: test_uas}
+        wandb.log(log_dict_uas)
+        file1.close()
+        wandb.finish()
+        #print('Final Training loss: %.4f Dev loss: %.4f Test loss: %.4f' %
+        #      (train_loss, dev_loss, test_loss))
+        #print('Final Training las: %.4f Dev las: %.4f Test las: %.4f' %
+        #      (train_las, dev_las, test_las))
+        #print('Final Training uas: %.4f Dev uas: %.4f Test uas: %.4f' %
+        #      (train_uas, dev_uas, test_uas))
 
     # sys.stdout.close()
 

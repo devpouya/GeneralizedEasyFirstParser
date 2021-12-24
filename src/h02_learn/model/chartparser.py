@@ -33,10 +33,10 @@ def print_yellow(s):
 
 class ChartParser(BertParser):
     def __init__(self, num_rels, batch_size, hypergraph=MH4,
-                 dropout=0.33, eos_token_id=28996):
+                 dropout=0.33):
         super().__init__(num_rels,
                          batch_size=batch_size, dropout=dropout)
-        self.eos_token_id = eos_token_id
+        #self.eos_token_id = eos_token_id
         self.hypergraph = hypergraph
         self.dropout = nn.Dropout(dropout)
         self.parse_step_chart = self.parse_step_mh4
