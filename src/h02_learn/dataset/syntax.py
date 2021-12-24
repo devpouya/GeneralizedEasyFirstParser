@@ -163,12 +163,14 @@ class LanguageBatchSampler(torch.utils.data.Sampler):
         self.shuffle = shuffle
         self.language_lengths = []
 
+
         for i in range(1, len(language_start_indicies)):
             len_lang = language_start_indicies[i] - language_start_indicies[i - 1]
             self.language_lengths.append(len_lang)
         langlengths = np.array(self.language_lengths)
         langlengths = np.power(langlengths, 0.3)
         self.lang_prob = langlengths / np.sum(langlengths)
+
 
         lang_indicies = {}
         lang_indicies[0] = list(range(self.language_lengths[0]))
@@ -185,20 +187,24 @@ class LanguageBatchSampler(torch.utils.data.Sampler):
         # make batched
         batched_lang = {}
         for key in bins:
-            l = np.array_split(bins[key],self.batch_size)
-            batched_lang[key] = l
+            l = torch.split(torch.tensor(bins[key]), self.batch_size)#np.array_split(bins[key],self.batch_size)
+            batched_lang[key] = list(l)
 
-        final_indices = []
+        self.final_indices = []
         finished = {i:False for i in range(len(bins.keys()))}
         while not all(value is True for value in finished.values()):
             language_sample = np.random.multinomial(1, self.lang_prob, size=1).reshape(len(self.lang_prob))
             ind = np.argwhere(language_sample != 0)[0][0]
             if not finished[ind]:
                 language_ind = batched_lang[ind].pop()
-                final_indices.append(language_ind)
+                self.final_indices.append(language_ind)
                 if len(batched_lang[ind]) == 0:
                     finished[ind] = True
-        #if self.shuffle:
-        #    random.shuffle(final_indices)
+        if self.shuffle:
+            random.shuffle(self.final_indices)
         #print(final_indices)
-        return iter(final_indices)
+        return iter(self.final_indices)
+
+    def __len__(self):
+
+        return sum([len(x) for x in self.final_indices])//self.batch_size

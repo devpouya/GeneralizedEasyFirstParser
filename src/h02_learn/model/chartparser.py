@@ -189,7 +189,12 @@ class ChartParser(BertParser):
         x_ = x[0][:, 1:]
         #print("kir")
         #out = self.bert(x_.to(device=constants.device))[2]
+        #print("hafti")
+        #print(x_)
         out = self.bert(x_.to(device=constants.device)).hidden_states  # .logits
+        #print("xatar")
+        #print(out)
+
         # x_emb = torch.stack(out[-4:]).mean(0)
         x_emb = torch.stack(out[-8:]).mean(0)
         heads_batch = torch.ones((x_emb.shape[0], heads.shape[1])).to(device=constants.device)  # * -1

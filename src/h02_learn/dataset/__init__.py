@@ -69,9 +69,9 @@ def generate_batch(batch,transition_system):
 def get_data_loader(fname, transitions_file, transition_system, tokenizer, batch_size, rel_size, shuffle):
     dataset = SyntaxDataset(fname, transitions_file, transition_system, tokenizer, rel_size)
     #print(dataset.language_starts)
-    #sampler = LanguageBatchSampler(batch_size=batch_size,language_start_indicies=dataset.language_starts, shuffle=shuffle)
-    return DataLoader(dataset, collate_fn=lambda batch: generate_batch(batch,transition_system)), dataset.max_rel
-    #return DataLoader(dataset, collate_fn=lambda batch: generate_batch(batch,transition_system), batch_sampler=sampler), dataset.max_sent_len
+    sampler = LanguageBatchSampler(batch_size=batch_size,language_start_indicies=dataset.language_starts, shuffle=shuffle)
+    #return DataLoader(dataset, collate_fn=lambda batch: generate_batch(batch,transition_system)), dataset.max_rel
+    return DataLoader(dataset, collate_fn=lambda batch: generate_batch(batch,transition_system), batch_sampler=sampler), dataset.max_sent_len
 
 
 def get_data_loaders(data_path, all_languages, batch_size, batch_size_eval, transitions=None, transition_system=None,
