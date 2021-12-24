@@ -49,11 +49,11 @@ class ChartParser(BertParser):
         linear_items3 = nn.Linear(bert_hidden_size, 500).to(device=constants.device)
         linear_items4 = nn.Linear(500, 1).to(device=constants.device)
 
-        #layers = [linear_items1, nn.ReLU(), nn.Dropout(dropout), linear_items2, nn.ReLU(), nn.Dropout(dropout),
-        #          linear_items3, nn.ReLU(), nn.Dropout(dropout), linear_items4]
+        layers = [linear_items1, nn.ReLU(), nn.Dropout(dropout), linear_items2, nn.ReLU(), nn.Dropout(dropout),
+                  linear_items3, nn.ReLU(), nn.Dropout(dropout), linear_items4]
 
-        layers = [linear_items1, nn.ReLU(), linear_items2, nn.ReLU(),
-                  linear_items3, nn.ReLU(), linear_items4]
+        #layers = [linear_items1, nn.ReLU(), linear_items2, nn.ReLU(),
+        #          linear_items3, nn.ReLU(), linear_items4]
 
         self.mlp = nn.Sequential(*layers)
 
