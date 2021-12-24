@@ -131,7 +131,6 @@ class BertParser(BaseParser):
 
     def get_args(self):
         return {
-            'vocabs': self.vocabs,
             'dropout': self.dropout_prob,
             'batch_size': self.batch_size,
         }

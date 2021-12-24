@@ -308,9 +308,6 @@ class ChartParser(BertParser):
         return {
             'hidden_size': self.hidden_size,
             'hypergraph': self.hypergraph,
-            'vocabs': self.vocabs,
-            'embedding_size': self.embedding_size,
-            'rel_embedding_size': self.rel_embedding_size,
             'dropout': self.dropout_prob,
             'batch_size': self.batch_size,
         }
