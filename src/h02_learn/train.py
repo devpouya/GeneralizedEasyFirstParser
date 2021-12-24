@@ -39,7 +39,7 @@ def get_args():
     parser.add_argument('--mode', choices=['shift-reduce', 'easy-first'], default='easy-first')
     parser.add_argument('--bert-model', type=str, default='bert-base-cased')
     # Optimization
-    parser.add_argument('--optim', choices=['adam', 'adamw', 'sgd'], default='adamw')
+    parser.add_argument('--optim', choices=['adam', 'adamw', 'sgd'], default='adam')
     parser.add_argument('--eval-batches', type=int, default=20)
     parser.add_argument('--wait-epochs', type=int, default=10)
     parser.add_argument('--lr-decay', type=float, default=.5)
@@ -62,7 +62,7 @@ def get_optimizer(paramters, optim_alg, lr_decay, weight_decay):
     if optim_alg == "adamw":
         optimizer = optim.AdamW(paramters, betas=(.9, .9), weight_decay=weight_decay,lr=1e-5)
     elif optim_alg == "adam":
-        optimizer = optim.Adam(paramters, betas=(.9, .9), weight_decay=weight_decay)
+        optimizer = optim.Adam(paramters, betas=(0.9,0.999),eps=1e-08,lr=2e-5)
     else:
         optimizer = optim.SGD(paramters, lr=0.01)
 

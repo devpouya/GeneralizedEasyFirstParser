@@ -179,7 +179,7 @@ class LanguageBatchSampler(torch.utils.data.Sampler):
         self.lang_indicies = lang_indicies
 
     def __iter__(self):
-        bins = deepcopy(self.lang_indicies)
+        bins = self.lang_indicies#deepcopy(self.lang_indicies)
         if self.shuffle:
             for key in bins:
                 random.shuffle(bins[key])
