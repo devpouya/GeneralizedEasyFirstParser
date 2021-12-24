@@ -25,6 +25,7 @@ class SyntaxDataset(Dataset):
         self.words, self.word_st, self.pos, self.heads, self.rels = [], [], [], [], []
         self.actions = []
         self.mappings = []
+        #self.rels_mapping = []
         self.relations_in_order = []
         self.language_starts = [0]
         if isinstance(fname_all,list):
@@ -57,6 +58,11 @@ class SyntaxDataset(Dataset):
                 self.pos += [self.list2tensor([word['tag1_id'] for word in sentence])]
                 self.heads += [self.list2tensor([word['head'] for word in sentence])]
                 self.rels += [self.list2tensor([word['rel_id'] for word in sentence])]
+                #self.rels += self.tokenize_rels([word['rel'] for word in sentence])
+                #print("rels {}".format(rels))
+                #print("rels_mappinf {}".format(rels_mapping))
+                #self.rels += [rels]
+                #self.rels_mapping += [rels_mapping]
                 self.actions += [self.actionsequence2tensor(tranisiton['transition'])]
                 self.relations_in_order += [self.list2tensor(tranisiton['relations'])]
                 # self.labeled_actions += [self.labeled_act2tensor(tranisiton['labeled_actions'])]

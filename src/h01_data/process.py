@@ -19,7 +19,7 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--language', type=str, required=True)
     parser.add_argument('--data-path', type=str, default='data/')
-    parser.add_argument('--save-path', type=str, default='data/')
+    parser.add_argument('--save-path', type=str, default='data_nonproj/')
     parser.add_argument('--glove-file', type=str, required=False)
     parser.add_argument('--bert-model', type=str, default='bert-base-cased')
     parser.add_argument('--min-vocab-count', type=int, default=2)
@@ -44,7 +44,7 @@ def get_sentence(file):
             sentence = []
 
 
-def process_sentence(sentence, vocabs):
+def process_sentence(sentence, vocabs,rel_ids):
     words, tags, rels = vocabs
     processed = [{
         'word': words.ROOT,
@@ -71,11 +71,13 @@ def process_sentence(sentence, vocabs):
             'head': int(token[6]),
             # 'head_id': token[6],
             'rel': token[7],
-            'rel_id': rels.idx(token[7]),
+            'rel_id': rel_ids[token[7]],
         }]
+        #print(token[7])
+
         heads.append(int(token[6]))
         relations.append(token[7])
-        rel2id[token[7]] = rels.idx(token[7])
+        rel2id[token[7]] = rel_ids[token[7]]
 
     return processed, heads, relations, rel2id
 
@@ -94,11 +96,11 @@ def labeled_action_pairs(actions, relations):
     return labeled_acts
 
 
-def process_data(in_fname_base, out_path, mode, vocabs, oracle=None, transition_name=None):
+def process_data(in_fname_base, out_path, mode, vocabs, oracle=None, transition_name=None,rel_ids=None):
     in_fname = in_fname_base % mode
     out_fname = '%s/%s.json' % (out_path, mode)
     if oracle is not None:
-        out_fname_history = '%s/%s_actions_%s.json' % (out_path, transition_name, mode)
+        out_fname_history = '%s/easy_first_actions_%s.json' % (out_path, mode)
         utils.remove_if_exists(out_fname_history)
 
     utils.remove_if_exists(out_fname)
@@ -114,7 +116,7 @@ def process_data(in_fname_base, out_path, mode, vocabs, oracle=None, transition_
             #if step >= 50:
             #    break
             #print(step)
-            sent_processed, heads, relations,rel2id = process_sentence(sentence, vocabs)
+            sent_processed, heads, relations,rel2id = process_sentence(sentence, vocabs,rel_ids)
             heads_proper = [0] + heads
 
             sentence_proper = list(range(len(heads_proper)))
@@ -229,10 +231,29 @@ def process_embeddings(src_fname, out_path):
     save_embeddings(out_path, embedding_dict)
     return embedding_dict
 
-
+def count_rels(in_fname, rel_ids, count):
+    with codecs.open(in_fname, 'r', encoding='utf-8') as file:
+        for sentence in get_sentence(file):
+            for token in sentence:
+                r = token[7]
+                if r not in rel_ids.keys():
+                    rel_ids[r] = count
+                    count += 1
+    return rel_ids, count
 def main():
     args = get_args()
+    all_languages = ["af", "da", "eu", "ga", "hu", "ko", "la", "lt", "nl", "qhe", "sl", "ur"]
+    rel_ids = {}
+    count = 0
+    for lang in all_languages:
+        in_fname = path.join(args.data_path, constants.UD_LANG_FNAMES[lang])%'train'
+        rel_ids, count = count_rels(in_fname,rel_ids,count)
+        in_fname = path.join(args.data_path, constants.UD_LANG_FNAMES[lang]) % 'dev'
+        rel_ids, count = count_rels(in_fname, rel_ids, count)
+        in_fname = path.join(args.data_path, constants.UD_LANG_FNAMES[lang]) % 'test'
+        rel_ids, count = count_rels(in_fname, rel_ids, count)
 
+    print("MAX NUM ALL RELS {}".format(count))
     in_fname = path.join(args.data_path, constants.UD_LANG_FNAMES[args.language])
     out_path = path.join(args.save_path, constants.UD_PATH_PROCESSED, args.language)
     utils.mkdir(out_path)
@@ -264,9 +285,9 @@ def main():
     elif args.transition == 'easy-first':
         oracle = easy_first_pending
 
-    process_data(in_fname, out_path, 'train', vocabs, oracle, args.transition)
-    process_data(in_fname, out_path, 'dev', vocabs, oracle, args.transition)
-    process_data(in_fname, out_path, 'test', vocabs, oracle, args.transition)
+    process_data(in_fname, out_path, 'train', vocabs, oracle, args.transition,rel_ids)
+    process_data(in_fname, out_path, 'dev', vocabs, oracle, args.transition,rel_ids)
+    process_data(in_fname, out_path, 'test', vocabs, oracle, args.transition,rel_ids)
 
 
 if __name__ == '__main__':

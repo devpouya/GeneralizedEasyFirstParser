@@ -21,7 +21,7 @@ def get_args():
     parser = argparse.ArgumentParser()
     # Data
     # parser.add_argument('--language', type=str, required=True)
-    parser.add_argument('--data-path', type=str, default='data_nonproj/')
+    parser.add_argument('--data-path', type=str, default='data_nonproj_2/')
     parser.add_argument('--batch-size', type=int, default=32)
     parser.add_argument('--batch-size-eval', type=int, default=128)
     parser.add_argument('--key', type=str)
@@ -176,7 +176,7 @@ def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_al
     # pylint: disable=too-many-locals,too-many-arguments
     torch.autograd.set_detect_anomaly(True)
     #optimizer, lr_scheduler = get_optimizer(model.parameters(), optim_alg, lr_decay, weight_decay)
-    optimizer = optim.Adam(model.parameters(), betas=(0.9, 0.999), eps=1e-08, lr=2e-5)
+    optimizer = optim.Adam(model.parameters(), betas=(0.9, 0.999), eps=1e-08, lr=1e-5)
     num_iter = trainloader.dataset.n_instances*5
     lr_scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0, num_training_steps=num_iter)
     train_info = TrainInfo(wait_iterations, eval_batches)
@@ -232,8 +232,8 @@ def main():
     else:
         fname = args.model
 
-    #all_languages = ["af", "da", "eu", "ga", "hu", "ko", "la", "lt", "nl", "qhe", "sl", "ur"]
-    all_languages = ["ko"]#, "eu", "ga", "hu", "ko", "la", "lt", "nl", "qhe", "sl", "ur"]
+    all_languages = ["af", "da", "eu", "ga", "hu", "ko", "la", "lt", "nl", "qhe", "sl", "ur"]
+    #all_languages = ["ko"]#, "eu", "ga", "hu", "ko", "la", "lt", "nl", "qhe", "sl", "ur"]
     sizes = []
     trainloader_dict = {}
     testloader_dict = {}
@@ -244,7 +244,7 @@ def main():
         get_data_loaders(args.data_path, all_languages, args.batch_size, args.batch_size_eval, fname,
                          transition_system=transition_system, bert_model=args.bert_model)
 
-
+    rels_size = 90
     save_name = "final_output_%s.txt".format(args.model)
     file1 = open(save_name, "w")
     s = "MULTILINGUAL"
