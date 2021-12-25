@@ -233,7 +233,7 @@ def main():
         fname = args.model
 
     #all_languages = ["af", "da", "eu", "ga", "hu", "ko", "la", "lt", "nl", "qhe", "sl", "ur"]
-    all_languages = ["lt"]#, "eu", "ga", "hu", "ko", "la", "lt", "nl", "qhe", "sl", "ur"]
+    all_languages = ["nl"]#, "eu", "ga", "hu", "ko", "la", "lt", "nl", "qhe", "sl", "ur"]
     sizes = []
     trainloader_dict = {}
     testloader_dict = {}
