@@ -83,7 +83,8 @@ class BertParser(BaseParser):
         #self.bert = AutoModelForMaskedLM.from_pretrained("bert-base-multilingual-cased", output_hidden_states=True).to(device=constants.device)
         #self.bert = AutoModel.from_pretrained("kykim/bert-kor-base", output_hidden_states=True).to(
         #    device=constants.device).train()
-        self.bert = AutoModelForMaskedLM.from_pretrained("xlm-roberta-base", output_hidden_states=True).to(device=constants.device)
+        #self.bert = AutoModelForMaskedLM.from_pretrained("xlm-roberta-base", output_hidden_states=True).to(device=constants.device)
+        self.bert = AutoModelForMaskedLM.from_pretrained("jannesg/takalane_afr_roberta", output_hidden_states=True).to(device=constants.device)
         self.bert.eval()
         for param in self.bert.parameters():
             param.requires_grad = True

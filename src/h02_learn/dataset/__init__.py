@@ -5,7 +5,7 @@ from h01_data import load_vocabs, load_embeddings, get_ud_fname, get_oracle_acti
 from utils import constants
 from .syntax import SyntaxDataset, LanguageBatchSampler
 from transformers import BertTokenizer, BertTokenizerFast
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, RobertaTokenizerFast
 
 
 def generate_batch(batch,transition_system):
@@ -27,7 +27,6 @@ def generate_batch(batch,transition_system):
         cls: a tensor saving the labels of individual text entries.
     """
     tensor = batch[0][0][0]
-
     # for entry in batch:
     #    print(entry[2])
     batch_size = len(batch)
@@ -110,7 +109,8 @@ def get_data_loaders(data_path, all_languages, batch_size, batch_size_eval, tran
 
 
     #tokenizer = BertTokenizer.from_pretrained("bert-base-multilingual-cased")
-    tokenizer = AutoTokenizer.from_pretrained("xlm-roberta-base")
+    #tokenizer = AutoTokenizer.from_pretrained("jannesg/takalane_afr_roberta")
+    tokenizer = RobertaTokenizerFast.from_pretrained("jannesg/takalane_afr_roberta",add_prefix_space=True)
     #tokenizer = AutoTokenizer.from_pretrained("ixa-ehu/berteus-base-cased")
     #tokenizer = AutoTokenizer.from_pretrained("kykim/bert-kor-base")
     trainloader, _ = get_data_loader(all_fnames_train, all_transitions_train, transition_system, tokenizer,

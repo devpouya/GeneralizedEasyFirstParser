@@ -21,7 +21,7 @@ def get_args():
     parser = argparse.ArgumentParser()
     # Data
     # parser.add_argument('--language', type=str, required=True)
-    parser.add_argument('--data-path', type=str, default='data_nonproj_2/')
+    parser.add_argument('--data-path', type=str, default='data_nonproj/')
     parser.add_argument('--batch-size', type=int, default=32)
     parser.add_argument('--batch-size-eval', type=int, default=128)
     parser.add_argument('--key', type=str)
@@ -232,8 +232,8 @@ def main():
     else:
         fname = args.model
 
-    all_languages = ["af", "da", "eu", "ga", "hu", "ko", "la", "lt", "nl", "qhe", "sl", "ur"]
-    #all_languages = ["ko"]#, "eu", "ga", "hu", "ko", "la", "lt", "nl", "qhe", "sl", "ur"]
+    #all_languages = ["af", "da", "eu", "ga", "hu", "ko", "la", "lt", "nl", "qhe", "sl", "ur"]
+    all_languages = ["af"]#, "eu", "ga", "hu", "ko", "la", "lt", "nl", "qhe", "sl", "ur"]
     sizes = []
     trainloader_dict = {}
     testloader_dict = {}
