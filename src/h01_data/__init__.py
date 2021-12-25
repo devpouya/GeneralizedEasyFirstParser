@@ -36,9 +36,9 @@ def get_ud_fname(fpath):
 
 def get_oracle_actions(fpath,transition,is_agenda=False):
     if not is_agenda:
-        fname_train = '%s/%s_actions_%s.json' % (fpath, transition,'train')
-        fname_dev = '%s/%s_actions_%s.json' % (fpath, transition,'dev')
-        fname_test = '%s/%s_actions_%s.json' % (fpath, transition,'test')
+        fname_train = '%s/shift_reduce_actions_%s.json' % (fpath,'train')
+        fname_dev = '%s/shift_reduce_actions_%s.json' % (fpath,'dev')
+        fname_test = '%s/shift_reduce_actions_%s.json' % (fpath,'test')
     else:
         fname_train = '%s/easy_first_actions_%s.json' % (fpath, 'train')
         fname_dev = '%s/easy_first_actions_%s.json' % (fpath, 'dev')

@@ -75,7 +75,7 @@ def get_data_loader(fname, transitions_file, transition_system, tokenizer, batch
 
 
 def get_data_loaders(data_path, all_languages, batch_size, batch_size_eval, transitions=None, transition_system=None,
-                     bert_model=None):
+                     bert_model=None, is_easy_first=True):
     all_fnames_train = []
     all_fnames_test = {}
     all_fnames_dev = {}
@@ -101,7 +101,7 @@ def get_data_loaders(data_path, all_languages, batch_size, batch_size_eval, tran
                 is_agenda=True
             else:
                 is_agenda=False
-            (transitions_train, transitions_dev, transitions_test) = get_oracle_actions(src_path, transitions,is_agenda)
+            (transitions_train, transitions_dev, transitions_test) = get_oracle_actions(src_path, transitions,is_easy_first)
         all_transitions_train.append(transitions_train)
         all_transitions_test[language] = transitions_test
         all_transitions_dev[language] = transitions_dev

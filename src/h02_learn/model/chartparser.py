@@ -33,11 +33,12 @@ def print_yellow(s):
 
 class ChartParser(BertParser):
     def __init__(self, lang, num_rels, batch_size, hypergraph=MH4,
-                 dropout=0.33):
+                 dropout=0.33,is_easy_first=True):
         super().__init__(lang, num_rels,
                          batch_size=batch_size, dropout=dropout)
         #self.eos_token_id = eos_token_id
         self.hypergraph = hypergraph
+        self.is_easy_first = is_easy_first
         self.dropout = nn.Dropout(dropout)
         self.parse_step_chart = self.parse_step_mh4
 
@@ -155,8 +156,8 @@ class ChartParser(BertParser):
 
             fwd_rep = torch.cat([words[u, :], words[v, :]], dim=-1).unsqueeze(0)
             rep = torch.cat([span, fwd_rep], dim=-1)
-            item.set_rep(rep)
-            hypergraph.add_item(item)
+            #item.set_rep(rep)
+            #hypergraph.add_item(item)
             s = self.mlp(rep)
             scores.append(s)
             index2key[iter] = item.key
@@ -230,7 +231,8 @@ class ChartParser(BertParser):
 
             words = s  # .clone()
 
-            hypergraph = self.hypergraph(n)
+            #hypergraph = self.hypergraph(n)
+            hypergraph = self.hypergraph(n, self.is_easy_first)
 
             pending = self.init_pending(n, hypergraph)
             for iter, gold_arc in enumerate(ordered_arcs):
@@ -309,7 +311,11 @@ class ChartParser(BertParser):
 
     def loss(self, batch_loss, l_logits, rels):
         criterion_l = nn.CrossEntropyLoss(ignore_index=0).to(device=constants.device)
+        #print("(///(((((((//(Z/(/(/(/(/(/(/")
+        #print(rels)
+        #print("(///(((((((//(Z/(/(/(/(/(/(/")
         loss = criterion_l(l_logits.reshape(-1, l_logits.shape[-1]), rels.reshape(-1))
+
         return loss + batch_loss
 
     def get_args(self):

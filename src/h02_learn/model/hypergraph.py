@@ -473,12 +473,24 @@ class ArcEager(Hypergraph):
 
         return arcs, items, nus
 
+def item_to_transition_state(item):
+    heads = item.heads
+    # print(heads)
+    # heads = heads[heads != -1]
+    # print(heads)
+    sigma_1 = heads[:-1]
+    beta_1 = heads[-1]
+    return sigma_1, beta_1
 
 class MH4(Hypergraph):
-    def __init__(self, n):
+    def __init__(self, n, is_easy_first = True):
         super().__init__(n)
         self.made_arcs = []
-        self.made_items = {}
+        self.is_easy_first = is_easy_first
+        if not is_easy_first:
+            self.link = self.link_shift_reduce
+        else:
+            self.link = self.link_shift_easy_first
 
     def axiom(self, i):
         return ItemMH4([i, i + 1], i, i)
@@ -489,6 +501,80 @@ class MH4(Hypergraph):
 
     def make_arc(self, item):
         pass
+
+    def shift_reduce_arc_from_item(self, item):
+        sigma_item, beta_item = item_to_transition_state(item)
+        arcs = []
+        items = []
+        # print(item.heads)
+        la_arc = (sigma_item[-1], beta_item)
+        new_heads = item.heads.copy()
+        new_heads_1 = new_heads
+        new_heads_1.remove(sigma_item[-1])
+        item_la_arc = ItemMH4(new_heads_1, item, item)
+        # if self.is_item_legal_shift_reduce(item_la_arc):
+        arcs.append(la_arc)
+        items.append(item_la_arc)
+        if len(sigma_item) >= 2:
+            la_prime_arc = (sigma_item[-1], sigma_item[-2])
+            new_heads_2 = item.heads.copy()
+            new_heads_2.remove(sigma_item[-2])
+            item_la_prime_arc = ItemMH4(new_heads_2, item, item)
+
+            la_2_arc = (beta_item, sigma_item[-2])
+            new_heads_3 = item.heads.copy()
+            new_heads_3.remove(sigma_item[-2])
+            item_la_2_arc = ItemMH4(new_heads_3, item, item)
+
+            ra_arc = (sigma_item[-2], sigma_item[-1])
+            new_heads_4 = item.heads.copy()
+            new_heads_4.remove(sigma_item[-1])
+            item_ra_arc = ItemMH4(new_heads_4, item, item)
+
+            # if self.is_item_legal_shift_reduce(item_la_prime_arc):
+            arcs.append(la_prime_arc)
+            items.append(item_la_prime_arc)
+            # if self.is_item_legal_shift_reduce(item_la_2_arc):
+            arcs.append(la_2_arc)
+            items.append(item_la_2_arc)
+            # if self.is_item_legal_shift_reduce(item_ra_arc):
+            arcs.append(ra_arc)
+            items.append(item_ra_arc)
+
+        if len(sigma_item) >= 3:
+            ra_prime_arc = (sigma_item[-3], sigma_item[-2])
+            new_heads_5 = item.heads.copy()
+            new_heads_5.remove(sigma_item[-2])
+            item_ra_prime_arc = ItemMH4(new_heads_5, item, item)
+
+            ra_2_arc = (sigma_item[-3], sigma_item[-1])
+            new_heads_6 = item.heads.copy()
+            new_heads_6.remove(sigma_item[-1])
+            item_ra_2_arc = ItemMH4(new_heads_6, item, item)
+            # if self.is_item_legal_shift_reduce(item_ra_prime_arc):
+            arcs.append(ra_prime_arc)
+            items.append(item_ra_prime_arc)
+            # if self.is_item_legal_shift_reduce(item_ra_2_arc):
+            arcs.append(ra_2_arc)
+            items.append(item_ra_2_arc)
+
+        return arcs, items
+
+    def link_shift_reduce(self, item, prev_arcs):
+
+        arcs, items = self.shift_reduce_arc_from_item(item)
+        if item.heads[-1] + 1 <= self.n:
+            # can be pushed
+            new_heads = item.heads
+            new_heads.append(item.heads[-1] + 1)
+            if len(new_heads) > 4:
+                new_heads = new_heads[-4:]
+            new_item = ItemMH4(new_heads, item, item)
+            arcs2, items2 = self.shift_reduce_arc_from_item(new_item)
+            arcs = arcs + arcs2
+            items = items + items2
+
+        return arcs, items
 
     def combine2(self, item, pending):
         head = item.heads
@@ -728,10 +814,7 @@ class MH4(Hypergraph):
                     all_items.append(new_item)
         return all_items
 
-    def add_item(self, item):
-        self.made_items[item.key] = item
-
-    def link(self, item, prev_arcs):
+    def link_shift_easy_first(self, item, prev_arcs):
         all_items = []
         arcs = []
         if len(item.heads) > 2:
@@ -744,35 +827,26 @@ class MH4(Hypergraph):
                                     new_heads = item.heads.copy()
                                     new_heads.pop(j)
                                     new_item = ItemMH4(new_heads, item, item)
-                                    if new_item.key in self.made_items:
-                                        new_item = self.made_items[new_item.key]
                                     new_arc = (item.heads[i], item.heads[j])
                                     if new_arc not in prev_arcs:
                                         arcs.append(new_arc)
                                         all_items.append(new_item)
-
                                 if not self.has_head[item.heads[i]]:
                                     new_heads = item.heads.copy()
                                     new_heads.pop(i)
                                     new_item = ItemMH4(new_heads, item, item)
                                     new_arc = (item.heads[j], item.heads[i])
-                                    if new_item.key in self.made_items:
-                                        new_item = self.made_items[new_item.key]
                                     if new_arc not in prev_arcs:
                                         arcs.append(new_arc)
                                         all_items.append(new_item)
         else:
             new_arc_1 = (item.heads[1], item.heads[0])
             new_item_1 = ItemMH4([item.heads[1]], item, item)
-            if new_item_1.key in self.made_items:
-                new_item_1 = self.made_items[new_item_1.key]
             if new_arc_1 not in prev_arcs:
                 arcs.append(new_arc_1)
                 all_items.append(new_item_1)
             new_arc_2 = (item.heads[0], item.heads[1])
             new_item_2 = ItemMH4([item.heads[0]], item, item)
-            if new_item_2.key in self.made_items:
-                new_item_2 = self.made_items[new_item_2.key]
             if new_arc_2 not in prev_arcs:
                 arcs.append(new_arc_2)
                 all_items.append(new_item_2)

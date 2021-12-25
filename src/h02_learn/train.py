@@ -51,7 +51,7 @@ def get_args():
 
     args = parser.parse_args()
     args.wait_iterations = 3  # args.wait_epochs * args.eval_batches
-    s = "MULTILINGUAL"
+    s = args.mode
     args.save_path = '%s/%s/%s/%s/' % (args.checkpoints_path, s, args.model, args.name)
     utils.config(args.seed)
     print("RUNNING {}".format(args.name))
@@ -72,10 +72,10 @@ def get_optimizer(paramters, optim_alg, lr_decay, weight_decay):
     return optimizer, lr_scheduler
 
 
-def get_model(lang, num_rels, args):
+def get_model(lang, num_rels, args, ef):
     return ChartParser(lang=lang,num_rels=num_rels,
                        batch_size=args.batch_size,
-                       hypergraph=MH4, dropout=args.dropout).to(
+                       hypergraph=MH4, dropout=args.dropout, is_easy_first=ef).to(
         device=constants.device)
 
 
@@ -240,18 +240,22 @@ def main():
     testloader_dict = {}
     devloader_dict = {}
     max_num_rels = 0
+    if args.mode == "easy-first":
+        ef = True
+    else:
+        ef = False
     #for ind, lang in enumerate(all_languages):
     trainloader, devloader, testloader, rels_size = \
         get_data_loaders(args.data_path, all_languages, args.batch_size, args.batch_size_eval, fname,
-                         transition_system=transition_system, bert_model=args.bert_model)
+                         transition_system=transition_system, bert_model=args.bert_model, is_easy_first=ef)
 
 
     save_name = "final_output_%s.txt".format(args.model)
     file1 = open(save_name, "w")
-    s = "MULTILINGUAL"
+    s = args.mode
     WANDB_PROJECT = f"{s}_{args.model}"
     # WANDB_PROJECT = "%s_%s".format(args.language,args.model)
-    model = get_model(args.language, rels_size, args)
+    model = get_model(args.language, rels_size, args, ef)
     run = wandb.init(project=WANDB_PROJECT, config={'wandb_nb': 'wandb_three_in_one_hm'},
                      settings=wandb.Settings(start_method="fork"))
 
