@@ -20,7 +20,7 @@ import wandb
 def get_args():
     parser = argparse.ArgumentParser()
     # Data
-    # parser.add_argument('--language', type=str, required=True)
+    parser.add_argument('--language', type=str, required=True)
     parser.add_argument('--data-path', type=str, default='data_nonproj/')
     parser.add_argument('--batch-size', type=int, default=32)
     parser.add_argument('--batch-size-eval', type=int, default=128)
@@ -72,8 +72,8 @@ def get_optimizer(paramters, optim_alg, lr_decay, weight_decay):
     return optimizer, lr_scheduler
 
 
-def get_model(num_rels, args):
-    return ChartParser(num_rels=num_rels,
+def get_model(lang, num_rels, args):
+    return ChartParser(lang=lang,num_rels=num_rels,
                        batch_size=args.batch_size,
                        hypergraph=MH4, dropout=args.dropout).to(
         device=constants.device)
@@ -233,7 +233,8 @@ def main():
         fname = args.model
 
     #all_languages = ["af", "da", "eu", "ga", "hu", "ko", "la", "lt", "nl", "qhe", "sl", "ur"]
-    all_languages = ["eu"]#, "eu", "ga", "hu", "ko", "la", "lt", "nl", "qhe", "sl", "ur"]
+
+    all_languages = [args.language]#, "eu", "ga", "hu", "ko", "la", "lt", "nl", "qhe", "sl", "ur"]
     sizes = []
     trainloader_dict = {}
     testloader_dict = {}
@@ -250,7 +251,7 @@ def main():
     s = "MULTILINGUAL"
     WANDB_PROJECT = f"{s}_{args.model}"
     # WANDB_PROJECT = "%s_%s".format(args.language,args.model)
-    model = get_model(rels_size, args)
+    model = get_model(args.language, rels_size, args)
     run = wandb.init(project=WANDB_PROJECT, config={'wandb_nb': 'wandb_three_in_one_hm'},
                      settings=wandb.Settings(start_method="fork"))
 

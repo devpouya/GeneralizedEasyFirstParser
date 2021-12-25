@@ -5,7 +5,7 @@ from h01_data import load_vocabs, load_embeddings, get_ud_fname, get_oracle_acti
 from utils import constants
 from .syntax import SyntaxDataset, LanguageBatchSampler
 from transformers import BertTokenizer, BertTokenizerFast
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer,RobertaTokenizerFast
 
 
 def generate_batch(batch,transition_system):
@@ -108,10 +108,31 @@ def get_data_loaders(data_path, all_languages, batch_size, batch_size_eval, tran
         #all_transitions_test.append(transitions_test)
         #all_transitions_dev.append(transitions_dev)
 
+    l = all_languages[0]
+    if l == "eu":
+        tokenizer = AutoTokenizer.from_pretrained("ixa-ehu/berteus-base-cased")
+    elif l == "ko":
+        tokenizer = AutoTokenizer.from_pretrained("kykim/bert-kor-base")
+    elif l == "hu":
+        tokenizer = AutoTokenizer.from_pretrained("SZTAKI-HLT/hubert-base-cc")
+    elif l == "af":
+        tokenizer = RobertaTokenizerFast.from_pretrained("jannesg/takalane_afr_roberta", add_prefix_space=True)
+    elif l == "la":
+        tokenizer = AutoTokenizer.from_pretrained("cook/cicero-similis")
+    elif l == "ur":
+        tokenizer = AutoTokenizer.from_pretrained("Geotrend/bert-base-ur-cased")
+    elif l == "da":
+        tokenizer = BertTokenizer.from_pretrained("Maltehb/danish-bert-botxo")
+    elif l == "ga":
+        tokenizer = BertTokenizer.from_pretrained("DCU-NLP/bert-base-irish-cased-v1")
+    elif l == "lt":
+        tokenizer = BertTokenizer.from_pretrained("Geotrend/bert-base-lt-cased")
+    else:
+        tokenizer = BertTokenizer.from_pretrained("Geotrend/bert-base-nl-cased")
 
     #tokenizer = BertTokenizer.from_pretrained("bert-base-multilingual-cased")
     #tokenizer = AutoTokenizer.from_pretrained("xlm-roberta-base")
-    tokenizer = AutoTokenizer.from_pretrained("ixa-ehu/berteus-base-cased")
+    #tokenizer = AutoTokenizer.from_pretrained("ixa-ehu/berteus-base-cased")
     trainloader, _ = get_data_loader(all_fnames_train, all_transitions_train, transition_system, tokenizer,
                                                       batch_size,max_rels_size,
                                                       shuffle=True)

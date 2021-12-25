@@ -64,7 +64,7 @@ class BaseParser(nn.Module, ABC):
 
 
 class BertParser(BaseParser):
-    def __init__(self, num_rels, batch_size,
+    def __init__(self, l, num_rels, batch_size,
                  dropout=0.33):
         super().__init__()
         # basic parameters
@@ -83,6 +83,38 @@ class BertParser(BaseParser):
         #self.bert = AutoModelForMaskedLM.from_pretrained("bert-base-multilingual-cased", output_hidden_states=True).to(device=constants.device)
         self.bert = AutoModel.from_pretrained("ixa-ehu/berteus-base-cased", output_hidden_states=True).to(
             device=constants.device).train()
+
+        if l == "eu":
+            self.bert = AutoModel.from_pretrained("ixa-ehu/berteus-base-cased", output_hidden_states=True).to(
+                device=constants.device).train()
+        elif l == "ko":
+            self.bert = AutoModel.from_pretrained("kykim/bert-kor-base", output_hidden_states=True).to(
+                device=constants.device).train()
+        elif l == "hu":
+            self.bert = AutoModel.from_pretrained("SZTAKI-HLT/hubert-base-cc", output_hidden_states=True).to(
+                device=constants.device).train()
+        elif l == "af":
+            self.bert = AutoModel.from_pretrained("jannesg/takalane_afr_roberta", output_hidden_states=True).to(
+                device=constants.device).train()
+        elif l == "la":
+            self.bert = AutoModel.from_pretrained("cook/cicero-similis", output_hidden_states=True).to(
+                device=constants.device).train()
+        elif l == "ur":
+            self.bert = AutoModel.from_pretrained("Geotrend/bert-base-ur-cased", output_hidden_states=True).to(
+                device=constants.device).train()
+        elif l == "da":
+            self.bert = AutoModel.from_pretrained("Maltehb/danish-bert-botxo", output_hidden_states=True).to(
+                device=constants.device).train()
+        elif l == "ga":
+            self.bert = AutoModel.from_pretrained("DCU-NLP/bert-base-irish-cased-v1", output_hidden_states=True).to(
+                device=constants.device).train()
+        elif l == "lt":
+            self.bert = AutoModel.from_pretrained("Geotrend/bert-base-lt-cased", output_hidden_states=True).to(
+                device=constants.device).train()
+        else:
+            self.bert = AutoModel.from_pretrained("Geotrend/bert-base-nl-cased", output_hidden_states=True).to(
+                device=constants.device).train()
+
         #self.bert = AutoModelForMaskedLM.from_pretrained("xlm-roberta-base", output_hidden_states=True).to(device=constants.device)
         self.bert.eval()
         for param in self.bert.parameters():
