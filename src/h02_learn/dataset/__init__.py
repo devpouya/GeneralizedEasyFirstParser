@@ -108,9 +108,9 @@ def get_data_loaders(data_path, all_languages, batch_size, batch_size_eval, tran
         #all_transitions_dev.append(transitions_dev)
 
 
-    #tokenizer = BertTokenizer.from_pretrained("bert-base-multilingual-cased")
+    tokenizer = BertTokenizer.from_pretrained("SZTAKI-HLT/hubert-base-cc")
     #tokenizer = AutoTokenizer.from_pretrained("jannesg/takalane_afr_roberta")
-    tokenizer = RobertaTokenizerFast.from_pretrained("jannesg/takalane_afr_roberta",add_prefix_space=True)
+    #tokenizer = RobertaTokenizerFast.from_pretrained("jannesg/takalane_afr_roberta",add_prefix_space=True)
     #tokenizer = AutoTokenizer.from_pretrained("ixa-ehu/berteus-base-cased")
     #tokenizer = AutoTokenizer.from_pretrained("kykim/bert-kor-base")
     trainloader, _ = get_data_loader(all_fnames_train, all_transitions_train, transition_system, tokenizer,
