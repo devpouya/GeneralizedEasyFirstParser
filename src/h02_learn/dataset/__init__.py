@@ -108,7 +108,7 @@ def get_data_loaders(data_path, all_languages, batch_size, batch_size_eval, tran
         #all_transitions_dev.append(transitions_dev)
 
 
-    tokenizer = BertTokenizer.from_pretrained("cook/cicero-similis")
+    tokenizer = BertTokenizer.from_pretrained("Geotrend/bert-base-ur-cased")
     #tokenizer = AutoTokenizer.from_pretrained("jannesg/takalane_afr_roberta")
     #tokenizer = RobertaTokenizerFast.from_pretrained("jannesg/takalane_afr_roberta",add_prefix_space=True)
     #tokenizer = AutoTokenizer.from_pretrained("ixa-ehu/berteus-base-cased")
