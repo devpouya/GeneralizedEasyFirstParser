@@ -262,7 +262,7 @@ class ChartParser(BertParser):
         #print(l_logits.shape)
         #l_logits = self.get_label_logits(h_t_noeos, heads)
         rels_batch = torch.argmax(l_logits, dim=-1)
-        batch_loss = self.loss(batch_loss, l_logits, rels)
+        batch_loss += self.loss(batch_loss, l_logits, rels)
         return batch_loss, heads_batch, rels_batch
 
     def get_label_logits(self, h_t, head):
