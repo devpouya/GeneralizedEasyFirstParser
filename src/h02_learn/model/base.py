@@ -111,6 +111,12 @@ class BertParser(BaseParser):
         elif l == "lt":
             self.bert = AutoModel.from_pretrained("Geotrend/bert-base-lt-cased", output_hidden_states=True).to(
                 device=constants.device).train()
+        elif l == "qhe":
+            self.bert = AutoModel.from_pretrained("monsoon-nlp/hindi-bert", output_hidden_states=True).to(
+                device=constants.device).train()
+        elif l == "sl":
+            self.bert = AutoModel.from_pretrained("EMBEDDIA/sloberta", output_hidden_states=True).to(
+                device=constants.device).train()
         else:
             self.bert = AutoModel.from_pretrained("Geotrend/bert-base-nl-cased", output_hidden_states=True).to(
                 device=constants.device).train()

@@ -127,6 +127,10 @@ def get_data_loaders(data_path, all_languages, batch_size, batch_size_eval, tran
         tokenizer = BertTokenizer.from_pretrained("DCU-NLP/bert-base-irish-cased-v1")
     elif l == "lt":
         tokenizer = BertTokenizer.from_pretrained("Geotrend/bert-base-lt-cased")
+    elif l == "qhe":
+        tokenizer = BertTokenizer.from_pretrained("monsoon-nlp/hindi-bert")
+    elif l == "sl":
+        tokenizer = BertTokenizer.from_pretrained("EMBEDDIA/sloberta")
     else:
         tokenizer = BertTokenizer.from_pretrained("Geotrend/bert-base-nl-cased")
 

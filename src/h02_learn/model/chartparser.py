@@ -58,9 +58,13 @@ class ChartParser(BertParser):
 
         self.mlp = nn.Sequential(*layers)
 
-        self.linear_labels_dep = nn.Linear(bert_hidden_size, 500).to(device=constants.device)
-        self.linear_labels_head = nn.Linear(bert_hidden_size, 500).to(device=constants.device)
-        self.bilinear_label = Bilinear(500, 500, self.num_rels)
+        #self.linear_labels_dep = nn.Linear(bert_hidden_size, 500).to(device=constants.device)
+        #self.linear_labels_head = nn.Linear(bert_hidden_size, 500).to(device=constants.device)
+        #self.bilinear_label = Bilinear(500, 500, self.num_rels)
+
+        label_linear = nn.Linear(bert_hidden_size, self.num_rels).to(device=constants.device)
+        layers_label = [label_linear,nn.Tanh()]
+        self.label_predictor = nn.Sequential(*layers_label)
 
     def init_pending(self, n, hypergraph):
         pending = {}
@@ -245,18 +249,20 @@ class ChartParser(BertParser):
 
                 if self.training:
                      loss += nn.CrossEntropyLoss(reduction='sum')(scores, gold_index)
-                     #print(loss)
+                    # print(loss)
             loss /= len(ordered_arcs)
             pred_heads = self.heads_from_arcs(arcs, n)
             heads_batch[i, :n] = pred_heads
-            h_t_noeos[i, :n, :] = x_mapped[i, :n, :]
+            h_t_noeos[i, :n, :] = x_mapped[i, :n, :].clone()
             batch_loss += loss
 
         batch_loss /= x_emb.shape[0]
-        heads = heads_batch
-        l_logits = self.get_label_logits(h_t_noeos, heads)
+        #heads = heads_batch
+        l_logits = self.label_predictor(h_t_noeos)
+        #print(l_logits.shape)
+        #l_logits = self.get_label_logits(h_t_noeos, heads)
         rels_batch = torch.argmax(l_logits, dim=-1)
-        batch_loss += self.loss(batch_loss, l_logits, rels)
+        batch_loss = self.loss(batch_loss, l_logits, rels)
         return batch_loss, heads_batch, rels_batch
 
     def get_label_logits(self, h_t, head):
@@ -269,6 +275,8 @@ class ChartParser(BertParser):
         l_head = l_head.gather(dim=1, index=head_int.unsqueeze(2).expand(l_head.size()))
 
         l_logits = self.bilinear_label(l_dep, l_head)
+        print(l_logits.shape)
+        print(l_logits)
         return l_logits
 
     def init_agenda_oracle(self, oracle_hypergraph, rels):
