@@ -87,7 +87,7 @@ def calculate_attachment_score(heads_tgt, heads, predicted_rels, rels):
     #print(rels)
     #print(heads_tgt)
     #print(predicted_rels)
-    rels = rels.permute(1, 0)
+    #rels = rels.permute(1, 0)
     acc_l = (predicted_rels == rels)[rels != -1]
 
     uas = acc_h.float().mean().item()

@@ -32,13 +32,13 @@ class ChartParser(BertParser):
 
         self.mlp = nn.Sequential(*layers)
 
-        self.linear_labels_dep = nn.Linear(bert_hidden_size, 500).to(device=constants.device)
-        self.linear_labels_head = nn.Linear(bert_hidden_size, 500).to(device=constants.device)
-        self.bilinear_label = Bilinear(500, 500, self.num_rels)
+        #self.linear_labels_dep = nn.Linear(bert_hidden_size, 500).to(device=constants.device)
+        #self.linear_labels_head = nn.Linear(bert_hidden_size, 500).to(device=constants.device)
+        #self.bilinear_label = Bilinear(500, 500, self.num_rels)
 
-        #label_linear = nn.Linear(bert_hidden_size, self.num_rels).to(device=constants.device)
-        #layers_label = [label_linear,nn.Tanh()]
-        #self.label_predictor = nn.Sequential(*layers_label)
+        label_linear = nn.Linear(bert_hidden_size, self.num_rels).to(device=constants.device)
+        layers_label = [label_linear,nn.Tanh()]
+        self.label_predictor = nn.Sequential(*layers_label)
 
     def init_pending(self, n, hypergraph):
         pending = {}
@@ -175,8 +175,8 @@ class ChartParser(BertParser):
             batch_loss += loss
 
         batch_loss /= x_emb.shape[0]
-        #l_logits = nn.Softmax(dim=-1)(self.label_predictor(h_t_noeos))
-        l_logits = self.get_label_logits(h_t_noeos, heads)
+        l_logits = nn.Softmax(dim=-1)(self.label_predictor(h_t_noeos))
+        #l_logits = self.get_label_logits(h_t_noeos, heads)
         rels_batch = torch.argmax(l_logits, dim=-1)
         batch_loss = self.loss(batch_loss, l_logits, rels)
         return batch_loss, heads_batch, rels_batch
@@ -202,15 +202,24 @@ class ChartParser(BertParser):
         return l_logits
 
     def loss(self, batch_loss, l_logits, rels):
-        criterion_l = nn.CrossEntropyLoss().to(device=constants.device)
+        criterion_l = nn.CrossEntropyLoss(ignore_index=0).to(device=constants.device)
         print("l_logits {}".format(l_logits))
         print("rels {}".format(rels))
         print("l_logits {}".format(l_logits.shape))
         print("rels {}".format(rels.shape))
         l_logits = l_logits[rels != -1]
         rels = rels[rels != -1]
-
-        loss = criterion_l(l_logits.reshape(-1, l_logits.shape[-1]), rels.reshape(-1))
+        print("l_logits {}".format(l_logits))
+        print("rels {}".format(rels))
+        print("l_logits {}".format(l_logits.shape))
+        print("rels {}".format(rels.shape))
+        l_logits = l_logits.reshape(-1, l_logits.shape[-1])
+        rels = rels.reshape(-1)
+        print("l_logits {}".format(l_logits))
+        print("rels {}".format(rels))
+        print("l_logits {}".format(l_logits.shape))
+        print("rels {}".format(rels.shape))
+        loss = criterion_l(l_logits, rels)
 
         return loss + batch_loss
 
