@@ -77,24 +77,24 @@ def get_model(lang, num_rels, args, ef):
 
 
 def calculate_attachment_score(heads_tgt, heads, predicted_rels, rels):
-    #predicted_rels = predicted_rels.permute(1, 0)
+    predicted_rels = predicted_rels.permute(1, 0)
     acc_h = (heads_tgt == heads)[heads != -1]
-    #predicted_rels = predicted_rels[predicted_rels != -1]
-    #rels = rels[rels != -1]
+    predicted_rels = predicted_rels[predicted_rels != -1]
+    rels = rels[rels != -1]
     #print(predicted_rels.shape)
     #print(rels.shape)
     #print(heads)
     #print(rels)
     #print(heads_tgt)
     #print(predicted_rels)
-    #rels = rels.permute(1, 0)
-    #acc_l = (predicted_rels == rels)[rels != -1]
+    rels = rels.permute(1, 0)
+    acc_l = (predicted_rels == rels)[rels != -1]
 
     uas = acc_h.float().mean().item()
     #print(acc_h.shape)
     #print(acc_l.shape)
-    #las = (acc_h & acc_l).float().mean().item()
-    return None, uas
+    las = (acc_h & acc_l).float().mean().item()
+    return las, uas
 
 
 def simple_attachment_scores(predicted_heads, heads, lengths):
@@ -121,11 +121,11 @@ def _evaluate(evalloader, model):
         las, uas = calculate_attachment_score(predicted_heads, heads, predicted_rels, rels)
         batch_size = text.shape[0]
         dev_loss += (loss * batch_size)
-        #dev_las += (las * batch_size)
+        dev_las += (las * batch_size)
         dev_uas += (uas * batch_size)
         n_instances += batch_size
 
-    return dev_loss / n_instances, None, dev_uas / n_instances
+    return dev_loss / n_instances, dev_las, dev_uas / n_instances
 
 
 def evaluate(evalloader, model):

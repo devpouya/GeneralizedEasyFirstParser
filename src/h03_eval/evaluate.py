@@ -27,10 +27,7 @@ def get_args():
 
 def load_model(checkpoints_path, language,model,name,is_agenda=True):
     load_path = '%s/%s/%s/%s/' % (checkpoints_path, language,model,name)
-    if is_agenda:
-        return ChartParser.load(load_path).to(device=constants.device)
-    else:
-        return NeuralTransitionParser.load(load_path).to(device=constants.device)
+    return ChartParser.load(load_path).to(device=constants.device)
 
 
 def main():

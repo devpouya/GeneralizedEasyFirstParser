@@ -176,10 +176,10 @@ class ChartParser(BertParser):
 
         batch_loss /= x_emb.shape[0]
         #l_logits = nn.Softmax(dim=-1)(self.label_predictor(h_t_noeos))
-        #l_logits = self.get_label_logits(h_t_noeos, heads)
-        #rels_batch = torch.argmax(l_logits, dim=-1)
-        #batch_loss = self.loss(batch_loss, l_logits, rels)
-        return batch_loss, heads_batch, None#rels_batch
+        l_logits = self.get_label_logits(h_t_noeos, heads)
+        rels_batch = torch.argmax(l_logits, dim=-1)
+        batch_loss = self.loss(batch_loss, l_logits, rels)
+        return batch_loss, heads_batch, rels_batch
 
 
     def heads_from_arcs(self, arcs, sent_len):
@@ -203,13 +203,13 @@ class ChartParser(BertParser):
 
     def loss(self, batch_loss, l_logits, rels):
         criterion_l = nn.CrossEntropyLoss().to(device=constants.device)
-
-        l_logits = l_logits[rels != -1]
-        rels = rels[rels != -1]
         print("l_logits {}".format(l_logits))
         print("rels {}".format(rels))
         print("l_logits {}".format(l_logits.shape))
         print("rels {}".format(rels.shape))
+        l_logits = l_logits[rels != -1]
+        rels = rels[rels != -1]
+
         loss = criterion_l(l_logits.reshape(-1, l_logits.shape[-1]), rels.reshape(-1))
 
         return loss + batch_loss

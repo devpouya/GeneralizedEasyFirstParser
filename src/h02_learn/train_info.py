@@ -63,7 +63,7 @@ class TrainInfo:
             dev_loss, dev_las, dev_uas = dev_results[language]
             if dev_uas > self.best_uas_lang[language]:
                 self.best_loss_lang[language] = dev_loss
-                #self.best_las_lang[language] = dev_las
+                self.best_las_lang[language] = dev_las
                 self.best_uas_lang[language] = dev_uas
                 count_improvements += 1
         if count_improvements >= int(math.floor(len(dev_results.keys())/2)):
@@ -88,9 +88,9 @@ class TrainInfo:
 
             dev_loss, dev_las, dev_uas = dev_results[language]
             devlosslang_str = "Dev Loss {}".format(language)
-            #devLASlang_str = "Dev LAS {}".format(language)
+            devLASlang_str = "Dev LAS {}".format(language)
             devUASlang_str = "Dev UAS {}".format(language)
-            log_dict = {'Training loss':self.avg_loss,devlosslang_str:dev_loss,
+            log_dict = {'Training loss':self.avg_loss,devlosslang_str:dev_loss,devLASlang_str:dev_las,
                         devUASlang_str:dev_uas,'batch_id':self.batch_id,'max_epochs':self.max_epochs}
             wandb.log(log_dict)
 
