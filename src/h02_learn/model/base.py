@@ -84,10 +84,10 @@ class BertParser(BaseParser):
         #self.bert = AutoModel.from_pretrained("ixa-ehu/berteus-base-cased", output_hidden_states=True).to(
         #    device=constants.device).train()
         if l == "multilingual":
-            #self.bert = AutoModelForMaskedLM.from_pretrained("xlm-roberta-base", output_hidden_states=True).to(
-            #    device=constants.device).train()
-            self.bert = AutoModelForMaskedLM.from_pretrained("xlm-roberta-large", output_hidden_states=True).to(
+            self.bert = AutoModelForMaskedLM.from_pretrained("xlm-roberta-base", output_hidden_states=True).to(
                 device=constants.device).train()
+            #self.bert = AutoModelForMaskedLM.from_pretrained("xlm-roberta-large", output_hidden_states=True).to(
+            #    device=constants.device).train()
         elif l == "eu":
             self.bert = AutoModel.from_pretrained("ixa-ehu/berteus-base-cased", output_hidden_states=True).to(
                 device=constants.device).train()

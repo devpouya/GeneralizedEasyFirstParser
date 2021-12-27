@@ -42,7 +42,7 @@ class ChartParser(BertParser):
         self.dropout = nn.Dropout(dropout)
         self.parse_step_chart = self.parse_step_mh4
         print(self.num_rels)
-        bert_hidden_size = 1024 #768
+        bert_hidden_size = 768#1024 #768
         self.hidden_size = bert_hidden_size
 
         linear_items1 = nn.Linear(bert_hidden_size * 3, bert_hidden_size * 2).to(device=constants.device)
@@ -319,6 +319,16 @@ class ChartParser(BertParser):
 
     def loss(self, batch_loss, l_logits, rels):
         criterion_l = nn.CrossEntropyLoss().to(device=constants.device)
+        #print(l_logits)
+        #print(rels)
+        #print(l_logits.shape)
+        #print(rels.shape)
+        l_logits = l_logits[rels != -1]
+        rels = rels[rels != -1]
+        #print(l_logits)
+        #print(rels)
+        #print(l_logits.shape)
+        #print(rels.shape)
         #print("(///(((((((//(Z/(/(/(/(/(/(/")
         #print(rels)
         #print(batch_loss)

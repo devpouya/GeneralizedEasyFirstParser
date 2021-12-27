@@ -82,14 +82,20 @@ def get_model(lang, num_rels, args, ef):
 def calculate_attachment_score(heads_tgt, heads, predicted_rels, rels):
     predicted_rels = predicted_rels.permute(1, 0)
     acc_h = (heads_tgt == heads)[heads != -1]
-    # predicted_rels = predicted_rels[predicted_rels != -1]
-    # rels = rels[rels != -1]
-    # print(predicted_rels.shape)
-    # print(rels.shape)
+    #predicted_rels = predicted_rels[predicted_rels != -1]
+    #rels = rels[rels != -1]
+    #print(predicted_rels.shape)
+    #print(rels.shape)
+    #print(heads)
+    #print(rels)
+    #print(heads_tgt)
+    #print(predicted_rels)
     rels = rels.permute(1, 0)
-    acc_l = (predicted_rels == rels)[rels != 0]
+    acc_l = (predicted_rels == rels)[rels != -1]
 
     uas = acc_h.float().mean().item()
+    #print(acc_h.shape)
+    #print(acc_l.shape)
     las = (acc_h & acc_l).float().mean().item()
     return las, uas
 
@@ -154,6 +160,7 @@ def train_batch(text, pos, heads, rels, transitions, relations_in_order, maps, m
     relations_in_order = relations_in_order.to(device=constants.device)
 
     loss, pred_h, pred_rel = model((text, pos), transitions, relations_in_order, maps, heads=heads, rels=rels)
+    las, uas = calculate_attachment_score(pred_h, heads, pred_rel, rels)
 
     # las, uas = calculate_attachment_score(pred_h, heads, pred_rel, rels)
     loss.backward()
@@ -235,8 +242,8 @@ def main():
 
     #all_languages = ["af", "da", "eu", "ga", "hu", "ko", "la", "lt", "nl", "qhe", "sl", "ur"]
     if args.language == "multilingual":
-        all_languages = ["af", "da", "eu", "hu", "ko", "la", "nl", "ur"]
-        #all_languages = ["af"]
+        #all_languages = ["af", "da", "eu", "hu", "ko", "la", "nl", "ur"]
+        all_languages = ["af"]
     else:
         all_languages = [args.language]
     sizes = []
