@@ -176,10 +176,10 @@ class ChartParser(BertParser):
 
         batch_loss /= x_emb.shape[0]
         #l_logits = nn.Softmax(dim=-1)(self.label_predictor(h_t_noeos))
-        l_logits = self.get_label_logits(h_t_noeos, heads)
-        rels_batch = torch.argmax(l_logits, dim=-1)
-        batch_loss = self.loss(batch_loss, l_logits, rels)
-        return batch_loss, heads_batch, rels_batch
+        #l_logits = self.get_label_logits(h_t_noeos, heads)
+        #rels_batch = torch.argmax(l_logits, dim=-1)
+        #batch_loss = self.loss(batch_loss, l_logits, rels)
+        return batch_loss, heads_batch, None#rels_batch
 
 
     def heads_from_arcs(self, arcs, sent_len):
