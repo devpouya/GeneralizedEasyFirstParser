@@ -41,7 +41,7 @@ class ChartParser(BertParser):
         self.is_easy_first = is_easy_first
         self.dropout = nn.Dropout(dropout)
         self.parse_step_chart = self.parse_step_mh4
-
+        print(self.num_rels)
         bert_hidden_size = 768
         self.hidden_size = bert_hidden_size
 
@@ -258,7 +258,8 @@ class ChartParser(BertParser):
 
         batch_loss /= x_emb.shape[0]
         #heads = heads_batch
-        l_logits = self.label_predictor(h_t_noeos)
+        l_logits = nn.Softmax(dim=-1)(self.label_predictor(h_t_noeos))
+        #print(l_logits)
         #print(l_logits.shape)
         #l_logits = self.get_label_logits(h_t_noeos, heads)
         rels_batch = torch.argmax(l_logits, dim=-1)
@@ -320,6 +321,7 @@ class ChartParser(BertParser):
         criterion_l = nn.CrossEntropyLoss().to(device=constants.device)
         #print("(///(((((((//(Z/(/(/(/(/(/(/")
         #print(rels)
+        #print(batch_loss)
         #print("(///(((((((//(Z/(/(/(/(/(/(/")
         loss = criterion_l(l_logits.reshape(-1, l_logits.shape[-1]), rels.reshape(-1))
 

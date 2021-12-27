@@ -85,10 +85,10 @@ def get_data_loaders(data_path, all_languages, batch_size, batch_size_eval, tran
     max_rels_size = 0
     for language in all_languages:
         src_path = path.join(data_path, constants.UD_PATH_PROCESSED, language)
-        vocabs = load_vocabs(src_path)
-        _,_,rels = vocabs
-        if rels.size > max_rels_size:
-            max_rels_size = rels.size
+        #vocabs = load_vocabs(src_path)
+        #_,_,rels = vocabs
+        #if rels.size > max_rels_size:
+        #    max_rels_size = rels.size
         (fname_train, fname_dev, fname_test) = get_ud_fname(src_path)
         all_fnames_train.append(fname_train)
         all_fnames_test[language] = fname_test

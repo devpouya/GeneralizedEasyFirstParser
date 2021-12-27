@@ -9,13 +9,14 @@ from h01_data.oracle import projectivize_mh4, get_arcs, mh4_oracle
 from utils import utils
 from utils import constants
 from h01_data.item_oracle import build_easy_first_mh4, item_mh4_oracle
+import codecs
 
 
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--language', type=str, required=True)
     parser.add_argument('--data-path', type=str, default='data/')
-    parser.add_argument('--save-path', type=str, default='data_nonproj/')
+    parser.add_argument('--save-path', type=str, default='multilingual/')
     parser.add_argument('--min-vocab-count', type=int, default=2)
     parser.add_argument('--easy-first', type=str, choices=["True", "False"], default="True")
     return parser.parse_args()
@@ -34,7 +35,7 @@ def get_sentence(file):
             sentence = []
 
 
-def process_sentence(sentence, vocabs):
+def process_sentence(sentence, vocabs, rel_ids):
     words, tags, rels = vocabs
     processed = [{
         'word': words.ROOT,
@@ -61,11 +62,11 @@ def process_sentence(sentence, vocabs):
             'head': int(token[6]),
             # 'head_id': token[6],
             'rel': token[7],
-            'rel_id': rels.idx(token[7]),
+            'rel_id': rel_ids[token[7]],#rels.idx(token[7]),
         }]
         heads.append(int(token[6]))
         relations.append(token[7])
-        rel2id[token[7]] = rels.idx(token[7])
+        rel2id[token[7]] = rel_ids[token[7]] #rels.idx(token[7])
 
     return processed, heads, relations, rel2id
 
@@ -84,7 +85,7 @@ def labeled_action_pairs(actions, relations):
     return labeled_acts
 
 
-def process_data(in_fname_base, out_path, mode, vocabs, is_easy_first=True):
+def process_data(in_fname_base, out_path, mode, vocabs, is_easy_first=True,rel_ids=None):
     in_fname = in_fname_base % mode
     out_fname = '%s/%s.json' % (out_path, mode)
     if is_easy_first:
@@ -106,7 +107,7 @@ def process_data(in_fname_base, out_path, mode, vocabs, is_easy_first=True):
         for sentence in get_sentence(file):
             step += 1
             #print(step)
-            sent_processed, heads, relations, rel2id = process_sentence(sentence, vocabs)
+            sent_processed, heads, relations, rel2id = process_sentence(sentence, vocabs, rel_ids)
             heads_proper = [0] + heads
 
             sentence_proper = list(range(len(heads_proper)))
@@ -162,6 +163,15 @@ def get_vocabs(in_fname_base, out_path, min_count):
     save_vocabs(out_path, words, tags, rels)
     return (words, tags, rels)
 
+def count_rels(in_fname, rel_ids, count):
+    with codecs.open(in_fname, 'r', encoding='utf-8') as file:
+        for sentence in get_sentence(file):
+            for token in sentence:
+                r = token[7]
+                if r not in rel_ids.keys():
+                    rel_ids[r] = count
+                    count += 1
+    return rel_ids, count
 
 def main():
     args = get_args()
@@ -169,15 +179,27 @@ def main():
         ef = True
     else:
         ef = False
+    all_languages = ["af", "da", "eu", "hu", "ko", "la", "nl", "ur"]
+    rel_ids = {}
+    count = 0
+    for lang in all_languages:
+        in_fname = path.join(args.data_path, constants.UD_LANG_FNAMES[lang]) % 'train'
+        rel_ids, count = count_rels(in_fname, rel_ids, count)
+        in_fname = path.join(args.data_path, constants.UD_LANG_FNAMES[lang]) % 'dev'
+        rel_ids, count = count_rels(in_fname, rel_ids, count)
+        in_fname = path.join(args.data_path, constants.UD_LANG_FNAMES[lang]) % 'test'
+        rel_ids, count = count_rels(in_fname, rel_ids, count)
+
+    print("MAX NUM ALL RELS {}".format(count))
     in_fname = path.join(args.data_path, constants.UD_LANG_FNAMES[args.language])
     out_path = path.join(args.save_path, constants.UD_PATH_PROCESSED, args.language)
     utils.mkdir(out_path)
 
     vocabs = get_vocabs(in_fname, out_path, min_count=args.min_vocab_count)
 
-    process_data(in_fname, out_path, 'train', vocabs, ef)
-    process_data(in_fname, out_path, 'dev', vocabs, ef)
-    process_data(in_fname, out_path, 'test', vocabs, ef)
+    process_data(in_fname, out_path, 'train', vocabs, ef,rel_ids)
+    process_data(in_fname, out_path, 'dev', vocabs, ef,rel_ids)
+    process_data(in_fname, out_path, 'test', vocabs, ef,rel_ids)
 
 
 if __name__ == '__main__':

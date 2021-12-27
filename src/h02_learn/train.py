@@ -233,7 +233,8 @@ def main():
 
     #all_languages = ["af", "da", "eu", "ga", "hu", "ko", "la", "lt", "nl", "qhe", "sl", "ur"]
     if args.language == "multilingual":
-        all_languages = ["af", "da", "eu", "ga", "hu", "ko", "la", "nl", "ur"]
+        all_languages = ["af", "da", "eu", "hu", "ko", "la", "nl", "ur"]
+        #all_languages = ["af", "da"]
     else:
         all_languages = [args.language]
     sizes = []
@@ -254,6 +255,7 @@ def main():
     save_name = "final_output_%s.txt".format(args.model)
     file1 = open(save_name, "w")
     s = args.mode
+    rels_size = 81
     WANDB_PROJECT = f"{s}_{args.model}"
     # WANDB_PROJECT = "%s_%s".format(args.language,args.model)
     model = get_model(args.language, rels_size, args, ef)
