@@ -98,6 +98,8 @@ def calculate_attachment_score(heads_tgt, heads, predicted_rels, rels):
 """
 def calculate_attachment_score(heads_tgt, heads, predicted_rels, rels):
     predicted_rels = predicted_rels.permute(1, 0)
+    print("headtgt {}".format(heads_tgt))
+    print("heads {}".format(heads))
     acc_h = (heads_tgt == heads)[heads != -1]
     # predicted_rels = predicted_rels[predicted_rels != -1]
     # rels = rels[rels != -1]
