@@ -29,6 +29,7 @@ def get_args():
     parser.add_argument('--embedding-size', type=int, default=768)
     parser.add_argument('--hidden-size', type=int, default=100)
     parser.add_argument('--rel-embedding-size', type=int, default=100)
+    parser.add_argument('--epochs', type=int, default=5)
     parser.add_argument('--dropout', type=float, default=.33)
     parser.add_argument('--weight-decay', type=float, default=0.01)
     parser.add_argument('--model', choices=['easy-first', 'easy-first-hybrid', 'biaffine', 'mst', 'arc-standard',
@@ -171,15 +172,16 @@ def train_batch(text, pos, heads, rels, transitions, relations_in_order, maps, m
 
 
 def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_alg, lr_decay, weight_decay,
-          save_path, save_batch=False, file=None):
+          save_path, save_batch=False, file=None,num_epochs=5):
     # pylint: disable=too-many-locals,too-many-arguments
     torch.autograd.set_detect_anomaly(True)
+
     #optimizer, lr_scheduler = get_optimizer(model.parameters(), optim_alg, lr_decay, weight_decay)
     optimizer = optim.Adam(model.parameters(), betas=(0.9, 0.999), eps=1e-08, lr=2e-5)
-    num_iter = trainloader.dataset.n_instances*5
+    num_iter = trainloader.dataset.n_instances*num_epochs
     lr_scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0, num_training_steps=num_iter)
     train_info = TrainInfo(wait_iterations, eval_batches)
-    for epoch in range(5):
+    for epoch in range(num_epochs):
         steps = 0
         for (text, pos), (heads, rels), (transitions, relations_in_order), maps in trainloader:
             steps += 1
@@ -234,7 +236,7 @@ def main():
     #all_languages = ["af", "da", "eu", "ga", "hu", "ko", "la", "lt", "nl", "qhe", "sl", "ur"]
     if args.language == "multilingual":
         all_languages = ["af", "da", "eu", "hu", "ko", "la", "nl", "ur"]
-        #all_languages = ["af", "da"]
+        #all_languages = ["af"]
     else:
         all_languages = [args.language]
     sizes = []
@@ -266,7 +268,7 @@ def main():
     wandb.watch(model)
     # if args.model != 'agenda-std':
     train(trainloader, devloader, model, args.eval_batches, args.wait_iterations,
-          args.optim, args.lr_decay, args.weight_decay, args.save_path, args.save_periodically, file=file1)
+          args.optim, args.lr_decay, args.weight_decay, args.save_path, args.save_periodically, file=file1,num_epochs=args.epochs)
     model.save(args.save_path)
 
     #train_results = evaluate(trainloader, model)
