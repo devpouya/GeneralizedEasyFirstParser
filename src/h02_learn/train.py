@@ -232,8 +232,10 @@ def main():
         fname = args.model
 
     #all_languages = ["af", "da", "eu", "ga", "hu", "ko", "la", "lt", "nl", "qhe", "sl", "ur"]
-
-    all_languages = [args.language]#, "eu", "ga", "hu", "ko", "la", "lt", "nl", "qhe", "sl", "ur"]
+    if args.language == "multilingual":
+        all_languages = ["af", "da", "eu", "ga", "hu", "ko", "la", "nl", "ur"]
+    else:
+        all_languages = [args.language]
     sizes = []
     trainloader_dict = {}
     testloader_dict = {}

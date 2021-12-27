@@ -107,32 +107,34 @@ def get_data_loaders(data_path, all_languages, batch_size, batch_size_eval, tran
         all_transitions_dev[language] = transitions_dev
         #all_transitions_test.append(transitions_test)
         #all_transitions_dev.append(transitions_dev)
-
-    l = all_languages[0]
-    if l == "eu":
-        tokenizer = AutoTokenizer.from_pretrained("ixa-ehu/berteus-base-cased")
-    elif l == "ko":
-        tokenizer = AutoTokenizer.from_pretrained("kykim/bert-kor-base")
-    elif l == "hu":
-        tokenizer = AutoTokenizer.from_pretrained("SZTAKI-HLT/hubert-base-cc")
-    elif l == "af":
-        tokenizer = RobertaTokenizerFast.from_pretrained("jannesg/takalane_afr_roberta", add_prefix_space=True)
-    elif l == "la":
-        tokenizer = AutoTokenizer.from_pretrained("cook/cicero-similis")
-    elif l == "ur":
-        tokenizer = AutoTokenizer.from_pretrained("Geotrend/bert-base-ur-cased")
-    elif l == "da":
-        tokenizer = BertTokenizer.from_pretrained("Maltehb/danish-bert-botxo")
-    elif l == "ga":
-        tokenizer = BertTokenizer.from_pretrained("DCU-NLP/bert-base-irish-cased-v1")
-    elif l == "lt":
-        tokenizer = BertTokenizer.from_pretrained("Geotrend/bert-base-lt-cased")
-    elif l == "qhe":
-        tokenizer = BertTokenizer.from_pretrained("monsoon-nlp/hindi-bert")
-    elif l == "sl":
-        tokenizer = BertTokenizer.from_pretrained("EMBEDDIA/sloberta")
+    if len(all_languages) > 1:
+        tokenizer = AutoTokenizer.from_pretrained("xlm-roberta-base")
     else:
-        tokenizer = BertTokenizer.from_pretrained("Geotrend/bert-base-nl-cased")
+        l = all_languages[0]
+        if l == "eu":
+            tokenizer = AutoTokenizer.from_pretrained("ixa-ehu/berteus-base-cased")
+        elif l == "ko":
+            tokenizer = AutoTokenizer.from_pretrained("kykim/bert-kor-base")
+        elif l == "hu":
+            tokenizer = AutoTokenizer.from_pretrained("SZTAKI-HLT/hubert-base-cc")
+        elif l == "af":
+            tokenizer = RobertaTokenizerFast.from_pretrained("jannesg/takalane_afr_roberta", add_prefix_space=True)
+        elif l == "la":
+            tokenizer = AutoTokenizer.from_pretrained("cook/cicero-similis")
+        elif l == "ur":
+            tokenizer = AutoTokenizer.from_pretrained("Geotrend/bert-base-ur-cased")
+        elif l == "da":
+            tokenizer = BertTokenizer.from_pretrained("Maltehb/danish-bert-botxo")
+        elif l == "ga":
+            tokenizer = BertTokenizer.from_pretrained("DCU-NLP/bert-base-irish-cased-v1")
+        elif l == "lt":
+            tokenizer = BertTokenizer.from_pretrained("Geotrend/bert-base-lt-cased")
+        elif l == "qhe":
+            tokenizer = BertTokenizer.from_pretrained("monsoon-nlp/hindi-bert")
+        elif l == "sl":
+            tokenizer = BertTokenizer.from_pretrained("EMBEDDIA/sloberta")
+        else:
+            tokenizer = BertTokenizer.from_pretrained("Geotrend/bert-base-nl-cased")
 
     #tokenizer = BertTokenizer.from_pretrained("bert-base-multilingual-cased")
     #tokenizer = AutoTokenizer.from_pretrained("xlm-roberta-base")

@@ -249,7 +249,7 @@ class ChartParser(BertParser):
 
                 if self.training:
                      loss += nn.CrossEntropyLoss(reduction='sum')(scores, gold_index)
-                    # print(loss)
+                     #print(loss)
             loss /= len(ordered_arcs)
             pred_heads = self.heads_from_arcs(arcs, n)
             heads_batch[i, :n] = pred_heads
@@ -262,7 +262,7 @@ class ChartParser(BertParser):
         #print(l_logits.shape)
         #l_logits = self.get_label_logits(h_t_noeos, heads)
         rels_batch = torch.argmax(l_logits, dim=-1)
-        batch_loss += self.loss(batch_loss, l_logits, rels)
+        batch_loss = self.loss(batch_loss, l_logits, rels)
         return batch_loss, heads_batch, rels_batch
 
     def get_label_logits(self, h_t, head):
@@ -275,8 +275,7 @@ class ChartParser(BertParser):
         l_head = l_head.gather(dim=1, index=head_int.unsqueeze(2).expand(l_head.size()))
 
         l_logits = self.bilinear_label(l_dep, l_head)
-        print(l_logits.shape)
-        print(l_logits)
+
         return l_logits
 
     def init_agenda_oracle(self, oracle_hypergraph, rels):
