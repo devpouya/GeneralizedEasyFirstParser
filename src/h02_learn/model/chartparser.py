@@ -15,7 +15,7 @@ class ChartParser(BertParser):
         self.hypergraph = hypergraph
         self.is_easy_first = is_easy_first
         self.dropout = nn.Dropout(dropout)
-        bert_hidden_size = 1024 #768
+        bert_hidden_size = 768 #1024 #768
         self.hidden_size = bert_hidden_size
 
         linear_items1 = nn.Linear(bert_hidden_size * 3, bert_hidden_size * 2).to(device=constants.device)
