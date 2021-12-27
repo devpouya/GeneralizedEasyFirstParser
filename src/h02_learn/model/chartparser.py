@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from utils import constants
 from .base import BertParser
 from .hypergraph import MH4
+from .modules import Bilinear
 
 
 class ChartParser(BertParser):
@@ -31,11 +32,13 @@ class ChartParser(BertParser):
 
         self.mlp = nn.Sequential(*layers)
 
+        self.linear_labels_dep = nn.Linear(bert_hidden_size, 500).to(device=constants.device)
+        self.linear_labels_head = nn.Linear(bert_hidden_size, 500).to(device=constants.device)
+        self.bilinear_label = Bilinear(500, 500, self.num_rels)
 
-
-        label_linear = nn.Linear(bert_hidden_size, self.num_rels).to(device=constants.device)
-        layers_label = [label_linear,nn.Tanh()]
-        self.label_predictor = nn.Sequential(*layers_label)
+        #label_linear = nn.Linear(bert_hidden_size, self.num_rels).to(device=constants.device)
+        #layers_label = [label_linear,nn.Tanh()]
+        #self.label_predictor = nn.Sequential(*layers_label)
 
     def init_pending(self, n, hypergraph):
         pending = {}
@@ -172,8 +175,8 @@ class ChartParser(BertParser):
             batch_loss += loss
 
         batch_loss /= x_emb.shape[0]
-        l_logits = nn.Softmax(dim=-1)(self.label_predictor(h_t_noeos))
-
+        #l_logits = nn.Softmax(dim=-1)(self.label_predictor(h_t_noeos))
+        l_logits = self.get_label_logits(h_t_noeos, heads)
         rels_batch = torch.argmax(l_logits, dim=-1)
         batch_loss = self.loss(batch_loss, l_logits, rels)
         return batch_loss, heads_batch, rels_batch
@@ -185,12 +188,28 @@ class ChartParser(BertParser):
             heads[min(v, sent_len - 1)] = u  # .item()
         return torch.tensor(heads).to(device=constants.device)
 
+    def get_label_logits(self, h_t, head):
+        l_dep = self.dropout(F.relu(self.linear_labels_dep(h_t)))
+        l_head = self.dropout(F.relu(self.linear_labels_head(h_t)))
+        # head_int = torch.zeros_like(head,dtype=torch.int64)
+        head_int = head.clone().type(torch.int64)
+        if self.training:
+            assert head is not None, 'During training head should not be None'
+        l_head = l_head.gather(dim=1, index=head_int.unsqueeze(2).expand(l_head.size()))
+
+        l_logits = self.bilinear_label(l_dep, l_head)
+
+        return l_logits
+
     def loss(self, batch_loss, l_logits, rels):
         criterion_l = nn.CrossEntropyLoss().to(device=constants.device)
 
         l_logits = l_logits[rels != -1]
         rels = rels[rels != -1]
-
+        print("l_logits {}".format(l_logits))
+        print("rels {}".format(rels))
+        print("l_logits {}".format(l_logits.shape))
+        print("rels {}".format(rels.shape))
         loss = criterion_l(l_logits.reshape(-1, l_logits.shape[-1]), rels.reshape(-1))
 
         return loss + batch_loss
