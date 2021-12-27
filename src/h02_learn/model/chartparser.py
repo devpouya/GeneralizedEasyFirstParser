@@ -317,7 +317,7 @@ class ChartParser(BertParser):
         return torch.tensor(heads).to(device=constants.device)
 
     def loss(self, batch_loss, l_logits, rels):
-        criterion_l = nn.CrossEntropyLoss(ignore_index=0).to(device=constants.device)
+        criterion_l = nn.CrossEntropyLoss().to(device=constants.device)
         #print("(///(((((((//(Z/(/(/(/(/(/(/")
         #print(rels)
         #print("(///(((((((//(Z/(/(/(/(/(/(/")
