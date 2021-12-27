@@ -42,7 +42,7 @@ class ChartParser(BertParser):
         self.dropout = nn.Dropout(dropout)
         self.parse_step_chart = self.parse_step_mh4
         print(self.num_rels)
-        bert_hidden_size = 768
+        bert_hidden_size = 1024 #768
         self.hidden_size = bert_hidden_size
 
         linear_items1 = nn.Linear(bert_hidden_size * 3, bert_hidden_size * 2).to(device=constants.device)
