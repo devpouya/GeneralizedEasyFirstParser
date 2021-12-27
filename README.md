@@ -1,4 +1,4 @@
-# dep-parser
+# GEFP
 
 [![CircleCI](https://circleci.com/gh/tpimentelms/dep-parser.svg?style=svg&circle-token=e282f0a5450b745a18358ad5b01ae8b1f0f9b02d)](https://circleci.com/gh/tpimentelms/dep-parser)
 
