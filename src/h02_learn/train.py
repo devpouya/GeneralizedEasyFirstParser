@@ -4,14 +4,11 @@ import torch
 import torch.optim as optim
 sys.path.append('./src/')
 from h02_learn.dataset import get_data_loaders
-from h02_learn.model import BiaffineParser, MSTParser
-from h02_learn.model import NeuralTransitionParser, ChartParser
-from h02_learn.model import MH4, Hybrid, ArcEager, ArcStandard
+from h02_learn.model import ChartParser
+from h02_learn.model import MH4
 from h02_learn.train_info import TrainInfo
-from h02_learn.algorithm.mst import get_mst_batch
 from utils import constants
 from utils import utils
-import numpy as np
 from transformers import get_linear_schedule_with_warmup
 import wandb
 
@@ -168,13 +165,7 @@ def train_batch(text, pos, heads, rels, transitions, relations_in_order, maps, m
     optimizer.step()
     lr_scheduler.step()
 
-    # shit = 0
-    # total = 0
-    ##for item in model.parameters():
-    ##    total += 1
-    ##    if item.grad is None:
-    #        shit += 1
-    # print("SHIT {} OF {}".format(shit, total))
+
     return loss.item()
 
 
@@ -242,8 +233,8 @@ def main():
 
     #all_languages = ["af", "da", "eu", "ga", "hu", "ko", "la", "lt", "nl", "qhe", "sl", "ur"]
     if args.language == "multilingual":
-        #all_languages = ["af", "da", "eu", "hu", "ko", "la", "nl", "ur"]
-        all_languages = ["af"]
+        all_languages = ["af", "da", "eu", "hu", "ko", "la", "nl", "ur"]
+        #all_languages = ["af"]
     else:
         all_languages = [args.language]
     sizes = []

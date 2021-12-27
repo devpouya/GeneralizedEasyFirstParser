@@ -2,7 +2,7 @@ import wandb
 import math
 class TrainInfo:
     # pylint: disable=too-many-instance-attributes
-    all_languages = ["af", "da", "eu", "ga", "hu", "ko", "la", "lt", "nl", "qhe", "sl", "ur"]
+    all_languages = ["af", "da", "eu", "hu", "ko", "la", "nl", "ur"]
     batch_id = 0
     running_loss = []
     best_loss = float('inf')

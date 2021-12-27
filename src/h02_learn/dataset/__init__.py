@@ -108,8 +108,8 @@ def get_data_loaders(data_path, all_languages, batch_size, batch_size_eval, tran
         #all_transitions_test.append(transitions_test)
         #all_transitions_dev.append(transitions_dev)
     if len(all_languages) > 1:
-        tokenizer = AutoTokenizer.from_pretrained("xlm-roberta-base")
-        #tokenizer = AutoTokenizer.from_pretrained("xlm-roberta-large")
+        #tokenizer = AutoTokenizer.from_pretrained("xlm-roberta-base")
+        tokenizer = AutoTokenizer.from_pretrained("xlm-roberta-large")
     else:
         l = all_languages[0]
         if l == "eu":

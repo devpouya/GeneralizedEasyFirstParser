@@ -3,7 +3,7 @@ import argparse
 
 sys.path.append('./src/')
 from h02_learn.dataset import get_data_loaders
-from h02_learn.model import NeuralTransitionParser, ChartParser
+from h02_learn.model import ChartParser
 from h02_learn.train import evaluate
 from utils import constants
 
