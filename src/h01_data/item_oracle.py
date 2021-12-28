@@ -693,6 +693,103 @@ def item_eager_oracle(sentence, word2head):
     print("UU(O((((((())(()())(())(()")
     return oracle, set(built_arcs) == set(true_arcs)
 
+def find_corresponding_relation(labeled_arcs, arc):
+    for (u, v, r) in labeled_arcs:
+        if arc == (u, v):
+            return r
+def item_mh4_oracle(sentence, word2head, relations,true_arcs):
+    stack = []
+    buffer = sentence.copy()
 
-def item_mh4_oracle(sentence, word2head):
-    pass
+    #true_arcs = get_arcs(word2head)
+    built_arcs = []
+    action_history = []
+
+    arcs_sorted = sorted(true_arcs, key=lambda tup: tup[1])[1:]
+    labeled_arcs = []
+    for i, (u, v) in enumerate(arcs_sorted):
+        labeled_arcs.append((u, v, relations[i]))
+
+    relations_in_order = []
+
+
+    this_step = 0
+    while len(buffer) > 0 or len(stack) > 1:
+        this_step+=1
+        if this_step > 2*len(sentence)-1:
+            break
+        if len(stack) > 0:
+            top = stack[-1]
+
+            if len(buffer)>=1:
+
+                if (buffer[0],top) in true_arcs and have_completed_expected_children(top,true_arcs,built_arcs):
+
+                    built_arcs.append((buffer[0],top))
+                    relations_in_order.append(find_corresponding_relation(labeled_arcs, (buffer[0], top)))
+                    stack.pop(-1)
+                    action_history.append(constants.left_arc_eager)
+                    continue
+            if len(stack) >= 2:
+                second = stack[-2]
+                if len(buffer)>=1:
+                    if (buffer[0], top) in true_arcs and have_completed_expected_children(top, true_arcs, built_arcs):
+                        built_arcs.append((buffer[0], top))
+                        relations_in_order.append(find_corresponding_relation(labeled_arcs, (buffer[0], top)))
+                        stack.pop(-1)
+                        action_history.append(constants.left_arc_eager)
+                        continue
+                    if (buffer[0],second) in true_arcs and have_completed_expected_children(second,true_arcs,built_arcs):
+                        built_arcs.append((buffer[0],second))
+                        relations_in_order.append(find_corresponding_relation(labeled_arcs, (buffer[0], second)))
+
+                        stack.pop(-2)
+                        action_history.append(constants.left_arc_2)
+                        continue
+
+                if (second,top) in true_arcs and have_completed_expected_children(top,true_arcs,built_arcs):
+                    built_arcs.append((second,top))
+                    relations_in_order.append(find_corresponding_relation(labeled_arcs, (second, top)))
+
+                    stack.pop(-1)
+                    action_history.append(constants.reduce_r)
+                    continue
+                if (top, second) in true_arcs and have_completed_expected_children(second, true_arcs, built_arcs):
+                    built_arcs.append((top, second))
+                    relations_in_order.append(find_corresponding_relation(labeled_arcs, (top, second)))
+
+                    stack.pop(-2)
+                    action_history.append(constants.left_arc_prime)
+                    continue
+                if len(stack)>=3:
+                    third = stack[-3]
+                    if (third,second) in true_arcs and have_completed_expected_children(second,true_arcs,built_arcs):
+                        built_arcs.append((third,second))
+                        relations_in_order.append(find_corresponding_relation(labeled_arcs, (third, second)))
+                        stack.pop(-2)
+                        action_history.append(constants.right_arc_prime)
+                        continue
+
+                    if (third,top) in true_arcs and have_completed_expected_children(top,true_arcs,built_arcs):
+                        built_arcs.append((third,top))
+                        relations_in_order.append(find_corresponding_relation(labeled_arcs, (third, top)))
+
+                        stack.pop(-1)
+                        action_history.append(constants.right_arc_2)
+                        continue
+
+
+            if len(buffer)>=1:
+                stack.append(buffer.pop(0))
+                action_history.append(constants.shift)
+                continue
+        else:
+            stack.append(buffer.pop(0))
+            action_history.append(constants.shift)
+            continue
+    built_arcs.append((0, 0))
+    cond1 = set(built_arcs) == set(true_arcs)
+    built_arcs.remove((0,0))
+    #cond2 = test_oracle_mh4(action_history, sentence.copy(), true_arcs)
+    return built_arcs, [], cond1
+

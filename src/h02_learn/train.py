@@ -21,7 +21,7 @@ def get_args():
     parser = argparse.ArgumentParser()
     # Data
     parser.add_argument('--language', type=str, required=True)
-    parser.add_argument('--data-path', type=str, default='data_nonproj/')
+    parser.add_argument('--data-path', type=str, default='data_final/')
     parser.add_argument('--batch-size', type=int, default=32)
     parser.add_argument('--batch-size-eval', type=int, default=128)
     parser.add_argument('--key', type=str)
@@ -41,6 +41,7 @@ def get_args():
     # Optimization
     parser.add_argument('--optim', choices=['adam', 'adamw', 'sgd'], default='adam')
     parser.add_argument('--eval-batches', type=int, default=20)
+    parser.add_argument('--epochs', type=int, default=5)
     parser.add_argument('--wait-epochs', type=int, default=10)
     parser.add_argument('--lr-decay', type=float, default=.5)
     # Save
@@ -172,15 +173,15 @@ def train_batch(text, pos, heads, rels, transitions, relations_in_order, maps, m
 
 
 def train(trainloader, devloader, model, eval_batches, wait_iterations, optim_alg, lr_decay, weight_decay,
-          save_path, save_batch=False, file=None):
+          save_path, save_batch=False, file=None, epochs = 5):
     # pylint: disable=too-many-locals,too-many-arguments
     torch.autograd.set_detect_anomaly(True)
     #optimizer, lr_scheduler = get_optimizer(model.parameters(), optim_alg, lr_decay, weight_decay)
     optimizer = optim.Adam(model.parameters(), betas=(0.9, 0.999), eps=1e-08, lr=2e-5)
-    num_iter = trainloader.dataset.n_instances*5
+    num_iter = trainloader.dataset.n_instances*epochs
     lr_scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0, num_training_steps=num_iter)
     train_info = TrainInfo(wait_iterations, eval_batches)
-    for epoch in range(5):
+    for epoch in range(epochs):
         steps = 0
         for (text, pos), (heads, rels), (transitions, relations_in_order), maps in trainloader:
             steps += 1
@@ -249,7 +250,7 @@ def main():
     save_name = "final_output_%s.txt".format(args.model)
     file1 = open(save_name, "w")
     s = "MULTILINGUAL"
-    WANDB_PROJECT = f"{s}_{args.model}"
+    WANDB_PROJECT = f"{args.language}_{args.model}"
     # WANDB_PROJECT = "%s_%s".format(args.language,args.model)
     model = get_model(args.language, rels_size, args)
     run = wandb.init(project=WANDB_PROJECT, config={'wandb_nb': 'wandb_three_in_one_hm'},
@@ -259,7 +260,7 @@ def main():
     wandb.watch(model)
     # if args.model != 'agenda-std':
     train(trainloader, devloader, model, args.eval_batches, args.wait_iterations,
-          args.optim, args.lr_decay, args.weight_decay, args.save_path, args.save_periodically, file=file1)
+          args.optim, args.lr_decay, args.weight_decay, args.save_path, args.save_periodically, file=file1, epochs=args.epochs)
     model.save(args.save_path)
 
     #train_results = evaluate(trainloader, model)

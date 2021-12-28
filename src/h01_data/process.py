@@ -12,22 +12,19 @@ from h01_data.oracle import arc_standard_oracle, arc_eager_oracle, hybrid_oracle
 from h01_data.oracle import is_projective,projectivize,projectivize_mh4,get_arcs
 from utils import utils
 from utils import constants
-from h01_data.item_oracle import item_arc_standard_oracle,build_easy_first,build_easy_first_mh4
+from h01_data.item_oracle import item_arc_standard_oracle,build_easy_first,build_easy_first_mh4,item_mh4_oracle
 
 
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--language', type=str, required=True)
     parser.add_argument('--data-path', type=str, default='data/')
-    parser.add_argument('--save-path', type=str, default='data/')
+    parser.add_argument('--save-path', type=str, default='data_final/')
     parser.add_argument('--glove-file', type=str, required=False)
     parser.add_argument('--bert-model', type=str, default='bert-base-cased')
     parser.add_argument('--min-vocab-count', type=int, default=2)
-    parser.add_argument('--transition', type=str, choices=['arc-standard', 'arc-eager', 'easy-first',
-                                                           'hybrid', 'mh4', 'easy-first-std',
-                                                           'easy-first-hybrid',
-                                                           'agenda-std','agenda-hybrid','agenda-mh4'],
-                        default='agenda-mh4')
+    parser.add_argument('--transition', type=str, choices=['shift-reduce', 'easy-first'],
+                        default='easy-first')
     return parser.parse_args()
 
 
@@ -94,11 +91,14 @@ def labeled_action_pairs(actions, relations):
     return labeled_acts
 
 
-def process_data(in_fname_base, out_path, mode, vocabs, oracle=None, transition_name=None):
+def process_data(in_fname_base, out_path, mode, vocabs, oracle=None, is_easy_first=True):
     in_fname = in_fname_base % mode
     out_fname = '%s/%s.json' % (out_path, mode)
-    if oracle is not None:
-        out_fname_history = '%s/%s_actions_%s.json' % (out_path, transition_name, mode)
+    if is_easy_first:
+        out_fname_history = '%s/easy_first_actions_%s.json' % (out_path, mode)
+        utils.remove_if_exists(out_fname_history)
+    else:
+        out_fname_history = '%s/shift_reduce_actions_%s.json' % (out_path, mode)
         utils.remove_if_exists(out_fname_history)
 
     utils.remove_if_exists(out_fname)
@@ -111,31 +111,25 @@ def process_data(in_fname_base, out_path, mode, vocabs, oracle=None, transition_
         step = 0
         for sentence in get_sentence(file):
             step+=1
-            #if step >= 50:
-            #    break
-            #print(step)
+
             sent_processed, heads, relations,rel2id = process_sentence(sentence, vocabs)
             heads_proper = [0] + heads
 
             sentence_proper = list(range(len(heads_proper)))
             #print(sentence)
             word2head = {w: h for (w, h) in zip(sentence_proper, heads_proper)}
-            if is_projective(word2head) or transition_name == 'mh4' or transition_name == 'agenda-mh4':
-                true_arcs = get_arcs(word2head)
-            else:
-                true_arcs = projectivize(word2head)
-            if transition_name == 'mh4' or transition_name == 'agenda-mh4':
-                good = False
-                while not good:
-                    _, _, good = mh4_oracle(sentence_proper, word2head, relations,true_arcs)
-                    if good:
-                        break
-                    else:
-                        word2head, true_arcs = projectivize_mh4(word2head,true_arcs)
-                actions, _, good = oracle(sentence_proper, word2head, relations, true_arcs)
-            else:
-                actions, _, good = oracle(sentence_proper, word2head, relations, true_arcs)
-
+            #if is_projective(word2head) or transition_name == 'mh4' or transition_name == 'agenda-mh4':
+            true_arcs = get_arcs(word2head)
+            #else:
+            #    true_arcs = projectivize(word2head)
+            good = False
+            while not good:
+                _, _, good = mh4_oracle(sentence_proper, word2head, relations,true_arcs)
+                if good:
+                    break
+                else:
+                    word2head, true_arcs = projectivize_mh4(word2head,true_arcs)
+            actions, _, good = oracle(sentence_proper, word2head, relations, true_arcs)
             relation_ids = [rel2id[rel] for rel in relations]
             if good:
                 right += 1
@@ -240,33 +234,19 @@ def main():
     # embeddings = process_embeddings(args.glove_file, out_path)
     tokenizer = None  # BertTokenizer.from_pretrained(args.bert_model)
     vocabs = get_vocabs(in_fname, out_path, min_count=args.min_vocab_count, tokenizer=tokenizer)
-    oracle = None
-    if args.transition == 'arc-standard':
-        oracle = arc_standard_oracle
-    elif args.transition == 'arc-eager':
-        oracle = arc_eager_oracle
-    elif args.transition == 'hybrid':
-        oracle = hybrid_oracle
-    elif args.transition == 'mh4':
-        oracle = mh4_oracle
-    elif args.transition == 'agenda-std' or args.transition == 'agenda-hybrid':
-        #oracle = item_arc_standard_oracle
-        oracle = build_easy_first
-    elif args.transition == "easy-first-std":
-        #oracle = easy_first_arc_standard
-        oracle = build_easy_first#easy_first_arc_standard
-    elif args.transition == "easy-first-hybrid":
-        oracle = easy_first_hybrid
-    elif args.transition == "easy-first-eager":
-        oracle = easy_first_arc_eager
-    elif args.transition == 'agenda-mh4':
-        oracle = build_easy_first_mh4
-    elif args.transition == 'easy-first':
-        oracle = easy_first_pending
 
-    process_data(in_fname, out_path, 'train', vocabs, oracle, args.transition)
-    process_data(in_fname, out_path, 'dev', vocabs, oracle, args.transition)
-    process_data(in_fname, out_path, 'test', vocabs, oracle, args.transition)
+    if args.transition == 'easy-first':
+        oracle = build_easy_first_mh4
+        ef = True
+    else:
+        oracle = item_mh4_oracle
+        ef = False
+
+
+
+    process_data(in_fname, out_path, 'train', vocabs, oracle, ef)
+    process_data(in_fname, out_path, 'dev', vocabs, oracle, ef)
+    process_data(in_fname, out_path, 'test', vocabs, oracle, ef)
 
 
 if __name__ == '__main__':
