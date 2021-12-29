@@ -250,7 +250,7 @@ def main():
     save_name = "final_output_%s.txt".format(args.model)
     file1 = open(save_name, "w")
     s = "MULTILINGUAL"
-    WANDB_PROJECT = f"{args.language}_{args.model}"
+    WANDB_PROJECT = f"{args.language}_{args.mode}"
     # WANDB_PROJECT = "%s_%s".format(args.language,args.model)
     model = get_model(args.language, rels_size, args)
     run = wandb.init(project=WANDB_PROJECT, config={'wandb_nb': 'wandb_three_in_one_hm'},
