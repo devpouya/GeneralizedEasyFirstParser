@@ -175,7 +175,9 @@ class ChartParser(BertParser):
             #print(rep.shape)
             #print(history.shape)
             #print(words.shape)
-            atnout , _ = self.multihead_attn(span.unsqueeze(0),words.unsqueeze(1),words.unsqueeze(1))
+            words_perm = words.clone().detach()
+            words_perm[u,:] = words_perm[v,:]
+            atnout , _ = self.multihead_attn(span.unsqueeze(0),words.unsqueeze(1),words_perm.unsqueeze(1))
             #s = self.mlp(torch.cat([rep,hidden],dim=-1))
             atnout = atnout.squeeze(1)
             #print(atnout.shape)
