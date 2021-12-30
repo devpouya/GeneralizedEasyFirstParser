@@ -151,7 +151,8 @@ class ChartParser(BertParser):
 
         ga = (gold_arc[0].item(), gold_arc[1].item())
         index2key = {}
-        reps = torch.zeros((len(possible_arcs),self.hidden_size*3)).to(device=constants.device)
+        reps = torch.zeros((len(possible_arcs),self.hidden_size)).to(device=constants.device)
+        words_perm = words.clone().detach()
 
         for iter, ((u, v), item) in enumerate(zip(possible_arcs, possible_items)):
             if (u, v) == ga:
@@ -166,8 +167,8 @@ class ChartParser(BertParser):
                 span = words[item.heads[0], :]
                 span = span.reshape(1, self.hidden_size)
 
-            fwd_rep = torch.cat([words[u, :], words[v, :]], dim=-1).unsqueeze(0)
-            rep = torch.cat([span, fwd_rep], dim=-1)
+            #fwd_rep = torch.cat([words[u, :], words[v, :]], dim=-1).unsqueeze(0)
+            #rep = torch.cat([span, fwd_rep], dim=-1)
             #item.set_rep(rep)
             # hypergraph.add_item(item)
             #s = self.mlp(rep)
@@ -175,19 +176,24 @@ class ChartParser(BertParser):
             #print(rep.shape)
             #print(history.shape)
             #print(words.shape)
-            words_perm = words.clone().detach()
-            words_perm[u,:] = words_perm[v,:]
-            atnout , _ = self.multihead_attn(span.unsqueeze(0),words.unsqueeze(1),words_perm.unsqueeze(1))
+            words_perm[u,:] = words[v,:]
+            reps[iter,:] = span
             #s = self.mlp(torch.cat([rep,hidden],dim=-1))
-            atnout = atnout.squeeze(1)
+            #atnout = atnout.squeeze(1)
             #print(atnout.shape)
             #print(atnout)
-            s = self.mlp(atnout)
-            scores.append(s)
+            #s = self.mlp(atnout)
+            #scores.append(s)
             index2key[iter] = item.key
 
-        scores = torch.stack(scores, dim=-1).squeeze(0)
-        reps = reps.unsqueeze(0)
+        atnout, _ = self.multihead_attn(reps.unsqueeze(1), words.unsqueeze(1), words_perm.unsqueeze(1))
+        atnout = atnout.squeeze(1)
+        scores = self.mlp(atnout)
+        scores = scores.permute(1,0)
+        print(scores.shape)
+
+        #scores = torch.stack(scores, dim=-1).squeeze(0)
+        #reps = reps.unsqueeze(0)
         #self.multihead_attn(reps,)
         if not self.training or gold_index is None:
             gold_index = torch.argmax(scores, dim=-1)
@@ -274,7 +280,7 @@ class ChartParser(BertParser):
 
                 if self.training:
                      loss += nn.CrossEntropyLoss(reduction='sum')(scores, gold_index)
-                     #print(loss)
+                     print(loss)
             loss /= len(ordered_arcs)
             pred_heads = self.heads_from_arcs(arcs, n)
             heads_batch[i, :n] = pred_heads
