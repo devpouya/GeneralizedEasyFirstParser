@@ -36,6 +36,7 @@ class ChartParser(BertParser):
                  dropout=0.33):
         super().__init__(lang, num_rels,
                          batch_size=batch_size, dropout=dropout)
+        #print(torch.__version__)
         #self.eos_token_id = eos_token_id
         self.hypergraph = hypergraph
         self.dropout = nn.Dropout(dropout)
@@ -44,22 +45,33 @@ class ChartParser(BertParser):
         bert_hidden_size = 768
         self.hidden_size = bert_hidden_size
 
-        linear_items1 = nn.Linear(bert_hidden_size * 3, bert_hidden_size * 2).to(device=constants.device)
-        linear_items2 = nn.Linear(bert_hidden_size * 2, bert_hidden_size).to(device=constants.device)
-        linear_items3 = nn.Linear(bert_hidden_size, 500).to(device=constants.device)
-        linear_items4 = nn.Linear(500, 1).to(device=constants.device)
+        linear_items1 = nn.Linear(bert_hidden_size , 600).to(device=constants.device)
+        linear_items2 = nn.Linear(600 , 400).to(device=constants.device)
 
-        #layers = [linear_items1, nn.ReLU(), nn.Dropout(dropout), linear_items2, nn.ReLU(), nn.Dropout(dropout),
-        #          linear_items3, nn.ReLU(), nn.Dropout(dropout), linear_items4]
+        linear_items3 = nn.Linear(400, 200).to(device=constants.device)
+        linear_items4 = nn.Linear(200, 1).to(device=constants.device)
+        #linear_items5 = nn.Linear(500, 1).to(device=constants.device)
 
-        layers = [linear_items1, nn.ReLU(), linear_items2, nn.ReLU(),
-                  linear_items3, nn.ReLU(), linear_items4]
+        layers = [linear_items1, nn.ReLU(), nn.Dropout(dropout), linear_items2, nn.ReLU(), nn.Dropout(dropout),
+                  linear_items3, nn.ReLU(), nn.Dropout(dropout), linear_items4]
+
+        #layers = [linear_items1, nn.ReLU(), linear_items2, nn.ReLU(),
+        #          linear_items3, nn.ReLU(), linear_items4]
+        #layers = [linear_items1, nn.ReLU(), linear_items2, nn.ReLU()]
+
+        #score_layers = [linear_items3, nn.ReLU(), linear_items4, nn.ReLU(), linear_items5]
 
         self.mlp = nn.Sequential(*layers)
+        #self.score_mlp = nn.Sequential(*score_layers)
 
         self.linear_labels_dep = nn.Linear(bert_hidden_size, 500).to(device=constants.device)
         self.linear_labels_head = nn.Linear(bert_hidden_size, 500).to(device=constants.device)
         self.bilinear_label = Bilinear(500, 500, self.num_rels)
+
+        self.action_lstm = nn.LSTM(bert_hidden_size*3, 500, dropout=0,
+                                   batch_first=True, bidirectional=False)
+
+        self.multihead_attn = nn.MultiheadAttention(bert_hidden_size, 2)
 
     def init_pending(self, n, hypergraph):
         pending = {}
@@ -139,6 +151,7 @@ class ChartParser(BertParser):
 
         ga = (gold_arc[0].item(), gold_arc[1].item())
         index2key = {}
+        reps = torch.zeros((len(possible_arcs),self.hidden_size*3)).to(device=constants.device)
 
         for iter, ((u, v), item) in enumerate(zip(possible_arcs, possible_items)):
             if (u, v) == ga:
@@ -155,17 +168,31 @@ class ChartParser(BertParser):
 
             fwd_rep = torch.cat([words[u, :], words[v, :]], dim=-1).unsqueeze(0)
             rep = torch.cat([span, fwd_rep], dim=-1)
-            item.set_rep(rep)
-            hypergraph.add_item(item)
-            s = self.mlp(rep)
+            #item.set_rep(rep)
+            # hypergraph.add_item(item)
+            #s = self.mlp(rep)
+            #reps[iter,:] = rep
+            #print(rep.shape)
+            #print(history.shape)
+            #print(words.shape)
+            atnout , _ = self.multihead_attn(span.unsqueeze(0),words.unsqueeze(1),words.unsqueeze(1))
+            #s = self.mlp(torch.cat([rep,hidden],dim=-1))
+            atnout = atnout.squeeze(1)
+            #print(atnout.shape)
+            #print(atnout)
+            s = self.mlp(atnout)
             scores.append(s)
             index2key[iter] = item.key
 
         scores = torch.stack(scores, dim=-1).squeeze(0)
-
+        reps = reps.unsqueeze(0)
+        #self.multihead_attn(reps,)
         if not self.training or gold_index is None:
             gold_index = torch.argmax(scores, dim=-1)
             gold_key = index2key[gold_index.item()]
+
+        #history_new = reps[gold_index,:]
+        #history[step,:] = history_new
 
         return scores, gold_index, gold_key
 
@@ -233,13 +260,15 @@ class ChartParser(BertParser):
             hypergraph = self.hypergraph(n)
 
             pending = self.init_pending(n, hypergraph)
+            #history = torch.zeros((2*n-1,self.hidden_size))
             for iter, gold_arc in enumerate(ordered_arcs):
 
                 scores, gold_index, h, m, arcs, hypergraph, pending = self.parse_step_chart(pending,
                                                                                             hypergraph,
                                                                                             arcs,
                                                                                             gold_arc,
-                                                                                            words)
+                                                                                            words
+                                                                                            )
 
                 if self.training:
                      loss += nn.CrossEntropyLoss(reduction='sum')(scores, gold_index)

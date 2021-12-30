@@ -94,7 +94,9 @@ class BertParser(BaseParser):
             self.bert = AutoModel.from_pretrained("SZTAKI-HLT/hubert-base-cc", output_hidden_states=True).to(
                 device=constants.device).train()
         elif l == "af":
-            self.bert = AutoModel.from_pretrained("jannesg/takalane_afr_roberta", output_hidden_states=True).to(
+            #self.bert = AutoModel.from_pretrained("jannesg/takalane_afr_roberta", output_hidden_states=True).to(
+            #    device=constants.device).train()
+            self.bert = AutoModel.from_pretrained("Geotrend/bert-base-nl-cased", output_hidden_states=True).to(
                 device=constants.device).train()
         elif l == "la":
             self.bert = AutoModel.from_pretrained("cook/cicero-similis", output_hidden_states=True).to(

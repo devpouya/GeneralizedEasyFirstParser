@@ -116,7 +116,8 @@ def get_data_loaders(data_path, all_languages, batch_size, batch_size_eval, tran
     elif l == "hu":
         tokenizer = AutoTokenizer.from_pretrained("SZTAKI-HLT/hubert-base-cc")
     elif l == "af":
-        tokenizer = RobertaTokenizerFast.from_pretrained("jannesg/takalane_afr_roberta", add_prefix_space=True)
+        #tokenizer = RobertaTokenizerFast.from_pretrained("jannesg/takalane_afr_roberta", add_prefix_space=True)
+        tokenizer = BertTokenizer.from_pretrained("Geotrend/bert-base-nl-cased")
     elif l == "la":
         tokenizer = AutoTokenizer.from_pretrained("cook/cicero-similis")
     elif l == "ur":
